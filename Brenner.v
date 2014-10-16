@@ -90,6 +90,7 @@ Module PM := PhaserMap PHID TID.
 Definition tid := PM.tid.
 Definition phid := PM.phid.
 Definition pmop := PM.op.
+Definition phop := PM.phop.
 Definition phasermap := PM.phasermap.
 
 Inductive prog :=
@@ -98,12 +99,49 @@ Inductive prog :=
 with inst :=
   | NewTid : tid -> inst
   | Fork : tid -> prog -> inst
-  | PhOp: pmop -> inst
+  | PmOp: pmop -> inst
   | Await: phid -> nat -> inst
   | CFlow: cflow -> inst
 with cflow :=
   | skip : cflow
   | loop : prog -> cflow.
+
+Definition END := pnil.
+
+Definition PMOP (o:pmop) :=
+  pcons (PmOp o).
+
+Definition PHAPP (ph:phid) (o:phop) :=
+  PMOP (PM.APP ph o).
+
+Definition DEREG (ph:phid) :=
+  PHAPP ph PM.PH.DEREG.
+
+Definition REG (ph:phid) (t:tid) :=
+  PHAPP ph (PM.PH.REG t).
+
+Definition ADV (ph:phid) :=
+  PHAPP ph PM.PH.ADV.
+
+Definition NEW_PHASER (p:phid) :=
+  PMOP (PM.NEWPH p).
+
+Definition NEW_TASK (t:tid) :=
+  pcons (NewTid t).
+
+Definition FORK (p:(tid*prog)%type) :=
+  match p with
+    | (t, b) => pcons (Fork t b)
+  end.
+
+Definition CFLOW (c:cflow) :=
+  pcons (CFlow c).
+
+Definition LOOP (b:prog) :=
+  CFLOW (loop b).
+
+Definition SKIP :=
+  CFLOW skip.
 
 Module TaskMap (TID':OrderedType).
 
@@ -143,35 +181,41 @@ Inductive c_redex : cflow -> prog -> prog -> Prop :=
 Inductive s_redex: state -> state -> Prop :=
   | RNewTask :
     forall (t t':tid) (p:prog) (pm:phasermap) (tm:taskmap),
-    TM.MapsTo t (pcons (NewTid t') p) tm -> 
+    TM.MapsTo t (NEW_TASK t' p) tm -> 
     ~ TM.In t' tm ->
     s_redex (pm, tm) (pm, TM.newTask tm t')
   | RFork :
     forall (t t':tid) (p p':prog) (pm:phasermap) (tm:taskmap),
-    TM.MapsTo t (pcons (Fork t' p') p) tm ->
+    TM.MapsTo t (FORK(t', p') p) tm ->
     TM.MapsTo t' pnil tm ->
     s_redex (pm, tm) (pm, (TM.add t p (TM.add t' p' tm)))
   | RPhaser :
     forall (o:pmop) (t:tid) (p:prog) (pm:phasermap) (tm:taskmap),
-    TM.MapsTo t (pcons (PhOp o) p) tm ->
+    TM.MapsTo t (PMOP o p) tm ->
     s_redex (pm, tm) ((PM.apply pm t o), (TM.add t p tm))
   | RCFlow :
     forall t c p q pm tm,
-    TM.MapsTo t (pcons (CFlow c) p) tm ->
+    TM.MapsTo t (CFLOW c p) tm ->
     c_redex c p q ->
     s_redex (pm, tm) (pm, (TM.add t q tm)).
+End Brenner.
 
+Module Example1 (PHID:OrderedType)(TID:OrderedType).
+Module B := Brenner PHID TID.
+Import B.
 Definition pm1 := PM.make.
 Axiom t1 : tid.
 Axiom ph1 : phid.
-Definition p1 := pcons (PhOp (PM.NEWPH ph1)) pnil.
+(* Definition bl : prog. *)
+(* Definition bd := (pcons (CFlow loop bl) (pcons (PmOp ( *)
+Definition p1 := NEW_PHASER ph1 END.
 Definition tm1 := TM.add t1 p1 TM.make.
 Definition s1 :state := (pm1, tm1).
 Definition p1_1 := pnil.
 Definition tm1_1 := TM.add t1 p1_1 tm1.
 Definition pm1_1 := PM.apply PM.make t1 (PM.NEWPH ph1).
 Definition s2 :state := (pm1_1, tm1_1).
-Lemma t1_In_pm1 : TM.MapsTo t1 (pcons (PhOp (PM.NEWPH ph1)) pnil) tm1.
+Lemma t1_In_pm1 : TM.MapsTo t1 (NEW_PHASER ph1 pnil) tm1.
 assert (H: TM.M.E.eq t1 t1).
 apply (TM.M.E.eq_refl t1).
 apply TM.M.add_1.
@@ -181,6 +225,7 @@ Qed.
 Goal s_redex s1 s2.
 assert (H:=RPhaser (PM.NEWPH ph1) t1 pnil pm1 tm1 t1_In_pm1).
 auto.
+
+
 Qed.
 
-End Brenner.

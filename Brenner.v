@@ -106,42 +106,32 @@ with cflow :=
   | skip : cflow
   | loop : prog -> cflow.
 
-Definition END := pnil.
+Notation "'END'" := (pnil).
 
-Definition PMOP (o:pmop) :=
-  pcons (PmOp o).
+Infix ";;" := pcons (at level 62, right associativity).
 
-Definition PHAPP (ph:phid) (o:phop) :=
-  PMOP (PM.APP ph o).
+Notation "'DEREG' ( ph )" :=
+  (PmOp (PM.APP ph PM.PH.DEREG)) (at level 65).
 
-Definition DEREG (ph:phid) :=
-  PHAPP ph PM.PH.DEREG.
+Notation "'REG' ( ph , t )" :=
+  (PmOp (PM.APP ph (PM.PH.REG t))) (at level 65).
 
-Definition REG (ph:phid) (t:tid) :=
-  PHAPP ph (PM.PH.REG t).
+Notation "'ADV' ( ph ) " :=
+  (PmOp (PM.APP ph PM.PH.ADV)) (at level 65).
 
-Definition ADV (ph:phid) :=
-  PHAPP ph PM.PH.ADV.
+Notation "p '<-' 'NEW_PHASER'" :=
+  (PmOp (PM.NEWPH p)) (at level 65).
 
-Definition NEW_PHASER (p:phid) :=
-  PMOP (PM.NEWPH p).
+Notation "t '<-' 'NEW_TID'" := (NewTid t) (at level 65).
 
-Definition NEW_TASK (t:tid) :=
-  pcons (NewTid t).
+Notation "'FORK' ( t , b ) " := (Fork t b) (at level 65).
 
-Definition FORK (p:(tid*prog)%type) :=
-  match p with
-    | (t, b) => pcons (Fork t b)
-  end.
 
-Definition CFLOW (c:cflow) :=
-  pcons (CFlow c).
+Notation "'CFLOW'" := CFlow.
 
-Definition LOOP (b:prog) :=
-  CFLOW (loop b).
+Notation "'LOOP' ( b )" := (CFlow (loop b)). 
 
-Definition SKIP :=
-  CFLOW skip.
+Notation "'SKIP'" := (CFLOW skip).
 
 Module TaskMap (TID':OrderedType).
 
@@ -163,7 +153,7 @@ Definition state := (phasermap * taskmap) % type.
 
 Fixpoint concat (p:prog) (q:prog) :=
   match p with
-    | (pcons i p') => concat p' (pcons i q)
+    | pcons i p' => pcons i (concat p' q)
     | pnil => q
   end.
 
@@ -181,51 +171,85 @@ Inductive c_redex : cflow -> prog -> prog -> Prop :=
 Inductive s_redex: state -> state -> Prop :=
   | RNewTask :
     forall (t t':tid) (p:prog) (pm:phasermap) (tm:taskmap),
-    TM.MapsTo t (NEW_TASK t' p) tm -> 
+    TM.MapsTo t (t' <- NEW_TID;; p) tm -> 
     ~ TM.In t' tm ->
     s_redex (pm, tm) (pm, TM.newTask tm t')
   | RFork :
     forall (t t':tid) (p p':prog) (pm:phasermap) (tm:taskmap),
-    TM.MapsTo t (FORK(t', p') p) tm ->
+    TM.MapsTo t (FORK(t', p');; p) tm ->
     TM.MapsTo t' pnil tm ->
     s_redex (pm, tm) (pm, (TM.add t p (TM.add t' p' tm)))
   | RPhaser :
     forall (o:pmop) (t:tid) (p:prog) (pm:phasermap) (tm:taskmap),
-    TM.MapsTo t (PMOP o p) tm ->
+    TM.MapsTo t ((PmOp o) ;; p) tm ->
     s_redex (pm, tm) ((PM.apply pm t o), (TM.add t p tm))
   | RCFlow :
     forall t c p q pm tm,
-    TM.MapsTo t (CFLOW c p) tm ->
+    TM.MapsTo t (CFLOW c;; p) tm ->
     c_redex c p q ->
     s_redex (pm, tm) (pm, (TM.add t q tm)).
+
+Definition load (t:tid) (b:prog) := (PM.make, TM.add t b TM.make).
 End Brenner.
 
 Module Example1 (PHID:OrderedType)(TID:OrderedType).
 Module B := Brenner PHID TID.
 Import B.
-Definition pm1 := PM.make.
-Axiom t1 : tid.
-Axiom ph1 : phid.
-(* Definition bl : prog. *)
-(* Definition bd := (pcons (CFlow loop bl) (pcons (PmOp ( *)
-Definition p1 := NEW_PHASER ph1 END.
-Definition tm1 := TM.add t1 p1 TM.make.
-Definition s1 :state := (pm1, tm1).
-Definition p1_1 := pnil.
-Definition tm1_1 := TM.add t1 p1_1 tm1.
-Definition pm1_1 := PM.apply PM.make t1 (PM.NEWPH ph1).
-Definition s2 :state := (pm1_1, tm1_1).
-Lemma t1_In_pm1 : TM.MapsTo t1 (NEW_PHASER ph1 pnil) tm1.
-assert (H: TM.M.E.eq t1 t1).
-apply (TM.M.E.eq_refl t1).
+
+Parameter t1 : tid.
+Parameter td : tid.
+Hypothesis t1_neq_td: t1 <> td.
+Parameter ph1 : phid.
+Parameter bf : prog.
+
+Definition bl := t1 <- NEW_TID;; REG(ph1, t1);; FORK(t1, bf);; END.
+Definition bd := LOOP(bl) ;; DEREG(ph1);; END.
+Definition b := ph1 <- NEW_PHASER;; bd.
+Definition s1_tm := TM.add td b TM.make.
+
+(* The initial state uses the load function. *)
+Definition s1 := load td b.
+
+Definition s2_td := bd.
+Definition s2_tm := TM.add td s2_td s1_tm.
+Definition s2_pm := PM.apply PM.make td (PM.NEWPH ph1).
+Definition s2 :state := (s2_pm, s2_tm).
+Lemma td_In_s1_tm : TM.MapsTo td b s1_tm.
+assert (H: TM.M.E.eq td td).
+apply (TM.M.E.eq_refl td).
 apply TM.M.add_1.
 assumption.
 Qed.
 
 Goal s_redex s1 s2.
-assert (H:=RPhaser (PM.NEWPH ph1) t1 pnil pm1 tm1 t1_In_pm1).
+assert (H:=RPhaser (PM.NEWPH ph1) td bd PM.make s1_tm td_In_s1_tm).
+auto.
+Qed.
+
+Definition s3_td := t1 <- NEW_TID;; REG(ph1, t1);; FORK(t1, bf);; bd.
+Definition s3_tm := TM.add td s3_td s2_tm.
+Definition s3_pm := s2_pm.
+Definition s3 :state := (s3_pm, s3_tm).
+
+Print TM.M.
+Goal s_redex s2 s3.
+assert (H:=RNewTask td t1 (REG(ph1, t1);; FORK(t1, bf);; bd) s3_pm s3_tm).
+assert (H1: TM.MapsTo td (t1 <- NEW_TID;; REG(ph1, t1);; FORK(t1, bf);; bd) s3_tm).
+assert (H2: TM.M.E.eq td td).
+apply (TM.M.E.eq_refl td).
+apply TM.M.add_1.
+assumption.
+assert (H2: ~ TM.In t1 s3_tm).
+(*assert (H3: TM.M.elements TM.make = nil).*)
+assert (H3: TM.M.elements s2_tm = ((td, s3_td) ::nil)).
+compute.
+intuition.
 auto.
 
 
+Print TM.M.
+Print TM.M.E.
+Print TM.M.Raw.
 Qed.
+
 

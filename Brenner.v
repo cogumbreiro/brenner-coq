@@ -201,28 +201,30 @@ Fixpoint phid_subst (o_ph:phid) (n_ph:phid) (b:prog) :=
   let subst := phid_subst o_ph n_ph in
   match b with
     | pcons i b' =>
-      let kont := subst b' in
+      let rest := subst b' in
+      let same := i ;; rest in
       match i with
         | PmOp mo => 
           match mo with
+            | PM.NEWPH ph =>
+              if PHID.eq_dec o_ph ph
+              then b
+              else same
             | PM.APP ph o =>
               if PHID.eq_dec o_ph ph
-              then PmOp (PM.APP n_ph o) ;; kont
-              else i ;; kont
-            | _ => i ;; kont
+              then PmOp (PM.APP n_ph o) ;; rest
+              else same
           end
-        | Fork t p => Fork t (subst p) ;; kont
+        | Fork t p => Fork t (subst p) ;; rest
         | CFlow c =>
           match c with
-            | loop p => LOOP (subst p) ;; kont
-            | skip => i ;; kont
+            | loop p => LOOP (subst p) ;; rest
+            | skip => same
           end
-        | _ => i ;; kont
+        | _ => same
       end
     | END => END
   end.
-
-Print PM.M.
 
 Fixpoint tid_subst (o_t:tid) (n_t:tid) (b:prog) := 
   let subst := tid_subst o_t n_t in
@@ -231,6 +233,10 @@ Fixpoint tid_subst (o_t:tid) (n_t:tid) (b:prog) :=
       let kont := subst b' in
       let same := i ;; kont in
       match i with
+        | NewTid t =>
+          if TID.eq_dec o_t t
+          then b (* no substitution *)
+          else same
         | Fork t p => 
           if TID.eq_dec o_t t
           then Fork n_t (subst p) ;; kont

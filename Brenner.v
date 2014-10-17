@@ -194,6 +194,69 @@ Inductive s_redex: state -> state -> Prop :=
     s_redex (pm, tm) (pm, (TM.add t q tm)).
 
 Definition load (t:tid) (b:prog) := (PM.make, TM.add t b TM.make).
+
+(* Naive substitution, does not replace names in newphaser. *)
+
+Fixpoint phid_subst (o_ph:phid) (n_ph:phid) (b:prog) :=
+  let subst := phid_subst o_ph n_ph in
+  match b with
+    | pcons i b' =>
+      let kont := subst b' in
+      match i with
+        | PmOp mo => 
+          match mo with
+            | PM.APP ph o =>
+              if PHID.eq_dec o_ph ph
+              then PmOp (PM.APP n_ph o) ;; kont
+              else i ;; kont
+            | _ => i ;; kont
+          end
+        | Fork t p => Fork t (subst p) ;; kont
+        | CFlow c =>
+          match c with
+            | loop p => LOOP (subst p) ;; kont
+            | skip => i ;; kont
+          end
+        | _ => i ;; kont
+      end
+    | END => END
+  end.
+
+Print PM.M.
+
+Fixpoint tid_subst (o_t:tid) (n_t:tid) (b:prog) := 
+  let subst := tid_subst o_t n_t in
+  match b with
+    | pcons i b' =>
+      let kont := subst b' in
+      let same := i ;; kont in
+      match i with
+        | Fork t p => 
+          if TID.eq_dec o_t t
+          then Fork n_t (subst p) ;; kont
+          else Fork t (subst p) ;; kont
+        | PmOp po =>
+          match po with
+            | PM.APP p o =>
+              match o with
+                | PM.PH.REG t =>
+                  if TID.eq_dec o_t t
+                  then REG(p, n_t) ;; kont
+                  else same
+                | _ => same
+              end
+            | _ => same
+          end
+        | CFlow c =>
+          match c with
+            | loop p => LOOP (subst p) ;; kont
+            | skip => same
+          end
+        | _ => same
+      end
+    | END => END
+  end.
+
 End Brenner.
 
 Module Example1.

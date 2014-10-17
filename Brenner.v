@@ -134,8 +134,12 @@ Notation "'LOOP' ( b )" := (CFlow (loop b)).
 Notation "'SKIP'" := (CFLOW skip).
 
 Module TaskMap (TID':OrderedType).
-
+  Require Import Coq.FSets.FMapFacts.
   Module M := FMapAVL.Make(TID').
+  (* Utility lemmas about equals, in and so on. *)
+  Module FACTS := WFacts_fun TID' M.
+  (* Results about fold, elements, induction principles... *)
+  Module PROPS := WProperties_fun TID' M.
   Definition tid := TID'.t.
   Definition taskmap := M.t prog.
   Definition make : taskmap := M.empty prog.
@@ -143,7 +147,7 @@ Module TaskMap (TID':OrderedType).
     M.add t pnil tm.
   Definition In := @M.In prog.
   Definition MapsTo := @M.MapsTo prog.
-  Definition add := @M.add prog.    
+  Definition add := @M.add prog.
 End TaskMap.
 
 Module TM := TaskMap(TID).
@@ -158,13 +162,13 @@ Fixpoint concat (p:prog) (q:prog) :=
   end.
 
 Inductive c_redex : cflow -> prog -> prog -> Prop :=
-  | c_redex_skip:
+  | RSkip:
     forall p,
     c_redex skip p p
-  | c_redex_iter:
+  | RIter:
     forall p q,
-    c_redex (loop p) q (concat p q)
-  | c_redex_elide:
+    c_redex (loop p) q (concat p (LOOP(p);; q))
+  | RElide:
     forall p q,
     c_redex (loop p) q q.
 
@@ -192,14 +196,18 @@ Inductive s_redex: state -> state -> Prop :=
 Definition load (t:tid) (b:prog) := (PM.make, TM.add t b TM.make).
 End Brenner.
 
-Module Example1 (PHID:OrderedType)(TID:OrderedType).
-Module B := Brenner PHID TID.
+Module Example1.
+Require Import Coq.Structures.OrderedTypeEx.
+
+Definition tid := nat.
+Definition phid := nat.
+
+Module B := Brenner Nat_as_OT Nat_as_OT.
 Import B.
 
-Parameter t1 : tid.
-Parameter td : tid.
-Hypothesis t1_neq_td: t1 <> td.
-Parameter ph1 : phid.
+Definition t1 := 1.
+Definition td := 2.
+Definition ph1 := 1.
 Parameter bf : prog.
 
 Definition bl := t1 <- NEW_TID;; REG(ph1, t1);; FORK(t1, bf);; END.
@@ -231,25 +239,16 @@ Definition s3_tm := TM.add td s3_td s2_tm.
 Definition s3_pm := s2_pm.
 Definition s3 :state := (s3_pm, s3_tm).
 
-Print TM.M.
 Goal s_redex s2 s3.
-assert (H:=RNewTask td t1 (REG(ph1, t1);; FORK(t1, bf);; bd) s3_pm s3_tm).
-assert (H1: TM.MapsTo td (t1 <- NEW_TID;; REG(ph1, t1);; FORK(t1, bf);; bd) s3_tm).
-assert (H2: TM.M.E.eq td td).
-apply (TM.M.E.eq_refl td).
+apply RCFlow with (c:=loop bl) (p:=DEREG(ph1);; END).
+unfold s2_tm.
+unfold s2_td.
+unfold bd.
 apply TM.M.add_1.
-assumption.
-assert (H2: ~ TM.In t1 s3_tm).
-(*assert (H3: TM.M.elements TM.make = nil).*)
-assert (H3: TM.M.elements s2_tm = ((td, s3_td) ::nil)).
-compute.
-intuition.
-auto.
+apply (TM.M.E.eq_refl td).
+apply RIter with (p:=bl) (q:=((DEREG  (ph1));; END)).
+Qed.
 
-
-Print TM.M.
-Print TM.M.E.
-Print TM.M.Raw.
 Qed.
 
 

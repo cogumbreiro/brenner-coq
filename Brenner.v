@@ -248,7 +248,3 @@ apply TM.M.add_1.
 apply (TM.M.E.eq_refl td).
 apply RIter with (p:=bl) (q:=((DEREG  (ph1));; END)).
 Qed.
-
-Qed.
-
-

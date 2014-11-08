@@ -86,6 +86,7 @@ VFILES:=Vars.v\
   Syntax.v\
   TaskMap.v\
   Semantics.v\
+  ResourceDependency.v\
   Example1.v
 
 -include $(addsuffix .d,$(VFILES))

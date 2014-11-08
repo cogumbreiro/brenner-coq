@@ -5,8 +5,7 @@ Require Import Phaser.
 Require Import Vars.
 
 (* Define types *)
-Module M := FMapAVL.Make(PHID).
-Import M.
+Import Map_PHID.
 Definition phasermap := t phaser.
 
 (* Define operations. *)

@@ -3,14 +3,13 @@ Require Import Coq.FSets.FMapAVL.
 Require Import Coq.Structures.OrderedTypeEx.
 Require Import Vars.
 
-Module M := FMapAVL.Make(TID).
-Import M.
+Import Map_TID.
+
 Definition phaser := t nat.
-Definition tid := TID.t.
 
 Definition advance (ph:phaser) (t:tid) : phaser :=
   match find t ph with
-    | Some n => M.add t (n + 1) ph
+    | Some n => Map_TID.add t (n + 1) ph
     | None => ph
   end.
 

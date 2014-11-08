@@ -1,18 +1,18 @@
 Require Import Syntax.
 Require Import Vars.
 
-Module M := FMapAVL.Make(TID).
+Import Map_TID.
 
-Definition taskmap := M.t prog.
+Definition taskmap := t prog.
 
-Definition make : taskmap := M.empty prog.
+Definition make : taskmap := empty prog.
 
 Definition newTask (tm:taskmap) (t:tid) : taskmap :=
-  M.add t pnil tm.
+  add t pnil tm.
 
-Definition In := @M.In prog.
+Definition In := @In prog.
 
-Definition MapsTo := @M.MapsTo prog.
+Definition MapsTo := @MapsTo prog.
 
-Definition add := @M.add prog.
+Definition add := @add prog.
 

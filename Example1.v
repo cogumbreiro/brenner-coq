@@ -2,9 +2,6 @@ Require Import Brenner.
 Require Import TaskMap.
 Import Syntax.CST.
 
-Definition tid := nat.
-Definition phid := nat.
-
 Definition t1 := 1.
 Definition td := 2.
 Definition ph1 := 1.
@@ -25,7 +22,7 @@ Definition s2 :state := (s2_pm, s2_tm).
 Lemma td_In_s1_tm : TaskMap.MapsTo td b s1_tm.
 assert (H: TID.eq td td).
 apply (TID.eq_refl td).
-apply TaskMap.M.add_1.
+apply Map_TID.add_1.
 assumption.
 Qed.
 
@@ -44,7 +41,7 @@ apply RCFlow with (c:=loop bl) (p:=DEREG(ph1);; END).
 unfold s2_tm.
 unfold s2_td.
 unfold bd.
-apply TaskMap.M.add_1.
+apply Map_TID.add_1.
 apply (TID.eq_refl td).
 apply RIter with (p:=bl) (q:=((DEREG  (ph1));; END)).
 Qed.

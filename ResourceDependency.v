@@ -37,17 +37,28 @@ Definition Registered (t:tid) (r:resource) (s:state) :=
   Map_PHID.MapsTo (get_phaser r) ph (get_phasers s) /\
   Map_TID.MapsTo t (get_phase r) ph.
 
+Definition GloballyDeadlocked (s:state) :=
+  forall t,
+  Map_TID.In t (get_tasks s) /\
+  exists r,
+  Blocked t r s /\ 
+  exists t',
+  Map_TID.In t' (get_tasks s) /\
+  exists r',
+  Registered t' r' s /\
+  prec r' r.
+
+Definition Deadlocked (s:state) :=
+  exists tm tm',
+  Map_TID_Props.Disjoint tm tm' /\
+  Map_TID.Equal (get_tasks s) (Map_TID_Props.update tm tm') /\
+  GloballyDeadlocked ((get_phasers s), tm).
+
 Definition W_of (w:waits) (s:state) := 
   forall t r,
   (exists rs, Map_TID.MapsTo t rs w /\ Set_RES.In r rs)
   <->
   Blocked t r s.
-(*
-  forall t,
-  exists rs,
-  Map_TID.MapsTo t rs w <->
-  Set_RES.For_all (fun r => Blocked t r s) rs.
-*)
 
 Definition I_of (i:impedes) (s:state) :=
   forall t r,
@@ -58,17 +69,6 @@ Definition I_of (i:impedes) (s:state) :=
   Blocked t r' s /\
   prec r' r).
 
-(*
-  forall r,
-  exists ts,
-  Map_RES.MapsTo r ts i /\
-  exists t', Blocked t' r s /\
-  Set_TID.For_all (fun t =>
-    exists r',
-    Registered t r' s /\
-    prec r' r
-  ) ts.
-*)
 Module T := PairOrderedType TID TID.
 Module Set_T := FSetAVL.Make T.
 Module Set_T_Props := FSetProperties.Properties Set_T.

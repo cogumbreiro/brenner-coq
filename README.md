@@ -19,7 +19,7 @@ Table of contents:
  * [PhaserMap.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/PhaserMap.v) - the phaser map abstract data type
  * [Syntax.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Syntax.v) - the syntax of Brenner programs
  * [Semantics.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Semantics.v) - the operational semantics of Brenner programs
- * [ResourceDependency.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Semantics.v) - extracts the concurrency dependencies in a Brenner state
+ * [ResourceDependency.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/ResourceDependency.v) - extracts the concurrency dependencies in a Brenner state, defines deadlocked states
  * [Vars.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Vars.v) - defines the basic data structures used in the theory (meta-variables, sets, and maps)
  * [Example1.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Example1.v) - formalises the first example of the Brenner chapter
 

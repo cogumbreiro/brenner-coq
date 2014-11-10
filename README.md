@@ -12,7 +12,16 @@ Brenner is a calculus for reasoning about task parallelism and barrier synchroni
 
 We use operational semantics to define the formal meaning of each operation and implement our definitions in Coq.
 
-https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Brenner.v
+Table of contents:
+
+ * [Brenner.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Brenner.v) - utility file to import all definitions
+ * [Phaser.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Phaser.v) - the phaser abstract data type
+ * [PhaserMap.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/PhaserMap.v) - the phaser map abstract data type
+ * [Syntax.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Syntax.v) - the syntax of Brenner programs
+ * [Semantics.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Semantics.v) - the operational semantics of Brenner programs
+ * [ResourceDependency.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Semantics.v) - extracts the concurrency dependencies in a Brenner state
+ * [Vars.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Vars.v) - defines the basic data structures used in the theory (meta-variables, sets, and maps)
+ * [Example1.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Example1.v) - formalises the first example of the Brenner chapter
 
 Syntax
 ======

@@ -28,6 +28,15 @@ Inductive walk : list A -> Prop :=
     Edge x y ->
     walk (cons x (cons y nil)).
 
+Inductive In: (A*A) -> list A -> Prop :=
+  | In_ok:
+    forall x y w,
+    In (x, y) (cons x (cons y w))
+  | In_cons:
+    forall p x w,
+    In p w ->
+    In p (cons x w).
+
 Lemma walk_to_edge:
   forall t1 t2 w,
   walk (cons t1 (cons t2 w)) ->
@@ -327,29 +336,44 @@ Proof.
   auto.
 Qed.
 
-End Dependencies.
-
-Lemma t_edge_to_g_walk:
-  forall t1 t2 d,
-  t_walk d (cons t1 (cons t2 nil)) ->
-  exists r,
-  g_walk d (cons (GTid t1) (cons (GResource r) (cons (GTid t2) nil))).
+Lemma t_walk_to_r_walk:
+  forall t t' t'' tw,
+  t_walk (cons t (cons t' (cons t'' tw))) ->
+  exists rw,
+  r_walk rw ->
+  forall r,
+  List.In r rw ->
+  exists (t1 t2:tid),
+  In tid (t1, t2) tw /\
+  TREdge (GTid t1) (GResource r) /\
+  RTEdge (GResource r) (GTid t2).
 Proof.
   intros.
-  inversion H; clear H.
-  destruct H0 as (r, (H1, (H2, H3))).
-  simpl in *.
-  exists x.
-  assert (H: g_walk (Walk g_vertex (GResource r) (GTid t2)) d).
-  apply GWalk.
-  unfold GEdge.
-  right.
-  unfold RTEdge.
-  exists r.
-  exists t2.
-  split.
-  apply IsResourceDef.
-  split.
-  apply IsTidDef.
-  
-Qed.
+  induction tw.
+  - inversion H; clear H.
+    subst.
+    inversion H3; clear H3.
+    subst.
+    inversion H2; clear H2.
+    subst.
+    inversion H3; clear H3.
+    subst.
+    clear H1.
+    inversion H4; clear H4.
+    inversion H5; clear H5.
+    destruct H as (H1, H2).
+    destruct H0 as (H3, H4).
+    exists (cons x (cons x0 nil)).
+  - subst.
+    apply IHtw in H2; clear IHtw.
+    destruct H2 as (rw, H2).
+    exists rw.
+    intros.
+    destruct (H2 H _ H0) as (t1, (t2, (H1, (H5, H6)))); clear H H0 H2.
+    exists t1; exists t2.
+    apply In_cons with (x := a) in H1.
+    auto.
+  - subst.
+    clear IHtw. (* cannot be used *)
+    
+End Dependencies.

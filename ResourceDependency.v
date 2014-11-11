@@ -4,9 +4,57 @@ Require Import Coq.Arith.Compare_dec.
 Require Import
   Semantics TaskMap PhaserMap Vars Syntax.
 
-
 Definition get_tasks (s:state) :taskmap := snd s.
 Definition get_phasers (s:state) : phasermap := fst s.
+
+Section Walk.
+Variable Implicit A:Type.
+Variable Edge : A -> A -> Prop.
+
+Inductive Head: A -> list A -> Prop :=
+  Head_def:
+    forall h l,
+    Head h (h :: l).
+
+Inductive walk : list A -> Prop :=
+  | WCons:
+    forall x y w,
+    walk w ->
+    Head y w ->
+    Edge x y ->
+    walk (cons x w)
+  | WNil:
+    forall x y,
+    Edge x y ->
+    walk (cons x (cons y nil)).
+
+Lemma walk_to_edge:
+  forall t1 t2 w,
+  walk (cons t1 (cons t2 w)) ->
+  Edge t1 t2 /\ (w <> nil -> walk (cons t2 w)).
+Proof.
+  intros.
+  inversion H.
+  - subst.
+    inversion H3.
+    subst.
+    intuition.
+  - intuition.
+Qed.
+
+Lemma edge_to_walk:
+  forall t1 t2 w,
+  Edge t1 t2 ->
+  walk (cons t2 w) ->
+  walk (cons t1 (cons t2 w)).
+Proof.
+  intros.
+  apply WCons with (y := t2).
+  assumption.
+  apply Head_def.
+  assumption.
+Qed.
+End Walk.
 
 Module RES := PairOrderedType PHID Nat_as_OT.
 Module Set_RES := FSetAVL.Make RES.
@@ -83,113 +131,169 @@ Module Map_R := FMapAVL.Make R.
 Definition r_edge := R.t.
 Definition set_r_edge := Set_R.t.
 
-Definition WaitsFor (r:resource) (w:waits) (t:tid) :=
-  exists rs, Map_TID.MapsTo t rs w /\ Set_RES.In r rs.
+Inductive g_vertex :=
+  | GResource : resource -> g_vertex
+  | GTid : tid -> g_vertex.
 
-Definition Impedes (t:tid) (I:impedes) (r:resource) :=
-  exists ts, Map_RES.MapsTo r ts I /\ Set_TID.In t ts.
+Inductive IsResource: g_vertex -> resource -> Prop :=
+  IsResource_def : forall r, IsResource (GResource r) r.
 
-Definition le (r1:resource) (r2:resource) :=
-  r1 = r2 \/ prec r1 r2.
+Inductive IsTid: g_vertex -> tid -> Prop :=
+  IsTid_def : forall t, IsTid (GTid t) t.
 
-Definition TEdge (e:t_edge) (d:dependencies) :=
-  exists r1 r2,
-  WaitsFor r1 (get_waits d) (fst e) /\
-  Impedes (snd e) (get_impedes d) r2 /\
-  le r1 r2.
+Section Dependencies.
 
-Definition WFG_of (g:set_t_edge) (d:dependencies) :=
-  forall e,
-  Set_T.In e g <-> TEdge e d.
+Variable d:dependencies.
 
-Definition REdge (e:r_edge) (d:dependencies) :=
+Definition WaitsFor (r:resource) (t:tid) :=
+  exists rs, Map_TID.MapsTo t rs (get_waits d) /\ Set_RES.In r rs.
+
+Definition Impedes (t:tid) (r:resource) :=
+  exists ts, Map_RES.MapsTo r ts (get_impedes d) /\ Set_TID.In t ts.
+
+Definition TEdge (t1:tid) (t2:tid) :=
+  exists r, WaitsFor r t1 /\ Impedes t2 r.
+
+Definition WFG_of (g:set_t_edge) :=
+  forall e, Set_T.In e g <-> TEdge (fst e) (snd e).
+
+Definition REdge (r1:resource) (r2:resource) :=
+  exists t, Impedes t r1 /\ WaitsFor r2 t.
+
+Definition SG_of (g:set_r_edge) :=
+  forall e, Set_R.In e g <-> REdge (fst e) (snd e).
+
+Definition t_walk := walk tid TEdge.
+
+Definition r_walk := walk resource REdge.
+
+Definition RTEdge (x:g_vertex) (y:g_vertex) :=
+  exists r t,
+  IsResource x r /\
+  IsTid y t /\
+  Impedes t r.
+
+Definition TREdge (x:g_vertex) (y:g_vertex) :=
+  exists r t,
+  IsTid x t /\
+  IsResource y r /\
+  WaitsFor r t.
+
+Definition GEdge (x:g_vertex) (y:g_vertex) :=
+  TREdge x y \/ RTEdge x y.
+
+Definition g_walk := walk g_vertex GEdge.
+
+Lemma t_walk_to_edge:
+  forall t1 t2 w,
+  t_walk (cons t1 (cons t2 w)) ->
+  TEdge t1 t2 /\ (w <> nil -> t_walk (cons t2 w)).
+Proof.
+  intros.
+  inversion H.
+  - subst.
+    inversion H3.
+    subst.
+    intuition.
+  - intuition.
+Qed.
+
+Lemma t_edge_to_walk:
+  forall t1 t2 w,
+  TEdge t1 t2 ->
+  t_walk (cons t2 w) ->
+  t_walk (cons t1 (cons t2 w)).
+Proof.
+  intros.
+  apply WCons with (y := t2).
+  assumption.
+  apply Head_def.
+  assumption.
+Qed.
+
+Lemma t_edge_to_g_edge:
+  forall t1 t2,
+  TEdge t1 t2 ->
+  exists r,
+  TREdge (GTid t1) (GResource r) /\ RTEdge (GResource r) (GTid t2).
+Proof.
+  intros.
+  inversion H; clear H.
+  destruct H0 as (H1, H2).
+  simpl in *.
+  exists x.
+  intuition.
+  unfold TREdge.
+  exists x.
+  exists t1.
+  intuition.
+  apply IsTid_def.
+  apply IsResource_def.
+  unfold RTEdge.
+  exists x.
+  exists t2.
+  intuition.
+  apply IsResource_def.
+  apply IsTid_def.
+Qed.
+
+Lemma r_edge_to_g_edge:
+  forall r1 r2,
+  REdge r1 r2 ->
   exists t,
-  Impedes t (get_impedes d) (fst e) /\
-  WaitsFor (snd e) (get_waits d) t.
-
-Definition SG_of (g:set_r_edge) (d:dependencies) :=
-  forall e,
-  Set_R.In e g <-> REdge e d.
-
-Inductive walk (A:Type) :=
-  | Walk: A -> A -> walk A
-  | WCons: A -> walk A -> walk A.
-
-Definition head {A:Type} (w:walk A) : A :=
-  match w with
-    | Walk x _ => x
-    | WCons x _ => x
-  end.
-
-Fixpoint tail {A:Type} (w:walk A) : A :=
-  match w with
-    | Walk _ x => x
-    | WCons _ w' => tail w'
-  end.
-
-Inductive t_walk : walk tid -> dependencies -> Prop :=
-  | TCons:
-    forall x w d,
-    t_walk w d ->
-    TEdge (x, (head w)) d ->
-    t_walk (WCons tid x w) d
-  | TWalk:
-    forall x y d,
-    TEdge (x, y) d ->
-    t_walk (Walk tid x y) d.
-
-Inductive r_walk : walk resource -> dependencies -> Prop :=
-  | RCons:
-    forall x w d,
-    r_walk w d ->
-    REdge (x, (head w)) d ->
-    r_walk (WCons resource x w) d
-  | RWalk:
-    forall x y d,
-    REdge (x, y) d ->
-    r_walk (Walk resource x y) d.
-
-Inductive g_edge :=
-  | g_edge_i: tid -> resource -> g_edge
-  | g_edge_w: resource -> tid -> g_edge.
-
-Definition THead (e:g_edge) (t:tid) :=
-  match e with
-    | g_edge_i t' _ => t = t'
-    | _ => False
-  end.
-
-Definition RHead (e:g_edge) (r:resource) :=
-  match e with
-    | g_edge_w r' _ => r = r'
-    | _ => False
-  end.
-
-Inductive g_walk : g_edge -> dependencies -> Prop  :=
-  | GCons:
-    forall x w d,
-    g_walk w d ->
-    REdge (x, (head w)) d ->
-    r_walk (WCons resource x w) d
-  | RWalk:
-    forall x y d,
-    REdge (x, y) d ->
-    r_walk (Walk resource x y) d.
+  RTEdge (GResource r1) (GTid t) /\ TREdge (GTid t) (GResource r2).
+Proof.
+  intros.
+  inversion H; clear H.
+  destruct H0 as (H1, H2).
+  simpl in *.
+  exists x.
+  intuition.
+  unfold RTEdge.
+  exists r1.
+  exists x.
+  intuition.
+  apply IsResource_def.
+  apply IsTid_def.
+  unfold TREdge.
+  exists r2.
+  exists x.
+  intuition.
+  apply IsTid_def.
+  apply IsResource_def.
+Qed.
 
 
-  | g_walk_i:
-    forall r t d,
-    Impedes t (get_impedes d) r ->
-    g_walk (some_t t) (some_r r) d
-  | g_walk_w:
-    forall r t d,
-    WaitsFor r (get_waits d) t ->
-    g_walk (some_r r) (some_t t) d
-  | g_cons_i:
-    forall r t d,
-    g_walk e1 e2 d ->
-    
-    Impedes t (get_impedes d) r ->
-    g_walk (some_t t) (some_r r) d
+End Dependencies.
+
+
+
+
+
+
+
+
+Lemma t_edge_to_g_walk:
+  forall t1 t2 d,
+  t_walk d (cons t1 (cons t2 nil)) ->
+  exists r,
+  g_walk d (cons (GTid t1) (cons (GResource r) (cons (GTid t2) nil))).
+Proof.
+  intros.
+  inversion H; clear H.
+  destruct H0 as (r, (H1, (H2, H3))).
+  simpl in *.
+  exists x.
+  assert (H: g_walk (Walk g_vertex (GResource r) (GTid t2)) d).
+  apply GWalk.
+  unfold GEdge.
+  right.
+  unfold RTEdge.
+  exists r.
+  exists t2.
+  split.
+  apply IsResourceDef.
+  split.
+  apply IsTidDef.
   
-
+Qed.

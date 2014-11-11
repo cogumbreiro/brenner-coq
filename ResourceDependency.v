@@ -37,7 +37,7 @@ Definition Registered (t:tid) (r:resource) (s:state) :=
   Map_PHID.MapsTo (get_phaser r) ph (get_phasers s) /\
   Map_TID.MapsTo t (get_phase r) ph.
 
-Definition GloballyDeadlocked (s:state) :=
+Definition TotallyDeadlocked (s:state) :=
   forall t,
   Map_TID.In t (get_tasks s) /\
   exists r,
@@ -52,7 +52,7 @@ Definition Deadlocked (s:state) :=
   exists tm tm',
   Map_TID_Props.Disjoint tm tm' /\
   Map_TID.Equal (get_tasks s) (Map_TID_Props.update tm tm') /\
-  GloballyDeadlocked ((get_phasers s), tm).
+  TotallyDeadlocked ((get_phasers s), tm).
 
 Definition W_of (w:waits) (s:state) := 
   forall t r,
@@ -110,4 +110,86 @@ Definition REdge (e:r_edge) (d:dependencies) :=
 Definition SG_of (g:set_r_edge) (d:dependencies) :=
   forall e,
   Set_R.In e g <-> REdge e d.
+
+Inductive walk (A:Type) :=
+  | Walk: A -> A -> walk A
+  | WCons: A -> walk A -> walk A.
+
+Definition head {A:Type} (w:walk A) : A :=
+  match w with
+    | Walk x _ => x
+    | WCons x _ => x
+  end.
+
+Fixpoint tail {A:Type} (w:walk A) : A :=
+  match w with
+    | Walk _ x => x
+    | WCons _ w' => tail w'
+  end.
+
+Inductive t_walk : walk tid -> dependencies -> Prop :=
+  | TCons:
+    forall x w d,
+    t_walk w d ->
+    TEdge (x, (head w)) d ->
+    t_walk (WCons tid x w) d
+  | TWalk:
+    forall x y d,
+    TEdge (x, y) d ->
+    t_walk (Walk tid x y) d.
+
+Inductive r_walk : walk resource -> dependencies -> Prop :=
+  | RCons:
+    forall x w d,
+    r_walk w d ->
+    REdge (x, (head w)) d ->
+    r_walk (WCons resource x w) d
+  | RWalk:
+    forall x y d,
+    REdge (x, y) d ->
+    r_walk (Walk resource x y) d.
+
+Inductive g_edge :=
+  | g_edge_i: tid -> resource -> g_edge
+  | g_edge_w: resource -> tid -> g_edge.
+
+Definition THead (e:g_edge) (t:tid) :=
+  match e with
+    | g_edge_i t' _ => t = t'
+    | _ => False
+  end.
+
+Definition RHead (e:g_edge) (r:resource) :=
+  match e with
+    | g_edge_w r' _ => r = r'
+    | _ => False
+  end.
+
+Inductive g_walk : g_edge -> dependencies -> Prop  :=
+  | GCons:
+    forall x w d,
+    g_walk w d ->
+    REdge (x, (head w)) d ->
+    r_walk (WCons resource x w) d
+  | RWalk:
+    forall x y d,
+    REdge (x, y) d ->
+    r_walk (Walk resource x y) d.
+
+
+  | g_walk_i:
+    forall r t d,
+    Impedes t (get_impedes d) r ->
+    g_walk (some_t t) (some_r r) d
+  | g_walk_w:
+    forall r t d,
+    WaitsFor r (get_waits d) t ->
+    g_walk (some_r r) (some_t t) d
+  | g_cons_i:
+    forall r t d,
+    g_walk e1 e2 d ->
+    
+    Impedes t (get_impedes d) r ->
+    g_walk (some_t t) (some_r r) d
+  
 

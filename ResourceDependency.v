@@ -138,8 +138,28 @@ Inductive g_vertex :=
 Inductive IsResource: g_vertex -> resource -> Prop :=
   IsResource_def : forall r, IsResource (GResource r) r.
 
+Lemma IsResource_inv:
+  forall x y,
+  IsResource (GResource x) y ->
+  x = y.
+Proof.
+  intros.
+  inversion H.
+  reflexivity.
+Qed.
+
 Inductive IsTid: g_vertex -> tid -> Prop :=
   IsTid_def : forall t, IsTid (GTid t) t.
+
+Lemma IsTid_inv:
+  forall x y,
+  IsTid (GTid x) y ->
+  x = y.
+Proof.
+  intros.
+  inversion H.
+  reflexivity.
+Qed.
 
 Section Dependencies.
 
@@ -237,6 +257,28 @@ Proof.
   apply IsTid_def.
 Qed.
 
+Lemma g_edge_to_t_edge:
+  forall t1 r t2,
+  TREdge (GTid t1) (GResource r) ->
+  RTEdge (GResource r) (GTid t2) ->
+  TEdge t1 t2.
+Proof.
+  intros.
+  inversion H; clear H.
+  destruct H1 as (t, (H3,(H4,H5))).
+  apply IsTid_inv in H3.
+  apply IsResource_inv in H4.
+  subst.
+  inversion H0; clear H0.
+  destruct H as (t1, (H1,(H2,H3))).
+  apply IsTid_inv in H2.
+  apply IsResource_inv in H1.
+  subst.
+  unfold TEdge.
+  exists x0.
+  auto.
+Qed.
+
 Lemma r_edge_to_g_edge:
   forall r1 r2,
   REdge r1 r2 ->
@@ -263,15 +305,29 @@ Proof.
   apply IsResource_def.
 Qed.
 
+Lemma g_edge_to_r_edge:
+  forall r1 t r2,
+  RTEdge (GResource r1) (GTid t) ->
+  TREdge (GTid t) (GResource r2) ->
+  REdge r1 r2.
+Proof.
+  intros.
+  inversion H; clear H.
+  destruct H1 as (t', (H3,(H4,H5))).
+  apply IsTid_inv in H4.
+  apply IsResource_inv in H3.
+  subst.
+  inversion H0; clear H0.
+  destruct H as (t1, (H1,(H2,H3))).
+  apply IsTid_inv in H1.
+  apply IsResource_inv in H2.
+  subst.
+  unfold REdge.
+  exists t1.
+  auto.
+Qed.
 
 End Dependencies.
-
-
-
-
-
-
-
 
 Lemma t_edge_to_g_walk:
   forall t1 t2 d,

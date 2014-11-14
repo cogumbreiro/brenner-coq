@@ -9,60 +9,57 @@ Definition get_phasers (s:state) : phasermap := fst s.
 
 Section Walk.
 Variable Implicit A:Type.
-Variable Edge : A -> A -> Prop.
+Notation edge := (A*A)%type.
+Variable Edge : edge -> Prop.
+Notation walk := (list edge).
 
-Inductive Head: A -> list A -> Prop :=
-  Head_def:
-    forall h l,
-    Head h (h :: l).
+Definition head (e:edge) : A := fst e.
+Definition tail (e:edge) : A := snd e.
+Definition walk_head (default:A) (w:walk) : A := head (List.hd (default, default) w).
 
-Inductive walk : list A -> Prop :=
+Definition Linked e w := tail e = walk_head (tail e) w.
+
+Inductive Walk : walk -> Prop :=
   | WCons:
-    forall x y w,
-    walk w ->
-    Head y w ->
-    Edge x y ->
-    walk (cons x w)
+    forall e w,
+    Walk w ->
+    Edge e ->
+    Linked e w ->
+    Walk (e :: w)
   | WNil:
-    forall x y,
-    Edge x y ->
-    walk (cons x (cons y nil)).
+    Walk nil.
 
-Inductive In: (A*A) -> list A -> Prop :=
-  | In_ok:
-    forall x y w,
-    In (x, y) (cons x (cons y w))
-  | In_cons:
-    forall p x w,
-    In p w ->
-    In p (cons x w).
-
-Lemma walk_to_edge:
-  forall t1 t2 w,
-  walk (cons t1 (cons t2 w)) ->
-  Edge t1 t2 /\ (w <> nil -> walk (cons t2 w)).
+Lemma in_edge:
+  forall e w,
+  Walk w ->
+  List.In e w ->
+  Edge e.
 Proof.
   intros.
+  induction w.
+  inversion H0.
+  apply List.in_inv in H0.
+  destruct H0.
+  subst.
   inversion H.
-  - subst.
-    inversion H3.
-    subst.
-    intuition.
-  - intuition.
+  assumption.
+  inversion H.
+  subst.
+  apply IHw in H3.
+  assumption.
+  assumption.
 Qed.
 
-Lemma edge_to_walk:
-  forall t1 t2 w,
-  Edge t1 t2 ->
-  walk (cons t2 w) ->
-  walk (cons t1 (cons t2 w)).
-Proof.
-  intros.
-  apply WCons with (y := t2).
-  assumption.
-  apply Head_def.
-  assumption.
-Qed.
+Inductive VertexIn : A -> walk -> Prop :=
+  | VertexIn_head:
+    forall e w,
+    List.In e w ->
+    VertexIn (head e) w
+  | VertexIn_tail:
+    forall e w,
+    List.In e w ->
+    VertexIn (tail e) w.
+
 End Walk.
 
 Module RES := PairOrderedType PHID Nat_as_OT.
@@ -180,71 +177,110 @@ Definition WaitsFor (r:resource) (t:tid) :=
 Definition Impedes (t:tid) (r:resource) :=
   exists ts, Map_RES.MapsTo r ts (get_impedes d) /\ Set_TID.In t ts.
 
-Definition TEdge (t1:tid) (t2:tid) :=
+Definition TEdge (e:t_edge) :=
+  let (t1, t2) := e in
   exists r, WaitsFor r t1 /\ Impedes t2 r.
 
-Definition WFG_of (g:set_t_edge) :=
-  forall e, Set_T.In e g <-> TEdge (fst e) (snd e).
+Lemma as_t_edge:
+  forall r t1 t2,
+  WaitsFor r t1 ->
+  Impedes t2 r ->
+  TEdge (t1, t2).
+Proof.
+  intros.
+  unfold TEdge.
+  exists r.
+  auto.
+Qed.
 
-Definition REdge (r1:resource) (r2:resource) :=
+Definition WFG_of (g:set_t_edge) :=
+  forall e, Set_T.In e g <-> TEdge e.
+
+Definition REdge (e:r_edge) :=
+  let (r1, r2) := e in
   exists t, Impedes t r1 /\ WaitsFor r2 t.
 
+Lemma as_r_edge:
+  forall t r1 r2,
+  Impedes t r1 ->
+  WaitsFor r2 t ->
+  REdge (r1, r2).
+Proof.
+  intros.
+  unfold REdge.
+  exists t.
+  auto.
+Qed.
+
 Definition SG_of (g:set_r_edge) :=
-  forall e, Set_R.In e g <-> REdge (fst e) (snd e).
+  forall e, Set_R.In e g <-> REdge e.
 
-Definition t_walk := walk tid TEdge.
+Notation TWalk := (Walk tid TEdge).
+Notation t_walk := (list t_edge).
 
-Definition r_walk := walk resource REdge.
+Notation RWalk := (Walk resource REdge).
+Notation r_walk := (list r_edge).
 
-Definition RTEdge (x:g_vertex) (y:g_vertex) :=
+Notation g_edge := (g_vertex * g_vertex) % type.
+
+Definition RTEdge (e:g_edge) :=
+  let (x,y) := e in
   exists r t,
   IsResource x r /\
   IsTid y t /\
   Impedes t r.
 
-Definition TREdge (x:g_vertex) (y:g_vertex) :=
+Notation rt := (fun (r:resource) (t:tid) => ((GResource r), (GTid t))).
+Notation RT := (fun (r:resource) (t:tid) => (RTEdge (rt r t))).
+
+Lemma as_rt_edge:
+  forall r t, 
+  Impedes t r ->
+  RT r t.
+Proof.
+  intros.
+  unfold RTEdge.
+  exists r.
+  exists t.
+  intuition.
+  apply IsResource_def.
+  apply IsTid_def.
+Qed.
+
+Definition TREdge (e:g_edge) :=
+  let (x,y) := e in
   exists r t,
   IsTid x t /\
   IsResource y r /\
   WaitsFor r t.
 
-Definition GEdge (x:g_vertex) (y:g_vertex) :=
-  TREdge x y \/ RTEdge x y.
+Notation tr := (fun (t:tid) (r:resource) => ((GTid t), (GResource r))).
+Notation TR := (fun (t:tid) (r:resource) => (TREdge (tr t r))).
 
-Definition g_walk := walk g_vertex GEdge.
-
-Lemma t_walk_to_edge:
-  forall t1 t2 w,
-  t_walk (cons t1 (cons t2 w)) ->
-  TEdge t1 t2 /\ (w <> nil -> t_walk (cons t2 w)).
+Lemma as_tr_edge:
+  forall t r,
+  WaitsFor r t ->
+  TR t r.
 Proof.
   intros.
-  inversion H.
-  - subst.
-    inversion H3.
-    subst.
-    intuition.
-  - intuition.
+  unfold RTEdge.
+  exists r.
+  exists t.
+  intuition.
+  apply IsTid_def.
+  apply IsResource_def.
 Qed.
 
-Lemma t_edge_to_walk:
-  forall t1 t2 w,
-  TEdge t1 t2 ->
-  t_walk (cons t2 w) ->
-  t_walk (cons t1 (cons t2 w)).
-Proof.
-  intros.
-  apply WCons with (y := t2).
-  assumption.
-  apply Head_def.
-  assumption.
-Qed.
+Definition GEdge (e:g_edge) :=
+  TREdge e \/ RTEdge e.
+
+Definition GWalk := Walk g_vertex GEdge.
 
 Lemma t_edge_to_g_edge:
   forall t1 t2,
-  TEdge t1 t2 ->
+  TEdge (t1, t2) ->
   exists r,
-  TREdge (GTid t1) (GResource r) /\ RTEdge (GResource r) (GTid t2).
+  TR t1 r /\ RT r t2.
 Proof.
   intros.
   inversion H; clear H.
@@ -252,25 +288,15 @@ Proof.
   simpl in *.
   exists x.
   intuition.
-  unfold TREdge.
-  exists x.
-  exists t1.
-  intuition.
-  apply IsTid_def.
-  apply IsResource_def.
-  unfold RTEdge.
-  exists x.
-  exists t2.
-  intuition.
-  apply IsResource_def.
-  apply IsTid_def.
+  apply as_tr_edge; assumption.
+  apply as_rt_edge; assumption.
 Qed.
 
 Lemma g_edge_to_t_edge:
   forall t1 r t2,
-  TREdge (GTid t1) (GResource r) ->
-  RTEdge (GResource r) (GTid t2) ->
-  TEdge t1 t2.
+  TR t1 r ->
+  RT r t2 ->
+  TEdge (t1, t2).
 Proof.
   intros.
   inversion H; clear H.
@@ -283,16 +309,16 @@ Proof.
   apply IsTid_inv in H2.
   apply IsResource_inv in H1.
   subst.
-  unfold TEdge.
-  exists x0.
-  auto.
+  apply as_t_edge with (r:= x0).
+  assumption.
+  assumption.
 Qed.
 
 Lemma r_edge_to_g_edge:
   forall r1 r2,
-  REdge r1 r2 ->
+  REdge (r1, r2) ->
   exists t,
-  RTEdge (GResource r1) (GTid t) /\ TREdge (GTid t) (GResource r2).
+  RT r1 t /\ TR t r2.
 Proof.
   intros.
   inversion H; clear H.
@@ -300,25 +326,17 @@ Proof.
   simpl in *.
   exists x.
   intuition.
-  unfold RTEdge.
-  exists r1.
-  exists x.
-  intuition.
-  apply IsResource_def.
-  apply IsTid_def.
-  unfold TREdge.
-  exists r2.
-  exists x.
-  intuition.
-  apply IsTid_def.
-  apply IsResource_def.
+  apply as_rt_edge.
+  assumption.
+  apply as_tr_edge.
+  assumption.
 Qed.
 
 Lemma g_edge_to_r_edge:
   forall r1 t r2,
-  RTEdge (GResource r1) (GTid t) ->
-  TREdge (GTid t) (GResource r2) ->
-  REdge r1 r2.
+  RT r1 t ->
+  TR t r2 ->
+  REdge (r1, r2).
 Proof.
   intros.
   inversion H; clear H.
@@ -331,49 +349,165 @@ Proof.
   apply IsTid_inv in H1.
   apply IsResource_inv in H2.
   subst.
-  unfold REdge.
-  exists t1.
-  auto.
+  apply as_r_edge with (t:=t1).
+  assumption.
+  assumption.
 Qed.
 
-Lemma t_walk_to_r_walk:
-  forall t t' t'' tw,
-  t_walk (cons t (cons t' (cons t'' tw))) ->
-  exists rw,
-  r_walk rw ->
-  forall r,
-  List.In r rw ->
-  exists (t1 t2:tid),
-  In tid (t1, t2) tw /\
-  TREdge (GTid t1) (GResource r) /\
-  RTEdge (GResource r) (GTid t2).
+Inductive edge_t_to_r : t_edge -> t_edge -> r_edge -> Prop :=
+  edge_t_to_r_def:
+    forall t1 t2 t3 r1 r2,
+    TR t1 r1 ->
+    RT r1 t2 ->
+    TR t2 r2 ->
+    RT r2 t3 ->
+    edge_t_to_r (t1, t2) (t2, t3) (r1, r2).
+
+Lemma edge_t_to_r_total:
+  forall t1 t2 t3,
+  TEdge (t1, t2) ->
+  TEdge (t2, t3) ->
+  exists r1 r2,
+  edge_t_to_r (t1, t2) (t2, t3) (r1, r2) /\ REdge (r1, r2).
+Proof.
+  intros.
+  apply t_edge_to_g_edge in H.
+  apply t_edge_to_g_edge in H0.
+  destruct H as (r1, (H1, H2)).
+  destruct H0 as (r2, (H3, H4)).
+  exists r1.
+  exists r2.
+  intuition.
+  apply edge_t_to_r_def.
+  assumption.
+  assumption.
+  assumption.
+  assumption.
+  apply g_edge_to_r_edge with (t:=t2).
+  assumption.
+  assumption.
+Qed.
+
+Inductive t_to_r : t_walk -> r_walk -> Prop :=
+  | t_to_r_nil_nil:
+    t_to_r nil nil
+  | t_to_r_nil_edge:
+    forall e,
+    t_to_r (e::nil) nil
+  | t_to_r_cons:
+    forall e1 e2 e tw rw,
+    t_to_r (e2 :: tw) rw ->
+    edge_t_to_r e1 e2 e ->
+    (*Linked resource e rw ->*)
+    t_to_r (e1 :: e2 :: tw)%list (e :: rw).
+
+Lemma t_to_r_total:
+  forall tw,
+  TWalk tw ->
+  exists tr, t_to_r tw tr.
 Proof.
   intros.
   induction tw.
-  - inversion H; clear H.
+  - exists nil.
+    intuition.
+    apply t_to_r_nil_nil.
+  - inversion H.
     subst.
-    inversion H3; clear H3.
-    subst.
-    inversion H2; clear H2.
-    subst.
-    inversion H3; clear H3.
-    subst.
-    clear H1.
-    inversion H4; clear H4.
-    inversion H5; clear H5.
-    destruct H as (H1, H2).
-    destruct H0 as (H3, H4).
-    exists (cons x (cons x0 nil)).
-  - subst.
     apply IHtw in H2; clear IHtw.
-    destruct H2 as (rw, H2).
-    exists rw.
+    destruct H2 as (tr, H1).
+    destruct tw.
+    + inversion H1.
+      subst.
+      exists nil.
+      intuition.
+      apply t_to_r_nil_edge.
+    + inversion H; subst.
+      inversion H5; subst.
+      destruct a as (t1, t2).
+      destruct p as (t2', t3).
+      compute in H7.
+      rewrite <- H7 in *; clear H7.
+      assert (Hr := edge_t_to_r_total _ _ _ H3 H9).
+      destruct Hr as (r1, (r2, (Hr,He))).
+      exists (cons (r1, r2) tr).
+      apply t_to_r_cons.
+      assumption.
+      assumption.
+Qed.
+
+Lemma t_to_r_walk:
+  forall tw tr,
+  TWalk tw ->
+  t_to_r tw tr ->
+  RWalk tr.
+Proof.
+  induction tw.
+  - intros.
+    inversion H0.
+    apply WNil.
+  - intros.
+    inversion H0.
+    + subst.
+      apply WNil.
+    + subst.
+      inversion H.
+      subst.
+      apply (IHtw rw) in H4; clear IHtw.
+      destruct a as (t1, t2).
+      inversion H5; clear H5; subst.
+      apply WCons.
+      assumption.
+      apply g_edge_to_r_edge with (t:=t2).
+      assumption.
+      assumption.
+      assumption.
+    
+Qed.
+Definition TComplement (tw:t_walk) (rw:r_walk) :=
+  (forall r, VertexIn resource r rw ->
+    exists (t1 t2:tid), List.In (t1, t2) tw /\ TR t1 r /\ RT r t2).
+
+(*
+Lemma t_complement_cons:
+  forall e tw rw,
+  TWalk (e :: tw) ->
+  RWalk rw ->
+  TComplement tw rw ->
+  exists e', TComplement (e :: tw) (e' :: rw).
+Proof.
+  intros.
+  unfold TComplement in *.
+  inversion H.
+  subst.
+  destruct e as (t1, t2).
+  simpl in H6.
+  apply t_edge_to_g_edge in H5.
+  destruct H5 as (r, (H2, H3)).
+  destruct tw.
+  - assert (H1' := H1 r); clear H1.
+Qed.
+  *)
+  
+Lemma t_walk_to_r_walk:
+  forall tw,
+  TWalk tw ->
+  exists rw, RWalk rw /\ TComplement tw rw.
+Proof.
+  intros.
+  induction tw.
+  - exists nil.
     intros.
-    destruct (H2 H _ H0) as (t1, (t2, (H1, (H5, H6)))); clear H H0 H2.
-    exists t1; exists t2.
-    apply In_cons with (x := a) in H1.
-    auto.
-  - subst.
-    clear IHtw. (* cannot be used *)
+    intuition.
+    apply WNil.
+    unfold TComplement.
+    intros.
+    inversion H0.
+    inversion H1.
+    inversion H1.
+  - inversion H.
+    subst.
+    apply IHtw in H2; clear IHtw.
+    destruct H2 as (rw, (H2, H5)).
+Qed.
     
 End Dependencies.

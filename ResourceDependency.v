@@ -363,12 +363,25 @@ Inductive edge_t_to_r : t_edge -> t_edge -> r_edge -> Prop :=
     RT r2 t3 ->
     edge_t_to_r (t1, t2) (t2, t3) (r1, r2).
 
+Lemma t_to_r_r_edge:
+  forall e1 e2 e3,
+  edge_t_to_r e1 e2 e3 ->
+  REdge e3.
+Proof.
+  intros.
+  inversion H.
+  subst.
+  apply g_edge_to_r_edge with (t:=t2).
+  assumption.
+  assumption.
+Qed.
+ 
 Lemma edge_t_to_r_total:
   forall t1 t2 t3,
   TEdge (t1, t2) ->
   TEdge (t2, t3) ->
   exists r1 r2,
-  edge_t_to_r (t1, t2) (t2, t3) (r1, r2) /\ REdge (r1, r2).
+  edge_t_to_r (t1, t2) (t2, t3) (r1, r2).
 Proof.
   intros.
   apply t_edge_to_g_edge in H.
@@ -381,9 +394,6 @@ Proof.
   apply edge_t_to_r_def.
   assumption.
   assumption.
-  assumption.
-  assumption.
-  apply g_edge_to_r_edge with (t:=t2).
   assumption.
   assumption.
 Qed.
@@ -428,7 +438,7 @@ Proof.
       compute in H7.
       rewrite <- H7 in *; clear H7.
       assert (Hr := edge_t_to_r_total _ _ _ H3 H9).
-      destruct Hr as (r1, (r2, (Hr,He))).
+      destruct Hr as (r1, (r2, Hr)).
       exists (cons (r1, r2) tr).
       apply t_to_r_cons.
       assumption.

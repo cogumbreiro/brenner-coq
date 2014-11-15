@@ -559,79 +559,34 @@ Proof.
         auto.
 Qed.
 
-Lemma t_to_r_walk:
-  forall tw tr,
+Lemma t_to_r_step:
+  forall tw r1 r2 tr,
   TWalk tw ->
-  t_to_r tw tr ->
-  RWalk tr.
-Proof.
-  induction tw.
-  - intros.
-    inversion H0.
-    apply WNil.
-  - intros.
-    inversion H0.
-    + subst.
-      apply WNil.
-    + subst.
-      inversion H.
-      subst.
-      apply (IHtw rw) in H4; clear IHtw.
-      destruct a as (t1, t2).
-      inversion H5; clear H5; subst.
-      apply WCons.
-      assumption.
-      apply g_edge_to_r_edge with (t:=t2).
-      assumption.
-      assumption.
-      assumption.
-    
-Qed.
-Definition TComplement (tw:t_walk) (rw:r_walk) :=
-  (forall r, VertexIn resource r rw ->
-    exists (t1 t2:tid), List.In (t1, t2) tw /\ TR t1 r /\ RT r t2).
-
-(*
-Lemma t_complement_cons:
-  forall e tw rw,
-  TWalk (e :: tw) ->
-  RWalk rw ->
-  TComplement tw rw ->
-  exists e', TComplement (e :: tw) (e' :: rw).
+  t_to_r tw ((r1,r2)::tr) ->
+  RWalk ((r1,r2)::tr) ->
+  exists t1 t2 t3 tw',
+  (tw = ((t1,t2)::(t2,t3)::tw')%list /\ 
+  TRT t1 r1 t2 /\ TRT t2 r2 t3).
 Proof.
   intros.
-  unfold TComplement in *.
-  inversion H.
-  subst.
-  destruct e as (t1, t2).
-  simpl in H6.
-  apply t_edge_to_g_edge in H5.
-  destruct H5 as (r, (H2, H3)).
-  destruct tw.
-  - assert (H1' := H1 r); clear H1.
-Qed.
-  *)
-  
-Lemma t_walk_to_r_walk:
-  forall tw,
-  TWalk tw ->
-  exists rw, RWalk rw /\ TComplement tw rw.
-Proof.
-  intros.
-  induction tw.
-  - exists nil.
-    intros.
+  inversion H0.
+  - subst.
+    destruct e1 as (t1,t2).
+    destruct e2 as (t2',t3).
+    exists t1;
+    exists t2;
+    exists t3;
+    exists tw0.
     intuition.
-    apply WNil.
-    unfold TComplement.
-    intros.
-    inversion H0.
-    inversion H1.
-    inversion H1.
-  - inversion H.
-    subst.
-    apply IHtw in H2; clear IHtw.
-    destruct H2 as (rw, (H2, H5)).
+    + inversion H.
+      compute in H8.
+      subst.
+      auto.
+    + inversion H6.
+      auto.
+    + inversion H6.
+      auto.
 Qed.
-    
+
+
 End Dependencies.

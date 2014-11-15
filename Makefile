@@ -86,6 +86,7 @@ VFILES:=Vars.v\
   Syntax.v\
   TaskMap.v\
   Semantics.v\
+  Graph.v\
   ResourceDependency.v\
   Example1.v
 

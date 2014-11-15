@@ -5,6 +5,8 @@ Require Import Syntax.
 Require Import TaskMap.
 
 Definition state := (phasermap * taskmap) % type.
+Definition get_tasks (s:state) :taskmap := snd s.
+Definition get_phasers (s:state) : phasermap := fst s.
 
 Import Syntax.CST.
 

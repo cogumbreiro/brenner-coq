@@ -1,6 +1,8 @@
-Require Import Coq.Structures.OrderedTypeEx.
-Require Import Coq.FSets.FSetAVL.
-Require Import Coq.Arith.Compare_dec.
+Require Import
+  Coq.Structures.OrderedTypeEx
+  Coq.FSets.FSetAVL
+  Coq.Arith.Compare_dec.
+
 Require Import
   Semantics TaskMap PhaserMap Vars Syntax.
 
@@ -354,13 +356,91 @@ Proof.
   assumption.
 Qed.
 
+Definition RTR (r1:resource) (t:tid) (r2:resource) :=
+  RT r1 t /\ TR t r2.
+
+Definition TRT (t1:tid) (r:resource) (t2:tid) :=
+  TR t1 r /\ RT r t2.
+
+Lemma rtr_to_r:
+  forall r1 t r2,
+  RTR r1 t r2 ->
+  REdge (r1, r2).
+Proof.
+  intros.
+  destruct H.
+  apply g_edge_to_r_edge with (t:=t).
+  assumption.
+  assumption.
+Qed.
+
+Lemma r_to_rtr:
+  forall r1 r2,
+  REdge (r1, r2) ->
+  exists t,
+  RTR r1 t r2.
+Proof.
+  intros.
+  unfold RTR.
+  apply r_edge_to_g_edge.
+  assumption.
+Qed.    
+
+Lemma trt_to_t:
+  forall t1 r t2,
+  TRT t1 r t2 ->
+  TEdge (t1, t2).
+Proof.
+  intros.
+  destruct H.
+  apply g_edge_to_t_edge with (r:=r).
+  assumption.
+  assumption.
+Qed.
+
+Lemma t_to_trt:
+  forall t1 t2,
+  TEdge (t1, t2) ->
+  exists r,
+  TRT t1 r t2.
+Proof.
+  intros.
+  unfold TRT.
+  apply t_edge_to_g_edge.
+  assumption.
+Qed.    
+
+Lemma rtr_to_trt:
+  forall r1 t1 r2 t2 r3,
+  RTR r1 t1 r2 ->
+  RTR r2 t2 r3 ->
+  TRT t1 r2 t2.
+Proof.
+  intros.
+  destruct H.
+  destruct H0.
+  unfold TRT.
+  auto.
+Qed.
+
+Lemma trt_to_rtr:
+  forall t1 r1 t2 r2 t3,
+  TRT t1 r1 t2 ->
+  TRT t2 r2 t3 ->
+  RTR r1 t2 r2.
+Proof.
+  intros.
+  destruct H.
+  destruct H0.
+  unfold RTR.
+  auto.
+Qed.
+
 Inductive edge_t_to_r : t_edge -> t_edge -> r_edge -> Prop :=
   edge_t_to_r_def:
     forall t1 t2 t3 r1 r2,
-    TR t1 r1 ->
-    RT r1 t2 ->
-    TR t2 r2 ->
-    RT r2 t3 ->
+    TRT t1 r1 t2 ->
+    TRT t2 r2 t3 ->
     edge_t_to_r (t1, t2) (t2, t3) (r1, r2).
 
 Lemma t_to_r_r_edge:
@@ -371,8 +451,11 @@ Proof.
   intros.
   inversion H.
   subst.
-  apply g_edge_to_r_edge with (t:=t2).
+  assert (H2: RTR r1 t2 r2).
+  apply trt_to_rtr with (t1:=t1) (t3:=t3).
   assumption.
+  assumption.
+  apply rtr_to_r in H2.
   assumption.
 Qed.
  
@@ -392,54 +475,92 @@ Proof.
   exists r2.
   intuition.
   apply edge_t_to_r_def.
-  assumption.
-  assumption.
-  assumption.
-  assumption.
+  unfold TRT. auto.
+  unfold TRT. auto.
 Qed.
 
 Inductive t_to_r : t_walk -> r_walk -> Prop :=
-  | t_to_r_nil_nil:
+  | t_to_r_nil:
     t_to_r nil nil
-  | t_to_r_nil_edge:
+  | t_to_r_edge_nil:
     forall e,
     t_to_r (e::nil) nil
   | t_to_r_cons:
     forall e1 e2 e tw rw,
     t_to_r (e2 :: tw) rw ->
     edge_t_to_r e1 e2 e ->
-    (*Linked resource e rw ->*)
     t_to_r (e1 :: e2 :: tw)%list (e :: rw).
 
 Lemma t_to_r_total:
   forall tw,
   TWalk tw ->
-  exists tr, t_to_r tw tr.
+  exists tr, t_to_r tw tr /\ RWalk tr.
 Proof.
   intros.
   induction tw.
   - exists nil.
     intuition.
-    apply t_to_r_nil_nil.
+    apply t_to_r_nil.
+    apply WNil.
   - inversion H.
     subst.
     apply IHtw in H2; clear IHtw.
-    destruct H2 as (tr, H1).
+    destruct H2 as (tr, (H1, H2)).
+    destruct a as (t1, t2).
     destruct tw.
-    + inversion H1.
-      subst.
-      exists nil.
+    + exists nil.
       intuition.
-      apply t_to_r_nil_edge.
-    + inversion H; subst.
-      inversion H5; subst.
-      destruct a as (t1, t2).
-      destruct p as (t2', t3).
-      compute in H7.
-      rewrite <- H7 in *; clear H7.
-      assert (Hr := edge_t_to_r_total _ _ _ H3 H9).
-      destruct Hr as (r1, (r2, Hr)).
-      exists (cons (r1, r2) tr).
+      apply t_to_r_edge_nil.
+      apply WNil.
+    + destruct p as (t2', t3).
+      (* t2 = t2' *)
+      compute in H4; rewrite <- H4 in *; clear H4.
+      inversion H1.
+      * (* Case 1: *)
+        subst.
+        inversion H; subst.
+        inversion H4; subst.
+        assert (Hr := edge_t_to_r_total _ _ _ H3 H8).
+        destruct Hr as (r1, (r2, Hr)).
+        exists (cons (r1, r2) nil).
+        apply t_to_r_edge_edge.
+        assumption.
+        assumption.
+      * (* Case 2: *)
+        subst.
+        destruct e2 as (t3', t4).
+        inversion H6; subst. (* t3 = t3' *)
+        apply t_to_trt in H3; destruct H3 as (r0, H3).
+        assert (H2: edge_t_to_r (t1, t2) (t2, t3') (r0, r1)).
+          apply edge_t_to_r_def. assumption. assumption.
+        exists ((r0, r1) :: (r1, r2):: nil)%list.
+        apply t_to_r_cons.
+        assumption.
+        assumption.
+      * (* Case 3: *)
+        subst.
+        destruct t4 as (t3', t4).
+        destruct r2 as (r2, r3).
+        destruct r1 as (r1, r2').
+        inversion H6; subst. (* t3 = t3' *)
+        (* t1 t2 -> t1 r0 t2 *)
+        apply t_to_trt in H3; destruct H3 as (r0, H3).
+        assert (H2: edge_t_to_r (t1, t2) (t2, t3') (r0, r1)).
+          apply edge_t_to_r_def. assumption. assumption.
+        exists ((r0, r1) :: ((r1, r2):: (r2,r3) :: rw))%list.
+        apply t_to_r_cons.
+        assumption.
+        assumption.
+
+      destruct H2 as (r0, H2).
+      exists ((r1, r2') :: (r2, r3):: rw)%list.
+      apply t_to_r_cons.
+      assumption.
+      assumption.
+
+      apply t_to_r_r_edge in H6.
+      assert (Hr := t_to_r_edge_edge (t1,t2) (t3',t4) _ H4).  
+      apply t_to_r_r_edge.
       apply t_to_r_cons.
       assumption.
       assumption.

@@ -518,52 +518,45 @@ Proof.
       inversion H1.
       * (* Case 1: *)
         subst.
-        inversion H; subst.
-        inversion H4; subst.
-        assert (Hr := edge_t_to_r_total _ _ _ H3 H8).
+        assert (H4: TEdge (t2, t3)).
+          inversion H; subst;
+          inversion H5; subst;
+          assumption.
+        assert (Hr := edge_t_to_r_total _ _ _ H3 H4).
         destruct Hr as (r1, (r2, Hr)).
         exists (cons (r1, r2) nil).
-        apply t_to_r_edge_edge.
+        intuition.
+        apply t_to_r_cons.
         assumption.
         assumption.
+        apply WCons.
+        apply WNil.
+        apply t_to_r_r_edge in Hr.
+        assumption.
+        unfold Linked.
+        auto.
       * (* Case 2: *)
         subst.
         destruct e2 as (t3', t4).
-        inversion H6; subst. (* t3 = t3' *)
+        inversion H7; subst. (* t3 = t3' *)
         apply t_to_trt in H3; destruct H3 as (r0, H3).
-        assert (H2: edge_t_to_r (t1, t2) (t2, t3') (r0, r1)).
+        exists ((r0, r1) :: (r1, r2):: rw)%list.
+        intuition.
+        assert (H4: edge_t_to_r (t1, t2) (t2, t3') (r0, r1)).
           apply edge_t_to_r_def. assumption. assumption.
-        exists ((r0, r1) :: (r1, r2):: nil)%list.
         apply t_to_r_cons.
         assumption.
         assumption.
-      * (* Case 3: *)
-        subst.
-        destruct t4 as (t3', t4).
-        destruct r2 as (r2, r3).
-        destruct r1 as (r1, r2').
-        inversion H6; subst. (* t3 = t3' *)
-        (* t1 t2 -> t1 r0 t2 *)
-        apply t_to_trt in H3; destruct H3 as (r0, H3).
-        assert (H2: edge_t_to_r (t1, t2) (t2, t3') (r0, r1)).
-          apply edge_t_to_r_def. assumption. assumption.
-        exists ((r0, r1) :: ((r1, r2):: (r2,r3) :: rw))%list.
-        apply t_to_r_cons.
+        apply WCons.
         assumption.
+        assert (H4: RTR r0 t2 r1).
+          apply trt_to_rtr with (t1:=t1) (t3:=t3').
+          assumption.
+          assumption.
+        apply rtr_to_r with (t:=t2).
         assumption.
-
-      destruct H2 as (r0, H2).
-      exists ((r1, r2') :: (r2, r3):: rw)%list.
-      apply t_to_r_cons.
-      assumption.
-      assumption.
-
-      apply t_to_r_r_edge in H6.
-      assert (Hr := t_to_r_edge_edge (t1,t2) (t3',t4) _ H4).  
-      apply t_to_r_r_edge.
-      apply t_to_r_cons.
-      assumption.
-      assumption.
+        unfold Linked.
+        auto.
 Qed.
 
 Lemma t_to_r_walk:

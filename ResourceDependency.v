@@ -62,6 +62,23 @@ Inductive VertexIn : A -> walk -> Prop :=
     List.In e w ->
     VertexIn (tail e) w.
 
+Inductive Start : walk -> edge -> Prop :=
+  | Start_nil:
+    forall e,
+    Start (e :: nil) e
+  | Start_cons:
+    forall e e' w,
+    Start w e ->
+    Start (e'::w) e.
+
+Inductive Cycle: walk -> Prop :=
+  Cycle_def:
+    forall w e1 e2,
+    Start (e2 :: w) e1 ->
+    Walk (e2 :: w) ->
+    snd e1 = fst e2 ->
+    Cycle (e2 :: w).
+
 End Walk.
 
 Module RES := PairOrderedType PHID Nat_as_OT.
@@ -218,9 +235,11 @@ Definition SG_of (g:set_r_edge) :=
   forall e, Set_R.In e g <-> REdge e.
 
 Notation TWalk := (Walk tid TEdge).
+Notation TCycle := (Cycle tid TEdge).
 Notation t_walk := (list t_edge).
 
 Notation RWalk := (Walk resource REdge).
+Notation RCycle := (Cycle resource REdge).
 Notation r_walk := (list r_edge).
 
 Notation g_edge := (g_vertex * g_vertex) % type.
@@ -277,6 +296,7 @@ Definition GEdge (e:g_edge) :=
   TREdge e \/ RTEdge e.
 
 Definition GWalk := Walk g_vertex GEdge.
+Definition GCycle := Cycle g_vertex GEdge.
 
 Lemma t_edge_to_g_edge:
   forall t1 t2,
@@ -588,5 +608,14 @@ Proof.
       auto.
 Qed.
 
+Lemma wfg_to_sg:
+  forall w,
+  TCycle w ->
+  exists w', RCycle w'.
+Proof.
+  intros.
+  inversion H.
+  subst.
+  induction e1
 
 End Dependencies.

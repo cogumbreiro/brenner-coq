@@ -162,10 +162,12 @@ Definition SG_of (g:set_r_edge) :=
 
 Notation TWalk := (Walk tid TEdge).
 Notation TCycle := (Cycle tid TEdge).
+Definition TCycle_def := Cycle_def tid TEdge.
 Notation t_walk := (list t_edge).
 
 Notation RWalk := (Walk resource REdge).
 Notation RCycle := (Cycle resource REdge).
+Definition RCycle_def := Cycle_def resource REdge.
 Notation r_walk := (list r_edge).
 
 Notation g_edge := (g_vertex * g_vertex) % type.
@@ -382,6 +384,26 @@ Proof.
   auto.
 Qed.
 
+Lemma trt_refl:
+  forall t r,
+  TRT t r t ->
+  RTR r t r.
+Proof.
+  intros.
+  assert (H1:= trt_to_rtr _ _ _ _ _ H H).
+  assumption.
+Qed.
+
+Lemma rtr_refl:
+  forall r t,
+  RTR r t r ->
+  TRT t r t.
+Proof.
+  intros.
+  assert (H1:= rtr_to_trt _ _ _ _ _ H H).
+  assumption.
+Qed.
+
 Inductive edge_t_to_r : t_edge -> t_edge -> r_edge -> Prop :=
   edge_t_to_r_def:
     forall t1 t2 t3 r1 r2,
@@ -540,9 +562,57 @@ Lemma wfg_to_sg:
   exists w', RCycle w'.
 Proof.
   intros.
-  inversion H; clear H.
-  subst.
-  assert (H3 := H1).
-  apply t_to_r_total in H1.
-  destruct H1 as (rw, (H1, H4)).
+  inversion H; clear H; subst.
+  inversion H1; subst.
+  apply t_to_r_total in H3.
+  destruct H3 as (tr, (H2, H3)).
+  inversion H2.
+  - subst.
+    apply start_cons in H0. inversion H0. subst.
+    apply t_to_trt in H4.
+    destruct H4 as (r, H4).
+    apply trt_refl in H4.
+    apply rtr_to_r in H4.
+    exists ((r,r) :: nil)%list.
+    assert (Hs : Start resource ((r,r)::nil) (r,r)). apply Start_nil.
+    assert (Hw : RWalk ((r,r)::nil)).
+      apply WCons. apply WNil. assumption. compute. reflexivity.
+    apply RCycle_def with (vn:=r).
+    assumption.
+    assumption.
+  - subst.
+    inversion H0; clear H0; subst.
+    assert (Hr := H8). 
+    apply start_cons in H8; inversion H8; subst; clear H. (* e = (vn, v1) *)
+    inversion H5; compute in H; subst; clear H5. (* v2 = vn *)
+    inversion H1; subst; inversion H5; subst.
+    apply t_to_trt in H6.
+    apply t_to_trt in H9.
+    destruct H6 as (r1, H6).
+    destruct H9 as (r2, H9).
+    assert (Hr1 : RTR r1 vn r2).
+    apply trt_to_rtr with (t1 := v1) (t3:=v1).
+      assumption. assumption.
+    assert (Hr2 : RTR r2 v1 r1).
+      apply trt_to_rtr with (t1 := vn) (t3:=vn).
+      assumption. assumption.
+    apply rtr_to_r in Hr1.
+    apply rtr_to_r in Hr2.
+    exists ((r1,r2)::(r2, r1)::nil)%list.
+    apply RCycle_def with (vn:=r2).
+    + apply Start_cons.
+      apply Start_nil.
+    + apply WCons.
+      apply WCons.
+      apply WNil.
+      assumption.
+      compute. reflexivity.
+      assumption.
+      compute; reflexivity.
+  - subst.
+    destruct e1 as (t1, t2).
+    destruct e2 as (t2', t3).
+    destruct e as (r1, r2).
+    
+Qed.
 End Dependencies.

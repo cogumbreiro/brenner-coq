@@ -63,11 +63,54 @@ Inductive Start : walk -> edge -> Prop :=
     Start w e ->
     Start (e'::w) e.
 
+Lemma start_cons:
+  forall e1 e2,
+  Start (e1 :: nil) e2 ->
+  e1 = e2.
+Proof.
+  intros.
+  inversion H.
+  - reflexivity.
+  - subst.
+    inversion H3.
+Qed.
+
+Lemma start_cons2:
+  forall v1 v2 v1' v2',
+  Start ((v1,v2) :: nil) (v1', v2') ->
+  v1 = v1' /\ v2 = v2'.
+Proof.
+  intros.
+  apply start_cons in H.
+  inversion H.
+  intuition.
+Qed.
+
+Lemma start_to_edge:
+  forall w e,
+  Walk w ->
+  Start w e ->
+  Edge e.
+Proof.
+  intros.
+  induction w.
+  - inversion H0.
+  - inversion H.
+    subst.
+    destruct w.
+    + apply start_cons in H0.
+      subst.
+      assumption.
+    + apply IHw.
+      assumption.
+      inversion H0.
+      assumption.
+Qed.
+
 Inductive Cycle: walk -> Prop :=
   Cycle_def:
-    forall w e1 e2,
-    Start (e2 :: w) e1 ->
-    Walk (e2 :: w) ->
-    snd e1 = fst e2 ->
-    Cycle (e2 :: w).
+    forall v1 v2 vn w,
+    Start ((v1,v2) :: w) (vn, v1) ->
+    Walk ((v1,v2) :: w) ->
+    Cycle ((v1,v2) :: w).
 End Walk.

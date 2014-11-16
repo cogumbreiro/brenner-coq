@@ -14,13 +14,13 @@ Definition walk_head (default:A) (w:walk) : A := head (List.hd (default, default
 Definition Linked e w := tail e = walk_head (tail e) w.
 
 Inductive Walk : walk -> Prop :=
-  | WCons:
+  | walk_cons:
     forall e w,
     Walk w ->
     Edge e ->
     Linked e w ->
     Walk (e :: w)
-  | WNil:
+  | walk_nil:
     Walk nil.
 
 Lemma in_edge:
@@ -44,28 +44,18 @@ Proof.
   assumption.
 Qed.
 
-Inductive VertexIn : A -> walk -> Prop :=
-  | VertexIn_head:
-    forall e w,
-    List.In e w ->
-    VertexIn (head e) w
-  | VertexIn_tail:
-    forall e w,
-    List.In e w ->
-    VertexIn (tail e) w.
-
-Inductive Start : walk -> edge -> Prop :=
-  | Start_nil:
+Inductive End : walk -> edge -> Prop :=
+  | end_nil:
     forall e,
-    Start (e :: nil) e
-  | Start_cons:
+    End (e :: nil) e
+  | end_cons:
     forall e e' w,
-    Start w e ->
-    Start (e'::w) e.
+    End w e ->
+    End (e'::w) e.
 
-Lemma start_cons:
+Lemma end_inv:
   forall e1 e2,
-  Start (e1 :: nil) e2 ->
+  End (e1 :: nil) e2 ->
   e1 = e2.
 Proof.
   intros.
@@ -75,13 +65,13 @@ Proof.
     inversion H3.
 Qed.
 
-Lemma start_cons2:
+Lemma end_inv2:
   forall v1 v2 v1' v2',
-  Start ((v1,v2) :: nil) (v1', v2') ->
+  End ((v1,v2) :: nil) (v1', v2') ->
   v1 = v1' /\ v2 = v2'.
 Proof.
   intros.
-  apply start_cons in H.
+  apply end_inv in H.
   inversion H.
   intuition.
 Qed.
@@ -89,7 +79,7 @@ Qed.
 Lemma start_to_edge:
   forall w e,
   Walk w ->
-  Start w e ->
+  End w e ->
   Edge e.
 Proof.
   intros.
@@ -98,7 +88,7 @@ Proof.
   - inversion H.
     subst.
     destruct w.
-    + apply start_cons in H0.
+    + apply end_inv in H0.
       subst.
       assumption.
     + apply IHw.
@@ -108,9 +98,9 @@ Proof.
 Qed.
 
 Inductive Cycle: walk -> Prop :=
-  Cycle_def:
+  cycle_def:
     forall v1 v2 vn w,
-    Start ((v1,v2) :: w) (vn, v1) ->
+    End ((v1,v2) :: w) (vn, v1) ->
     Walk ((v1,v2) :: w) ->
     Cycle ((v1,v2) :: w).
 End Walk.

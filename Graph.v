@@ -65,6 +65,25 @@ Proof.
     inversion H3.
 Qed.
 
+Lemma end_total:
+  forall e w,
+  exists e', End (e :: w) e'.
+Proof.
+  intros.
+  induction w.
+  - exists e.
+    apply end_nil.
+  - destruct IHw as (e', H).
+    inversion H; subst.
+    + exists a.
+      apply end_cons.
+      apply end_nil.
+    + exists e'.
+      apply end_cons.
+      apply end_cons.
+      assumption.
+Qed.
+
 Lemma end_inv2:
   forall v1 v2 v1' v2',
   End ((v1,v2) :: nil) (v1', v2') ->
@@ -76,7 +95,7 @@ Proof.
   intuition.
 Qed.
 
-Lemma start_to_edge:
+Lemma end_to_edge:
   forall w e,
   Walk w ->
   End w e ->
@@ -95,6 +114,37 @@ Proof.
       assumption.
       inversion H0.
       assumption.
+Qed.
+
+Lemma end_det:
+  forall w e e',
+  End w e ->
+  End w e' ->
+  e = e'.
+Proof.
+  intros.
+  induction w.
+  - inversion H.
+  - inversion H; inversion H0; subst.
+    + assumption.
+    + inversion H7. (* absurd *)
+    + inversion H4. (* absurd *)
+    + apply IHw.
+      assumption.
+      assumption.
+Qed.
+
+Lemma end_cons_eq:
+  forall w e e' e'',
+  End w e ->
+  End (e' :: w) e'' ->
+  e = e''.
+Proof.
+  intros.
+  assert (H1 := end_cons _ e' _ H).
+  apply end_det with (w:=(e'::w)).
+  assumption.
+  assumption.
 Qed.
 
 Inductive Cycle: walk -> Prop :=

@@ -164,11 +164,13 @@ Notation TWalk := (Walk tid TEdge).
 Notation TCycle := (Cycle tid TEdge).
 Definition t_cycle_def := cycle_def tid TEdge.
 Notation t_walk := (list t_edge).
+Notation TEnd := (End tid).
 
 Notation RWalk := (Walk resource REdge).
 Notation RCycle := (Cycle resource REdge).
 Definition r_cycle_def := cycle_def resource REdge.
 Notation r_walk := (list r_edge).
+Notation REnd := (End resource).
 
 Notation g_edge := (g_vertex * g_vertex) % type.
 
@@ -555,6 +557,63 @@ Proof.
     + inversion H6.
       auto.
 Qed.
+
+Inductive TComplement : t_walk -> r_walk -> Prop :=
+  t_complement_def:
+    forall tw rw,
+    TWalk tw ->
+    RWalk rw ->
+    t_to_r tw rw ->
+    TComplement tw rw.
+
+Lemma t_complement_decons:
+  forall tw rw e1 e2,
+  TComplement (e1::tw) (e2::rw) ->
+  TComplement tw rw.
+Proof.
+  intros.
+  inversion H; subst; clear H.
+  inversion H0; inversion H1; inversion H2; clear H0 H1 H2; subst.
+  apply t_complement_def.
+  assumption.
+  assumption.
+  assumption.
+Qed.
+
+Lemma tcomplement_to_end:
+  forall e1 e2 tw rw e e',
+  TComplement (e1::tw) (e2::rw) ->
+  TEnd (e1::tw) e ->
+  REnd (e2::rw) e' ->
+  exists e'',
+  TComplement (e''::e::nil)%list (e'::nil).
+Proof.
+  intros.
+  induction tw.
+
+Lemma r_walk_end:
+  forall t t' tw rw,
+  TWalk tw ->
+  t_to_r tw rw ->
+  RWalk rw ->
+  End tid tw (t, t') ->
+  rw <> nil ->
+  exists r r',
+  (TRT t r t' /\ End resource rw (r', r)).
+Proof.
+  intros.
+  inversion H0; subst; inversion H2.
+   - intuition. (* absurd *)
+   - intuition. (* absurd *)
+   - subst.
+     destruct e as (r1, r2).
+     assert (H6:=end_total resource (r1,r2) rw0 ).
+     destruct H6 as (e, Hend).
+     destruct e as (r', r);
+     exists r'; exists r.
+     intuition.
+     
+Qed.    
 
 Lemma wfg_to_sg:
   forall w,

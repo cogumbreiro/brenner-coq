@@ -7,6 +7,9 @@ Require Import
   Semantics TaskMap PhaserMap Vars Syntax
   Graph.
 
+Ltac r_auto := repeat auto.
+Ltac apply_auto H := apply H; r_auto.
+
 Module RES := PairOrderedType PHID Nat_as_OT.
 Module Set_RES := FSetAVL.Make RES.
 Module Map_RES := FMapAVL.Make RES.
@@ -240,8 +243,8 @@ Proof.
   simpl in *.
   exists x.
   intuition.
-  apply as_tr_edge; assumption.
-  apply as_rt_edge; assumption.
+  apply_auto as_tr_edge.
+  apply_auto as_rt_edge.
 Qed.
 
 Lemma g_edge_to_t_edge:
@@ -261,9 +264,7 @@ Proof.
   apply IsTid_inv in H2.
   apply IsResource_inv in H1.
   subst.
-  apply as_t_edge with (r:= x0).
-  assumption.
-  assumption.
+  apply as_t_edge with (r:= x0); r_auto.
 Qed.
 
 Lemma r_edge_to_g_edge:
@@ -278,10 +279,8 @@ Proof.
   simpl in *.
   exists x.
   intuition.
-  apply as_rt_edge.
-  assumption.
-  apply as_tr_edge.
-  assumption.
+  apply_auto as_rt_edge.
+  apply_auto as_tr_edge.
 Qed.
 
 Lemma g_edge_to_r_edge:
@@ -301,9 +300,7 @@ Proof.
   apply IsTid_inv in H1.
   apply IsResource_inv in H2.
   subst.
-  apply as_r_edge with (t:=t1).
-  assumption.
-  assumption.
+  apply as_r_edge with (t:=t1); r_auto.
 Qed.
 
 Definition RTR (r1:resource) (t:tid) (r2:resource) :=
@@ -319,9 +316,7 @@ Lemma rtr_to_r:
 Proof.
   intros.
   destruct H.
-  apply g_edge_to_r_edge with (t:=t).
-  assumption.
-  assumption.
+  apply g_edge_to_r_edge with (t:=t); r_auto.
 Qed.
 
 Lemma r_to_rtr:
@@ -332,8 +327,7 @@ Lemma r_to_rtr:
 Proof.
   intros.
   unfold RTR.
-  apply r_edge_to_g_edge.
-  assumption.
+  apply_auto r_edge_to_g_edge.
 Qed.    
 
 Lemma trt_to_t:
@@ -343,9 +337,7 @@ Lemma trt_to_t:
 Proof.
   intros.
   destruct H.
-  apply g_edge_to_t_edge with (r:=r).
-  assumption.
-  assumption.
+  apply g_edge_to_t_edge with (r:=r); r_auto.
 Qed.
 
 Lemma t_to_trt:
@@ -356,8 +348,7 @@ Lemma t_to_trt:
 Proof.
   intros.
   unfold TRT.
-  apply t_edge_to_g_edge.
-  assumption.
+  apply_auto t_edge_to_g_edge.
 Qed.    
 
 Lemma rtr_to_trt:
@@ -384,6 +375,30 @@ Proof.
   destruct H0.
   unfold RTR.
   auto.
+Qed.
+
+Lemma trt_to_r:
+  forall t1 t2 t3 r1 r2,
+  TRT t1 r1 t2 ->
+  TRT t2 r2 t3 ->
+  REdge (r1, r2).
+Proof.
+  intros.
+  assert (H2: RTR r1 t2 r2).
+  + apply trt_to_rtr with (t1:=t1) (t3:=t3); r_auto.
+  + apply rtr_to_r with (t:=t2); r_auto.
+Qed.
+
+Lemma rtr_to_t:
+  forall r1 r2 r3 t1 t2,
+  RTR r1 t1 r2 ->
+  RTR r2 t2 r3 ->
+  TEdge (t1, t2).
+Proof.
+  intros.
+  assert (H2: TRT t1 r2 t2).
+  + apply rtr_to_trt with (r1:=r1) (r3:=r3); r_auto.
+  + apply trt_to_t with (r:=r2); r_auto.
 Qed.
 
 Lemma trt_refl:
@@ -422,11 +437,8 @@ Proof.
   inversion H.
   subst.
   assert (H2: RTR r1 t2 r2).
-  apply trt_to_rtr with (t1:=t1) (t3:=t3).
-  assumption.
-  assumption.
-  apply rtr_to_r in H2.
-  assumption.
+  apply trt_to_rtr with (t1:=t1) (t3:=t3); r_auto.
+  apply rtr_to_r in H2; r_auto.
 Qed.
  
 Lemma edge_t_to_r_total:
@@ -461,6 +473,157 @@ Inductive t_to_r : t_walk -> r_walk -> Prop :=
     edge_t_to_r e1 e2 e ->
     t_to_r (e1 :: e2 :: tw)%list (e :: rw).
 
+Lemma t_to_r_total_nil:
+  exists rw : r_walk, t_to_r nil rw /\ RWalk rw.
+Proof.
+  exists nil.
+  intuition.
+  apply t_to_r_nil.
+  apply walk_nil.
+Qed.
+
+Lemma t_to_r_total_edge:
+  forall t1 t2,
+  TWalk ((t1, t2) :: nil) ->
+  exists rw : r_walk, t_to_r ((t1, t2) :: nil) rw /\ RWalk rw.
+Proof.
+  exists nil.
+  intuition.
+  apply t_to_r_edge_nil.
+  apply walk_nil.  
+Qed.
+
+Lemma t_walk_to_t_to_r_edge:
+  forall t1 t2 t3 tw,
+  TWalk ((t1, t2) :: ((t2, t3) :: tw)%list) ->
+  exists r1 r2, edge_t_to_r (t1, t2) (t2, t3) (r1, r2).
+Proof.
+  intros.
+  inversion H; subst.
+  inversion H2; subst.
+  apply_auto edge_t_to_r_total.
+Qed.
+
+Lemma edge_t_to_r_inv1:
+  forall t1 t2 t3 r1 r2,
+  edge_t_to_r (t1, t2) (t2, t3) (r1, r2) ->
+  TRT t1 r1 t2.
+Proof.
+  intros. inversion H.
+  assumption.
+Qed.
+
+Lemma edge_t_to_r_inv2:
+  forall t1 t2 t3 r1 r2,
+  edge_t_to_r (t1, t2) (t2, t3) (r1, r2) ->
+  TRT t2 r2 t3.
+Proof.
+  intros. inversion H.
+  assumption.
+Qed.
+
+Lemma edge_t_to_r_inv3:
+  forall t1 t2 t3 r1 r2,
+  edge_t_to_r (t1, t2) (t2, t3) (r1, r2) ->
+  RTR r1 t2 r2.
+Proof.
+  intros. inversion H.
+  apply trt_to_rtr with (t1:=t1) (t3:=t3); r_auto.
+Qed.
+
+Lemma r_walk_cons_trt:
+  forall r0 r1 r2 t1 t2 t3 rw,
+  TRT t1 r0 t2 ->
+  TRT t2 r1 t3 ->
+  RWalk ((r1, r2) :: rw) ->
+  RWalk ((r0, r1) :: ((r1, r2) :: rw)%list).
+Proof.
+  intros.
+  inversion H0; subst.
+  apply walk_cons.
+  - assumption.
+  - apply trt_to_r with (t1:=t1) (t2:=t2) (t3:=t3); r_auto.
+  - compute; auto.
+Qed.
+
+Lemma t_to_r_cons_trt:
+  forall t1 t2 t3 t4 tw r0 r1 r2 rw,
+  TRT t1 r0 t2 ->
+  TRT t2 r1 t3 ->
+  t_to_r ((t2, t3) :: ((t3, t4) :: tw)%list) ((r1, r2) :: rw)
+  ->
+  t_to_r ((t1, t2) :: ((t2, t3) :: (t3, t4) :: tw)%list)
+  ((r0, r1) :: ((r1, r2) :: rw)%list).
+Proof.
+  intros.
+  assert (H5': edge_t_to_r (t1, t2) (t2, t3) (r0, r1)).
+  * apply_auto edge_t_to_r_def.
+  * apply_auto t_to_r_cons.
+Qed.
+
+Lemma t_to_r_r_walk_cons:
+  forall t1 t2 t3 t4 tw r0 r1 r2 rw,
+  TRT t1 r0 t2 ->
+  TRT t2 r1 t3 ->
+  RWalk ((r1, r2) :: rw) ->
+  edge_t_to_r (t2, t3) (t3, t4) (r1, r2) ->
+  t_to_r ((t2, t3) :: ((t3, t4) :: tw))%list ((r1, r2) :: rw)
+  ->
+  t_to_r ((t1, t2) :: ((t2, t3) :: (t3, t4) :: tw)%list)
+  ((r0, r1) :: ((r1, r2) :: rw)%list)
+  /\
+  RWalk ((r0, r1) :: ((r1, r2) :: rw)%list).
+Proof.
+  intuition.
+  + apply_auto t_to_r_cons_trt.
+  + apply edge_t_to_r_inv1 in H2.
+    apply r_walk_cons_trt with (t1:=t1) (t2:=t2) (t3:=t3); r_auto.
+Qed.
+
+Lemma edge_t_to_r_to_r_walk:
+  forall t1 t2 t3 r1 r2,
+  edge_t_to_r (t1, t2) (t2, t3) (r1, r2) ->
+  RWalk ((r1, r2) :: nil).
+Proof.
+  intros.
+  apply walk_cons.
+  * apply walk_nil.
+  * apply t_to_r_r_edge in H.
+    assumption.
+  * compute;
+    auto.
+Qed.
+
+Lemma t_to_r_total_step:
+  forall t1 t2 t3 tw rw,
+  TWalk ((t1, t2) :: ((t2, t3) :: tw)%list) ->
+  t_to_r ((t2, t3) :: tw) rw ->
+  RWalk rw ->
+  exists rw' : r_walk,
+  t_to_r ((t1, t2) :: ((t2, t3) :: tw)%list) rw' /\ RWalk rw'.
+Proof.
+  intros.
+  assert (H3: TEdge (t1, t2)).
+  inversion H; subst; assumption.
+  inversion H0.
+  - (* Case 1: *)
+    subst.
+    assert (Hr := H).
+    apply t_walk_to_t_to_r_edge in Hr.
+    destruct Hr as (r1, (r2, Hr)).
+    exists (cons (r1, r2) nil).
+    intuition.
+    + apply_auto t_to_r_cons.
+    + apply edge_t_to_r_to_r_walk with (t1:=t1) (t2:=t2) (t3:=t3); r_auto.
+  - (* Case 2: *)
+    subst.
+    destruct e2 as (t3', t4).
+    inversion H7; subst. (* t3 = t3' *)
+    apply t_to_trt in H3; destruct H3 as (r0, H3).
+    exists ((r0, r1) :: (r1, r2):: rw0)%list.
+    apply_auto t_to_r_r_walk_cons.
+Qed.
+
 Lemma t_to_r_total:
   forall tw,
   TWalk tw ->
@@ -468,65 +631,18 @@ Lemma t_to_r_total:
 Proof.
   intros.
   induction tw.
-  - exists nil.
-    intuition.
-    apply t_to_r_nil.
-    apply walk_nil.
+  - apply t_to_r_total_nil.
   - inversion H.
     subst.
     apply IHtw in H2; clear IHtw.
     destruct H2 as (tr, (H1, H2)).
     destruct a as (t1, t2).
     destruct tw.
-    + exists nil.
-      intuition.
-      apply t_to_r_edge_nil.
-      apply walk_nil.
+    + apply_auto t_to_r_total_edge.
     + destruct p as (t2', t3).
       (* t2 = t2' *)
       compute in H4; rewrite <- H4 in *; clear H4.
-      inversion H1.
-      * (* Case 1: *)
-        subst.
-        assert (H4: TEdge (t2, t3)).
-          inversion H; subst;
-          inversion H5; subst;
-          assumption.
-        assert (Hr := edge_t_to_r_total _ _ _ H3 H4).
-        destruct Hr as (r1, (r2, Hr)).
-        exists (cons (r1, r2) nil).
-        intuition.
-        apply t_to_r_cons.
-        assumption.
-        assumption.
-        apply walk_cons.
-        apply walk_nil.
-        apply t_to_r_r_edge in Hr.
-        assumption.
-        unfold Linked.
-        auto.
-      * (* Case 2: *)
-        subst.
-        destruct e2 as (t3', t4).
-        inversion H7; subst. (* t3 = t3' *)
-        apply t_to_trt in H3; destruct H3 as (r0, H3).
-        exists ((r0, r1) :: (r1, r2):: rw)%list.
-        intuition.
-        assert (H4: edge_t_to_r (t1, t2) (t2, t3') (r0, r1)).
-          apply edge_t_to_r_def. assumption. assumption.
-        apply t_to_r_cons.
-        assumption.
-        assumption.
-        apply walk_cons.
-        assumption.
-        assert (H4: RTR r0 t2 r1).
-          apply trt_to_rtr with (t1:=t1) (t3:=t3').
-          assumption.
-          assumption.
-        apply rtr_to_r with (t:=t2).
-        assumption.
-        unfold Linked.
-        auto.
+      apply t_to_r_total_step with (rw := tr); r_auto.
 Qed.
 
 Lemma t_to_r_step:
@@ -574,10 +690,7 @@ Proof.
   intros.
   inversion H; subst; clear H.
   inversion H0; inversion H1; inversion H2; clear H0 H1 H2; subst.
-  apply t_complement_def.
-  assumption.
-  assumption.
-  assumption.
+  apply_auto t_complement_def.
 Qed.
 
 Lemma tcomplement_to_end:

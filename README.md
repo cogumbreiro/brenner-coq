@@ -75,3 +75,11 @@ See also:
 
  * [C implementation of phasers](http://locklessinc.com/articles/phasers/)
  * [Java implementation of phasers](http://docs.oracle.com/javase/7/docs/api/java/util/concurrent/Phaser.html)
+
+Changelog
+=========
+
+[Version 0.1](https://bitbucket.org/cogumbreiro/brenner-coq/src/v0.1/):
+
+ * Proved that a cycle in the WFG implies a cycle in the SG.
+ * Created definitions: syntax, operational semantics, resource dependencies.

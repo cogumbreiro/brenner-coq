@@ -531,6 +531,18 @@ Proof.
   apply trt_to_rtr with (t1:=t1) (t3:=t3); r_auto.
 Qed.
 
+Lemma edge_t_to_to_t_to_r:
+  forall t1 t2 t3 r1 r2,
+  edge_t_to_r (t1, t2) (t2, t3) (r1, r2) ->
+  t_to_r ((t1, t2) :: ((t2, t3) :: nil)%list) ((r1, r2) :: nil).
+Proof.
+  intros.
+  inversion H.
+  apply t_to_r_cons.
+  apply t_to_r_edge_nil.
+  apply edge_t_to_r_def; r_auto.
+Qed.
+
 Lemma r_walk_cons_trt:
   forall r0 r1 r2 t1 t2 t3 rw,
   TRT t1 r0 t2 ->
@@ -674,36 +686,67 @@ Proof.
       auto.
 Qed.
 
-Inductive TComplement : t_walk -> r_walk -> Prop :=
-  t_complement_def:
-    forall tw rw,
-    TWalk tw ->
-    RWalk rw ->
-    t_to_r tw rw ->
-    TComplement tw rw.
-
-Lemma t_complement_decons:
-  forall tw rw e1 e2,
-  TComplement (e1::tw) (e2::rw) ->
-  TComplement tw rw.
+Lemma t_to_r_mk_nil:
+  forall t1 t2 t3 r1 r2,
+  t_to_r ((t1,t2)::(t2,t3)::nil)%list ((r1,r2)::nil) ->
+  (TRT t1 r1 t2 /\ TRT t2 r2 t3).
 Proof.
   intros.
-  inversion H; subst; clear H.
-  inversion H0; inversion H1; inversion H2; clear H0 H1 H2; subst.
-  apply_auto t_complement_def.
+  inversion H.
+  subst.
+  inversion H6.
+  subst.
+  auto.
 Qed.
 
-Lemma tcomplement_to_end:
-  forall e1 e2 tw rw e e',
-  TComplement (e1::tw) (e2::rw) ->
-  TEnd (e1::tw) e ->
-  REnd (e2::rw) e' ->
-  exists e'',
-  TComplement (e''::e::nil)%list (e'::nil).
+Lemma t_to_r_nil_inv:
+  forall tw r1 r2,
+  t_to_r tw ((r1, r2) :: nil) ->
+  exists t1 t2 t3,
+  tw = ((t1, t2) :: (t2, t3) :: nil)%list /\
+  edge_t_to_r (t1, t2) (t2, t3) (r1, r2).
 Proof.
   intros.
-  induction tw.
+  inversion H.
+  subst.
+  destruct e1 as (t1, t2').
+  destruct e2 as (t2, t3).
+  inversion H4.
+  subst.
+  exists t1; exists t2; exists t3.
+  intuition.
+  inversion H3.
+  auto.
+Qed.
 
+Lemma t_to_r_end:
+  forall tw rw r1 r2,
+  REnd rw (r1,r2) ->
+  t_to_r tw rw ->
+  exists t1 t2 t3,
+  t_to_r ((t1,t2)::(t2,t3)::nil)%list ((r1,r2)::nil) /\
+  TRT t1 r1 t2 /\ TRT t2 r2 t3.
+Proof.
+  intros.
+  induction H0.
+  - inversion H.
+  - inversion H.
+  - destruct rw.
+    + inversion H0.
+      subst.
+      destruct e1 as (t1, t2'); destruct e2 as (t2, t3); destruct e as (r1', r2').
+      inversion H1.
+      subst.
+      apply end_inv in H.
+      inversion H. subst; clear H.
+      exists t1; exists t2; exists t3.
+      intuition.
+      apply_auto edge_t_to_to_t_to_r.
+    + inversion H; subst; clear H.
+      apply_auto IHt_to_r.
+Qed.
+
+(*
 Lemma r_walk_end:
   forall t t' tw rw,
   TWalk tw ->
@@ -727,6 +770,48 @@ Proof.
      intuition.
      
 Qed.    
+*)
+
+Lemma wfg_to_sg1:
+  forall t,
+  TEdge (t, t) ->
+  exists w', RCycle w'.
+Proof.
+  intros.
+  apply t_to_trt in H.
+  destruct H as (r, H).
+  apply trt_refl in H.
+  apply rtr_to_r in H.
+  exists ((r,r) :: nil)%list.
+  apply_auto edge1_to_cycle.
+Qed.
+
+Ltac expand H := inversion H; clear H; subst.
+
+Lemma wfg_to_sg2:
+  forall t1 t2,
+  TWalk ((t1, t2) :: (t2, t1) :: nil)%list ->
+  exists w, RCycle w.
+Proof.
+  intros.
+  intros.
+  expand H.
+  expand H2.
+  apply t_to_trt in H3.
+  apply t_to_trt in H5.
+  destruct H3 as (r1, H3).
+  destruct H5 as (r2, H5).
+  assert (Hr1 : RTR r1 t2 r2).
+    apply trt_to_rtr with (t1 := t1) (t3:=t1); r_auto.
+  assert (Hr2 : RTR r2 t1 r1).
+    apply trt_to_rtr with (t1:=t2) (t3:=t2); r_auto.
+  apply rtr_to_r in Hr1.
+  apply rtr_to_r in Hr2.
+  exists ((r1,r2)::(r2,r1)::nil)%list.
+  assert (Hw: RWalk ((r1, r2) :: ((r2, r1) :: nil)%list)).
+    apply_auto edge2_to_walk.
+  apply_auto walk2_to_cycle.
+Qed.
 
 Lemma wfg_to_sg:
   forall w,
@@ -734,53 +819,22 @@ Lemma wfg_to_sg:
   exists w', RCycle w'.
 Proof.
   intros.
-  inversion H; clear H; subst.
-  inversion H1; subst.
+  expand H. (* TCycle w *)
+  inversion H1; subst. (* TWalk ((v1, v2) :: w0) *)
   apply t_to_r_total in H3.
   destruct H3 as (tr, (H2, H3)).
   inversion H2.
-  - subst.
-    apply end_inv in H0. inversion H0. subst.
-    apply t_to_trt in H4.
-    destruct H4 as (r, H4).
-    apply trt_refl in H4.
-    apply rtr_to_r in H4.
-    exists ((r,r) :: nil)%list.
-    assert (Hs : End resource ((r,r)::nil) (r,r)). apply end_nil.
-    assert (Hw : RWalk ((r,r)::nil)).
-      apply walk_cons. apply walk_nil. assumption. compute. reflexivity.
-    apply r_cycle_def with (vn:=r).
-    assumption.
-    assumption.
-  - subst.
+  - (* Case: (t,t)::nil *)
+    subst.
+    apply end_inv in H0; inversion H0; subst.
+    apply wfg_to_sg1 with (t:=vn); r_auto.
+  - (* Case: (t1,t2) :: (t2, t1) :: nil *)
+    subst.
     inversion H0; clear H0; subst.
     assert (Hr := H8). 
     apply end_inv in H8; inversion H8; subst; clear H. (* e = (vn, v1) *)
     inversion H5; compute in H; subst; clear H5. (* v2 = vn *)
-    inversion H1; subst; inversion H5; subst.
-    apply t_to_trt in H6.
-    apply t_to_trt in H9.
-    destruct H6 as (r1, H6).
-    destruct H9 as (r2, H9).
-    assert (Hr1 : RTR r1 vn r2).
-    apply trt_to_rtr with (t1 := v1) (t3:=v1).
-      assumption. assumption.
-    assert (Hr2 : RTR r2 v1 r1).
-      apply trt_to_rtr with (t1 := vn) (t3:=vn).
-      assumption. assumption.
-    apply rtr_to_r in Hr1.
-    apply rtr_to_r in Hr2.
-    exists ((r1,r2)::(r2, r1)::nil)%list.
-    apply r_cycle_def with (vn:=r2).
-    + apply end_cons.
-      apply end_nil.
-    + apply walk_cons.
-      apply walk_cons.
-      apply walk_nil.
-      assumption.
-      compute. reflexivity.
-      assumption.
-      compute; reflexivity.
+    apply wfg_to_sg2 with (t1:=v1) (t2:=vn); r_auto.
   - subst.
     destruct e1 as (t1, t2).
     destruct e2 as (t2', t3).

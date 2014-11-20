@@ -23,6 +23,33 @@ Inductive Walk : walk -> Prop :=
   | walk_nil:
     Walk nil.
 
+Lemma edge_to_walk:
+  forall e,
+  Edge e ->
+  Walk (e::nil).
+Proof.
+  intros.
+  apply walk_cons.
+  apply walk_nil.
+  assumption.
+  compute.
+  auto.
+Qed.
+
+Lemma edge2_to_walk:
+  forall v1 v2 v3,
+  Edge (v1, v2) ->
+  Edge (v2, v3) ->
+  Walk ((v1,v2)::(v2,v3)::nil).
+Proof.
+  intros.
+  apply walk_cons.
+  apply edge_to_walk. assumption.
+  assumption.
+  compute.
+  auto.
+Qed.
+
 Lemma in_edge:
   forall e w,
   Walk w ->
@@ -153,4 +180,54 @@ Inductive Cycle: walk -> Prop :=
     End ((v1,v2) :: w) (vn, v1) ->
     Walk ((v1,v2) :: w) ->
     Cycle ((v1,v2) :: w).
+
+Lemma walk1_to_cycle:
+  forall v,
+  Walk ((v,v)::nil) ->
+  Cycle ((v,v)::nil).
+Proof.
+  intros.
+  apply cycle_def with (vn:=v).
+  apply end_nil.
+  assumption.
+Qed.
+
+Lemma edge1_to_cycle:
+  forall v,
+  Edge (v,v) ->
+  Cycle ((v,v)::nil).
+Proof.
+  intros.
+  apply edge_to_walk in H.
+  apply walk1_to_cycle.
+  assumption.
+Qed.
+
+Lemma walk2_to_cycle:
+  forall v1 v2,
+  Walk ((v1, v2) :: (v2, v1)::nil)%list ->
+  Cycle ((v1, v2) :: (v2, v1)::nil)%list.
+Proof.
+  intros.
+  apply cycle_def with (vn:=v2).
+  apply end_cons.
+  apply end_nil.
+  assumption.
+Qed.
+
+Lemma edge2_to_cycle:
+  forall v1 v2,
+  Edge (v1, v2) ->
+  Edge (v2, v1) ->
+  Cycle ((v1, v2) :: (v2, v1)::nil)%list.
+Proof.
+  intros.
+  assert (H': Walk ((v1, v2) :: (v2, v1)::nil)%list).
+    apply edge2_to_walk.
+    assumption.
+    assumption.
+  apply walk2_to_cycle.
+  assumption.
+Qed.
+  
 End Walk.

@@ -725,7 +725,7 @@ Lemma t_to_r_end:
   t_to_r tw rw ->
   exists t1 t2 t3,
   t_to_r ((t1,t2)::(t2,t3)::nil)%list ((r1,r2)::nil) /\
-  TRT t1 r1 t2 /\ TRT t2 r2 t3.
+  TRT t1 r1 t2 /\ TRT t2 r2 t3 /\ TEnd tw (t2, t3).
 Proof.
   intros.
   induction H0.
@@ -742,35 +742,16 @@ Proof.
       exists t1; exists t2; exists t3.
       intuition.
       apply_auto edge_t_to_to_t_to_r.
+      apply end_cons.
+      apply end_nil.
     + inversion H; subst; clear H.
-      apply_auto IHt_to_r.
+      apply IHt_to_r in H5.
+      destruct H5 as (t1, (t2, (t3, (Ha, (Hb, (Hc, Hd)))))).
+      exists t1; exists t2; exists t3.
+      intuition.
+      apply end_cons.
+      assumption.
 Qed.
-
-(*
-Lemma r_walk_end:
-  forall t t' tw rw,
-  TWalk tw ->
-  t_to_r tw rw ->
-  RWalk rw ->
-  End tid tw (t, t') ->
-  rw <> nil ->
-  exists r r',
-  (TRT t r t' /\ End resource rw (r', r)).
-Proof.
-  intros.
-  inversion H0; subst; inversion H2.
-   - intuition. (* absurd *)
-   - intuition. (* absurd *)
-   - subst.
-     destruct e as (r1, r2).
-     assert (H6:=end_total resource (r1,r2) rw0 ).
-     destruct H6 as (e, Hend).
-     destruct e as (r', r);
-     exists r'; exists r.
-     intuition.
-     
-Qed.    
-*)
 
 Lemma wfg_to_sg1:
   forall t,
@@ -820,42 +801,48 @@ Lemma wfg_to_sg:
 Proof.
   intros.
   expand H. (* TCycle w *)
+  rename v1 into t1;
+  rename v2 into t2;
+  rename vn into tn.
   inversion H1; subst. (* TWalk ((v1, v2) :: w0) *)
-  apply t_to_r_total in H3.
-  destruct H3 as (tr, (H2, H3)).
-  inversion H2.
+  apply t_to_r_total in H1.
+  destruct H1 as (rw, (H1, H2)).
+  inversion H1.
   - (* Case: (t,t)::nil *)
     subst.
     apply end_inv in H0; inversion H0; subst.
-    apply wfg_to_sg1 with (t:=vn); r_auto.
-  - (* Case: (t1,t2) :: (t2, t1) :: nil *)
+    apply wfg_to_sg1 with (t:=tn); r_auto.
+  - (* Case: (t1,t2) :: tw *)
     subst.
-    inversion H0; clear H0; subst.
-    assert (Hr := H8). 
-    apply end_inv in H8; inversion H8; subst; clear H. (* e = (vn, v1) *)
-    inversion H5; compute in H; subst; clear H5. (* v2 = vn *)
-    apply wfg_to_sg2 with (t1:=v1) (t2:=vn); r_auto.
-  - subst.
-    destruct e1 as (t1, t2).
     destruct e2 as (t2', t3).
+    compute in H5; subst; rename t2' into t2. (* t2' = t2 *)
     destruct e as (r1, r2).
-    inversion H6; subst. (* t2 = t2' *)
-    compute in H5; subst. (* v2 = t2 *)
-    assert (H5 : exists r1', TRT vn r1' v1).
-      assert (H5 : TEdge (vn, v1)).
-        apply start_to_edge with (w:=(cons (v1, t1) ((t1, t2') :: (t2', t3) :: tw)%list)).
-        assumption.
-        assumption.
-      apply t_to_trt.
+    (* Fun begins *)
+    rename rw0 into rw.
+    assert (Hre: exists r rn, REnd ((r1, r2) :: rw) (r, rn) ).
+      assert (H':= end_total _ (r1, r2) rw).
+      destruct H' as ((rn,r1'), H').
+      exists rn; exists r1'.
       assumption.
-    destruct H5 as (rn, H5).
-    inversion H1; subst.
-    apply t_to_trt in H11.
-    destruct H11 as (r0, H11); clear H12.
-    assert (H7 : RTR r0 t1 r1).
-      apply trt_to_rtr with (t1:=v1) (t3:=t2').
+    destruct Hre as (r, (rn, Hre)).
+    assert (Hre' := Hre).
+    apply t_to_r_end with (tw := ((t1, t2) :: ((t2, t3) :: tw)%list)%list) in Hre.
+    destruct Hre as (t, (tn', (t1', (Ha, (Hb, (Hc, Hd)))))).
+    apply end_det with (e:=(tn, t1)) in Hd.
+    expand Hd. rename tn' into tn; rename t1' into t1.
+    assert (Hs: RTR rn t1 r1).
+      apply trt_to_rtr with (t1:=tn) (t3:=t2).
       assumption.
+      apply edge_t_to_r_inv1 in H9.
       assumption.
-    
+    (* Ready to build the path *)
+    exists ((rn,r1)::(r1,r2)::rw)%list.
+    apply cycle_def with (vn:=r).
+    apply end_cons. assumption.
+    apply walk_cons. assumption.
+    apply rtr_to_r with (t:=t1). assumption.
+    compute. trivial.
+    assumption.
+    assumption.
 Qed.
 End Dependencies.

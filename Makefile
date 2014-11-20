@@ -88,6 +88,7 @@ VFILES:=Vars.v\
   Semantics.v\
   Graph.v\
   ResourceDependency.v\
+  Brenner.v\
   Example1.v
 
 -include $(addsuffix .d,$(VFILES))

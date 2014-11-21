@@ -8,39 +8,57 @@ Require Import Graph.
 Ltac r_auto := repeat auto.
 Ltac apply_auto H := apply H; r_auto.
 
-Variable VertexA:Type.
-Variable EdgeA : (VertexA*VertexA)%type -> Prop.
+Section Bipartite.
+Variable a_vertex:Type.
+Variable b_vertex:Type.
+Notation a_edge:= ((a_vertex * a_vertex) % type).
+Notation b_edge:= ((b_vertex * b_vertex) % type).
 
+Variable AB : a_vertex -> b_vertex -> Prop.
+Variable BA : b_vertex -> a_vertex -> Prop.
+
+
+Inductive AA : a_edge -> Prop :=
+  aa :
+    forall a1 b a2,
+    AB a1 b ->
+    BA b a2 ->
+    AA (a1, a2).
+
+Inductive BB : b_edge -> Prop :=
+  bb :
+    forall b1 a b2,
+    BA b1 a ->
+    AB a b2 ->
+    BB (b1, b2).
+
+(*
 Module GRAPH_A <: DIGRAPH.
-  Let t := VertexA.
-  Let Edge := EdgeA.
+  Let t := a_vertex.
+  Let Edge := AA.
 End GRAPH_A.
 
-Variable VertexB:Type.
-Variable EdgeB : (VertexB*VertexB)%type -> Prop.
-
 Module GRAPH_B <: DIGRAPH.
-  Let t := VertexB.
-  Let Edge := EdgeB.
+  Let t := b_vertex.
+  Let Edge := BB.
 End GRAPH_B.
+*)
 
-Module A := Digraph GRAPH_A.
-Notation a_vertex := A.t.
-Notation AEdge := A.Edge.
-Definition a_edge:= (a_vertex * a_vertex) % type.
+(*Module A := Digraph GRAPH_A.*)
+(*Notation a_vertex := A.t.*)
+Notation AEdge := AA.
 Notation AWalk := (Walk a_vertex AEdge).
 Notation ACycle := (Cycle a_vertex AEdge).
-Definition a_cycle_def := cycle_def a_vertex AEdge.
+Notation a_cycle_def := (cycle_def a_vertex AEdge).
 Notation a_walk := (list a_edge).
 Notation AEnd := (End a_vertex).
 
-Module B := Digraph GRAPH_B.
-Notation b_vertex := B.t.
-Definition b_edge:= (b_vertex * b_vertex) % type.
-Variable BEdge : b_edge -> Prop.
+(*Module B := Digraph GRAPH_B.*)
+(*Notation b_vertex := B.t.*)
+Notation BEdge := BB.
 Notation BWalk := (Walk b_vertex BEdge).
 Notation BCycle := (Cycle b_vertex BEdge).
-Definition b_cycle_def := cycle_def b_vertex BEdge.
+Notation b_cycle_def := (cycle_def b_vertex BEdge).
 Notation b_walk := (list b_edge).
 Notation BEnd := (End b_vertex).
 
@@ -49,9 +67,6 @@ Inductive bi_vertex :=
   | bi_a_vertex : a_vertex -> bi_vertex.
 
 Notation bi_edge := (bi_vertex * bi_vertex) % type.
-
-Variable AB : a_vertex -> b_vertex -> Prop.
-Variable BA : b_vertex -> a_vertex -> Prop.
 
 Inductive BAEdge : bi_edge -> Prop :=
   ba_edge :
@@ -71,29 +86,49 @@ Definition BiEdge (e:bi_edge) :=
 Definition BiWalk := Walk bi_vertex BiEdge.
 Definition BiCycle := Cycle bi_vertex BiEdge.
 
-Axiom a_edge_to_bi_edge:
+Lemma a_edge_to_bi_edge:
   forall a1 a2,
   AEdge (a1, a2) ->
   exists b,
   AB a1 b /\ BA b a2.
+Proof.
+  intros.
+  inversion H.
+  exists b.
+  intuition.
+Qed.
 
-Axiom bi_edge_to_a_edge:
+Lemma bi_edge_to_a_edge:
   forall a1 b a2,
   AB a1 b ->
   BA b a2 ->
   AEdge (a1, a2).
+Proof.
+  intros.
+  apply aa with (b:=b); r_auto.
+Qed.
 
-Axiom b_edge_to_bi_edge:
+Lemma b_edge_to_bi_edge:
   forall b1 b2,
   BEdge (b1, b2) ->
   exists a,
   BA b1 a /\ AB a b2.
+Proof.
+  intros.
+  inversion H.
+  exists a.
+  intuition.
+Qed.
 
-Axiom bi_edge_to_b_edge:
+Lemma bi_edge_to_b_edge:
   forall b1 a b2,
   BA b1 a ->
   AB a b2 ->
   BEdge (b1, b2).
+Proof.
+  intros.
+  apply bb with (a:=a); r_auto.
+Qed.
 
 (* Fun! *)
 
@@ -260,10 +295,10 @@ Inductive a_to_b : a_walk -> b_walk -> Prop :=
     a_to_b nil nil
   | t_to_b_edge_nil:
     forall e,
-    a_to_b (e::nil) nil
+    a_to_b (e::nil)%list nil
   | a_to_b_cons:
     forall e1 e2 e aw bw,
-    a_to_b (e2 :: aw) bw ->
+    a_to_b (e2 :: aw)%list bw ->
     edge_a_to_b e1 e2 e ->
     a_to_b (e1 :: e2 :: aw)%list (e :: bw).
 
@@ -279,7 +314,7 @@ Qed.
 Lemma a_to_b_total_edge:
   forall a1 a2,
   AWalk ((a1, a2) :: nil) ->
-  exists bw : b_walk, a_to_b ((a1, a2) :: nil) bw /\ BWalk bw.
+  exists bw : b_walk, a_to_b ((a1, a2) :: nil)%list bw /\ BWalk bw.
 Proof.
   exists nil.
   intuition.
@@ -328,7 +363,7 @@ Qed.
 Lemma edge_t_to_to_a_to_b:
   forall a1 a2 a3 b1 b2,
   edge_a_to_b (a1, a2) (a2, a3) (b1, b2) ->
-  a_to_b ((a1, a2) :: ((a2, a3) :: nil)%list) ((b1, b2) :: nil).
+  a_to_b ((a1, a2) :: ((a2, a3) :: nil)%list)%list ((b1, b2) :: nil).
 Proof.
   intros.
   inversion H.
@@ -356,9 +391,9 @@ Lemma a_to_b_cons_trt:
   forall a1 a2 a3 a4 aw b1 b2 b3 bw,
   ABA a1 b1 a2 ->
   ABA a2 b2 a3 ->
-  a_to_b ((a2, a3) :: ((a3, a4) :: aw)%list) ((b2, b3) :: bw)
+  a_to_b ((a2, a3) :: ((a3, a4) :: aw)%list)%list ((b2, b3) :: bw)
   ->
-  a_to_b ((a1, a2) :: ((a2, a3) :: (a3, a4) :: aw)%list)
+  a_to_b ((a1, a2) :: ((a2, a3) :: (a3, a4) :: aw)%list)%list
   ((b1, b2) :: ((b2, b3) :: bw)%list).
 Proof.
   intros.
@@ -375,7 +410,7 @@ Lemma a_to_b_b_walk_cons:
   edge_a_to_b (a2, a3) (a3, a4) (b2, b3) ->
   a_to_b ((a2, a3) :: ((a3, a4) :: aw))%list ((b2, b3) :: bw)
   ->
-  a_to_b ((a1, a2) :: ((a2, a3) :: (a3, a4) :: aw)%list)
+  a_to_b ((a1, a2) :: ((a2, a3) :: (a3, a4) :: aw)%list)%list
   ((b1, b2) :: ((b2, b3) :: bw)%list)
   /\
   BWalk ((b1, b2) :: ((b2, b3) :: bw)%list).
@@ -403,10 +438,10 @@ Qed.
 Lemma a_to_b_total_step:
   forall a1 a2 a3 aw bw,
   AWalk ((a1, a2) :: ((a2, a3) :: aw)%list) ->
-  a_to_b ((a2, a3) :: aw) bw ->
+  a_to_b ((a2, a3) :: aw)%list bw ->
   BWalk bw ->
   exists bw' : b_walk,
-  a_to_b ((a1, a2) :: ((a2, a3) :: aw)%list) bw' /\ BWalk bw'.
+  a_to_b ((a1, a2) :: ((a2, a3) :: aw)%list)%list bw' /\ BWalk bw'.
 Proof.
   intros.
   assert (H3: AEdge (a1, a2)).
@@ -547,7 +582,7 @@ Proof.
       assumption.
 Qed.
 
-Lemma wfg_to_sg1:
+Lemma cycle_a_to_b1:
   forall t,
   AEdge (t, t) ->
   exists w', BCycle w'.
@@ -562,31 +597,6 @@ Proof.
 Qed.
 
 Ltac expand H := inversion H; clear H; subst.
-
-Lemma wfg_to_sg2:
-  forall a1 a2,
-  AWalk ((a1, a2) :: (a2, a1) :: nil)%list ->
-  exists w, BCycle w.
-Proof.
-  intros.
-  intros.
-  expand H.
-  expand H2.
-  apply a_to_aba in H3.
-  apply a_to_aba in H5.
-  destruct H3 as (b1, H3).
-  destruct H5 as (b2, H5).
-  assert (Hr1 : BAB b1 a2 b2).
-    apply aba_to_bab with (a1 := a1) (a3:=a1); r_auto.
-  assert (Hr2 : BAB b2 a1 b1).
-    apply aba_to_bab with (a1:=a2) (a3:=a2); r_auto.
-  apply bab_to_b in Hr1.
-  apply bab_to_b in Hr2.
-  exists ((b1,b2)::(b2,b1)::nil)%list.
-  assert (Hw: BWalk ((b1, b2) :: ((b2, b1) :: nil)%list)).
-    apply_auto edge2_to_walk.
-  apply_auto walk2_to_cycle.
-Qed.
 
 Theorem cycle_a_to_b:
   forall w,
@@ -605,7 +615,7 @@ Proof.
   - (* Case: (t,t)::nil *)
     subst.
     apply end_inv in H0; inversion H0; subst.
-    apply wfg_to_sg1 with (t:=tn); r_auto.
+    apply cycle_a_to_b1 with (t:=tn); r_auto.
   - (* Case: (a1,a2) :: aw *)
     subst.
     destruct e2 as (a2', a3).
@@ -639,4 +649,30 @@ Proof.
     assumption.
     assumption.
 Qed.
+End Bipartite.
 
+Module G.
+Record Bipartite := mk_bipartite {
+  vertex_a : Type;
+  vertex_b : Type;
+  AB : vertex_a -> vertex_b -> Prop;
+  BA : vertex_b -> vertex_a -> Prop
+}.
+Let AA (bp:Bipartite) := AA (vertex_a bp) (vertex_b bp) (AB bp) (BA bp).
+Let BB (bp:Bipartite) := BB (vertex_a bp) (vertex_b bp) (AB bp) (BA bp).
+Let ACycle (bp:Bipartite) := Cycle (vertex_a bp) (AA bp).
+Let BCycle (bp:Bipartite) := Cycle (vertex_b bp) (BB bp).
+
+Let cycle_a_to_cycle_b := fun (bp:Bipartite) =>
+  cycle_a_to_b
+    (vertex_a bp) 
+    (vertex_b bp)
+    (AB bp)
+    (BA bp).
+Let cycle_b_to_cycle_a := fun (bp:Bipartite) =>
+  cycle_a_to_b
+    (vertex_b bp) 
+    (vertex_a bp)
+    (BA bp)
+    (AB bp).
+End G.

@@ -87,6 +87,7 @@ VFILES:=Vars.v\
   TaskMap.v\
   Semantics.v\
   Graph.v\
+  Bipartite.v\
   ResourceDependency.v\
   Brenner.v\
   Example1.v

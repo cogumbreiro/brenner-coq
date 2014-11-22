@@ -74,6 +74,9 @@ Definition I_of (i:impedes) (s:state) :=
   Blocked t r' s /\
   prec r' r).
 
+Definition Deps_of (d:dependencies) (s:state) :=
+  W_of (get_waits d) s /\ I_of (get_impedes d) s.
+
 Module T := PairOrderedType TID TID.
 Module Set_T := FSetAVL.Make T.
 Module Set_T_Props := FSetProperties.Properties Set_T.
@@ -102,6 +105,8 @@ Definition Impedes (t:tid) (r:resource) :=
 Definition GRG := OBipartite.mk_bipartite tid resource Impedes WaitsFor.
 Definition WFG := OBipartite.contract_a GRG.
 Definition SG := OBipartite.contract_b GRG.
+Definition TWalk := OGraph.Walk WFG.
+Definition RWalk := OGraph.Walk SG.
 Definition TCycle := OGraph.Cycle WFG.
 Definition RCycle := OGraph.Cycle SG.
 
@@ -127,5 +132,16 @@ Qed.
 
 End Dependencies.
 
-Lemma 
+Section Correctness.
+  Variable d:dependencies.
+  Variable s:state.
+  Parameter d_of_s: Deps_of d s.
 
+
+Theorem soundness:
+  forall w,
+  TCycle d w ->
+  Deadlocked s.
+Admitted.
+
+End Correctness.

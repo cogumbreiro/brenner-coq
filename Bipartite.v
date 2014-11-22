@@ -3,10 +3,7 @@ Require Import
   Coq.FSets.FSetAVL
   Coq.Arith.Compare_dec.
 
-Require Import Graph.
-
-Ltac r_auto := repeat auto.
-Ltac apply_auto H := apply H; r_auto.
+Require Import Graph TacticsUtil.
 
 Section Bipartite.
 Variable a_vertex:Type.
@@ -32,20 +29,6 @@ Inductive BB : b_edge -> Prop :=
     AB a b2 ->
     BB (b1, b2).
 
-(*
-Module GRAPH_A <: DIGRAPH.
-  Let t := a_vertex.
-  Let Edge := AA.
-End GRAPH_A.
-
-Module GRAPH_B <: DIGRAPH.
-  Let t := b_vertex.
-  Let Edge := BB.
-End GRAPH_B.
-*)
-
-(*Module A := Digraph GRAPH_A.*)
-(*Notation a_vertex := A.t.*)
 Notation AEdge := AA.
 Notation AWalk := (Walk a_vertex AEdge).
 Notation ACycle := (Cycle a_vertex AEdge).
@@ -53,8 +36,6 @@ Notation a_cycle_def := (cycle_def a_vertex AEdge).
 Notation a_walk := (list a_edge).
 Notation AEnd := (End a_vertex).
 
-(*Module B := Digraph GRAPH_B.*)
-(*Notation b_vertex := B.t.*)
 Notation BEdge := BB.
 Notation BWalk := (Walk b_vertex BEdge).
 Notation BCycle := (Cycle b_vertex BEdge).
@@ -129,8 +110,6 @@ Proof.
   intros.
   apply bb with (a:=a); r_auto.
 Qed.
-
-(* Fun! *)
 
 Definition BAB (b1:b_vertex) (a:a_vertex) (b2:b_vertex) :=
   BA b1 a /\ AB a b2.
@@ -596,8 +575,6 @@ Proof.
   apply_auto edge1_to_cycle.
 Qed.
 
-Ltac expand H := inversion H; clear H; subst.
-
 Theorem cycle_a_to_b:
   forall w,
   ACycle w ->
@@ -651,28 +628,78 @@ Proof.
 Qed.
 End Bipartite.
 
-Module G.
-Record Bipartite := mk_bipartite {
-  vertex_a : Type;
-  vertex_b : Type;
-  AB : vertex_a -> vertex_b -> Prop;
-  BA : vertex_b -> vertex_a -> Prop
-}.
-Let AA (bp:Bipartite) := AA (vertex_a bp) (vertex_b bp) (AB bp) (BA bp).
-Let BB (bp:Bipartite) := BB (vertex_a bp) (vertex_b bp) (AB bp) (BA bp).
-Let ACycle (bp:Bipartite) := Cycle (vertex_a bp) (AA bp).
-Let BCycle (bp:Bipartite) := Cycle (vertex_b bp) (BB bp).
+Lemma aa_eq_bb:
+  forall A B AB BA e,
+  AA A B AB BA e <-> BB B A BA AB e.
+Proof.
+  intros.
+  intuition.
+  - inversion H. apply bb with (a:=b0); r_auto.
+  - inversion H. apply aa with (b:=a0); r_auto.
+Qed.
 
-Let cycle_a_to_cycle_b := fun (bp:Bipartite) =>
-  cycle_a_to_b
-    (vertex_a bp) 
-    (vertex_b bp)
-    (AB bp)
-    (BA bp).
-Let cycle_b_to_cycle_a := fun (bp:Bipartite) =>
-  cycle_a_to_b
-    (vertex_b bp) 
-    (vertex_a bp)
-    (BA bp)
-    (AB bp).
-End G.
+Lemma walk_a_aa_eq_bb:
+  forall A B AB BA w,
+  Walk A (AA A B AB BA) w <-> Walk A (BB B A BA AB) w.
+Proof.
+  intros.
+  induction w.
+  - intuition; repeat (apply walk_nil).
+  - intuition.
+    + inversion H1.
+      subst.
+      apply H in H4.
+      apply aa_eq_bb in H5.
+      apply_auto walk_cons.
+    + inversion H1; subst.
+      apply H0 in H4.
+      apply aa_eq_bb in H5.
+      apply_auto walk_cons.
+Qed.
+
+Lemma walk_b_aa_eq_bb:
+  forall A B AB BA w,
+  Walk B (BB A B BA AB) w <-> Walk B (AA B A AB BA) w.
+Proof.
+  intros.
+  induction w.
+  - intuition; repeat (apply walk_nil).
+  - intuition.
+    + inversion H1.
+      subst.
+      apply H in H4.
+      apply aa_eq_bb in H5.
+      apply_auto walk_cons.
+    + inversion H1; subst.
+      apply H0 in H4.
+      apply aa_eq_bb in H5.
+      apply_auto walk_cons.
+Qed.
+
+Lemma cycle_a_aa_eq_bb:
+  forall A B AB BA w,
+  Cycle A (AA A B AB BA) w <-> Cycle A (BB B A BA AB) w.
+Proof.
+  intros.
+  intuition.
+  - expand H.
+    rewrite walk_a_aa_eq_bb in H1.
+    apply cycle_def with (vn:=vn); r_auto.
+  - expand H.
+    rewrite walk_b_aa_eq_bb in H1.
+    apply cycle_def with (vn:=vn); r_auto.
+Qed.
+
+Lemma cycle_b_aa_eq_bb:
+  forall A B AB BA w,
+  Cycle B (BB A B BA AB) w <-> Cycle B (AA B A AB BA) w.
+Proof.
+  intros.
+  intuition.
+  - expand H.
+    rewrite walk_b_aa_eq_bb in H1.
+    apply cycle_def with (vn:=vn); r_auto.
+  - expand H.
+    rewrite walk_a_aa_eq_bb in H1.
+    apply cycle_def with (vn:=vn); r_auto.
+Qed.

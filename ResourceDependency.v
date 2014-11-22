@@ -135,7 +135,7 @@ Definition SG := OBipartite.contract_b GRG.
 Definition TCycle := OGraph.Cycle WFG.
 Definition RCycle := OGraph.Cycle SG.
 
-Lemma wfg_to_sg:
+Theorem wfg_to_sg:
   forall w,
   TCycle w ->
   exists w', RCycle w'.
@@ -145,7 +145,7 @@ Proof.
   tauto.
 Qed.
 
-Lemma sg_to_wfg:
+Theorem sg_to_wfg:
   forall w,
   RCycle w ->
   exists w', TCycle w'.
@@ -155,3 +155,4 @@ Proof.
   tauto.
 Qed.
 End Dependencies.
+

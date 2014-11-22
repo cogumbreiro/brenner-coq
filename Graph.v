@@ -230,20 +230,3 @@ Proof.
   assumption.
 Qed.
 End Walk.
-
-Module Type DIGRAPH.
-  Parameter t : Type.
-  Parameter Edge : (t*t)%type -> Prop.
-End DIGRAPH.
-
-Module Digraph (G:DIGRAPH).
-  Import G.
-  Let t := G.t.
-  Let Edge := G.Edge.
-  Let edge := (t * t)%type.
-  Let walk := (list edge).
-  Let Walk := (Walk t Edge).
-  Let Cycle := (Cycle t Edge).
-  Let cycle_def := cycle_def t Edge.
-  Let End := End t.
-End Digraph.

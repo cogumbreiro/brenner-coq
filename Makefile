@@ -87,9 +87,12 @@ VFILES:=Vars.v\
   TaskMap.v\
   Semantics.v\
   Graph.v\
+  OGraph.v\
   Bipartite.v\
+  OBipartite.v\
   ResourceDependency.v\
   Brenner.v\
+  TacticsUtil.v\
   Example1.v
 
 -include $(addsuffix .d,$(VFILES))

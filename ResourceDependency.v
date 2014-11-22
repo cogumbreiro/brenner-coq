@@ -88,36 +88,6 @@ Module Map_R := FMapAVL.Make R.
 Definition r_edge := R.t.
 Definition set_r_edge := Set_R.t.
 
-Inductive g_vertex :=
-  | GResource : resource -> g_vertex
-  | GTid : tid -> g_vertex.
-
-Inductive IsResource: g_vertex -> resource -> Prop :=
-  IsResource_def : forall r, IsResource (GResource r) r.
-
-Lemma IsResource_inv:
-  forall x y,
-  IsResource (GResource x) y ->
-  x = y.
-Proof.
-  intros.
-  inversion H.
-  reflexivity.
-Qed.
-
-Inductive IsTid: g_vertex -> tid -> Prop :=
-  IsTid_def : forall t, IsTid (GTid t) t.
-
-Lemma IsTid_inv:
-  forall x y,
-  IsTid (GTid x) y ->
-  x = y.
-Proof.
-  intros.
-  inversion H.
-  reflexivity.
-Qed.
-
 Section Dependencies.
 
 Variable d:dependencies.
@@ -141,7 +111,7 @@ Theorem wfg_to_sg:
   exists w', RCycle w'.
 Proof.
   intros.
-  assert (H':=  OBipartite.cycle_a_to_cycle_b GRG w H).
+  assert (H':= OBipartite.cycle_a_to_cycle_b GRG w H).
   tauto.
 Qed.
 
@@ -151,8 +121,11 @@ Theorem sg_to_wfg:
   exists w', TCycle w'.
 Proof.
   intros.
-  assert (H':=  OBipartite.cycle_b_to_cycle_a GRG w H).
+  assert (H':= OBipartite.cycle_b_to_cycle_a GRG w H).
   tauto.
 Qed.
+
 End Dependencies.
+
+Lemma 
 

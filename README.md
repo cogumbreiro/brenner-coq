@@ -79,6 +79,15 @@ See also:
 Changelog
 =========
 
+[Version 0.2](https://bitbucket.org/cogumbreiro/brenner-coq/src/v0.2/):
+
+ * Refactored the theory in resource-dependencies into a bipartite
+   graph theory. Defined the notion of contracting a bipartite graph and
+   showed that whenever there is a cycle in the left-hand-side contracted graph,
+   there is a cycle in the right-hand-side contracted graph. Applied this
+   theory to GRG/WFG/SG, which means that we have now double implication on
+   cycle existence.
+
 [Version 0.1](https://bitbucket.org/cogumbreiro/brenner-coq/src/v0.1/):
 
  * Proved that a cycle in the WFG implies a cycle in the SG.

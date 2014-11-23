@@ -229,4 +229,18 @@ Proof.
   apply walk2_to_cycle.
   assumption.
 Qed.
+
+Axiom pred_in_cycle:
+  forall w v1 v2,
+  Cycle w ->
+  List.In (v1, v2) w ->
+  exists v3, List.In (v3, v1) w.
+
+(*
+Axiom succ_in_cycle:
+  forall w v1 v2,
+  Cycle w ->
+  List.In (v1, v2) w ->
+  exists v3, List.In (v2, v3) w.
+*)
 End Walk.

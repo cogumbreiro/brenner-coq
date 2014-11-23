@@ -313,12 +313,25 @@ Variable Hcycle: TCycle d w.
 
 Variable Hwalk: TWalk d w.
 
+Variable all_in_walk:
+  forall t,
+  Map_TID.In t (get_waits d) ->
+  exists t', List.In (t', t) w \/ List.In (t, t') w.
+
 Lemma in_waits_to_edge : 
   forall t,
   Map_TID.In t (get_waits d) ->
   exists t', List.In (t', t) w.
 Proof.
   intros.
+  apply all_in_walk in H.
+  destruct H as (t', [H|H]).
+  - exists t'. assumption.
+  - apply pred_in_cycle with (Edge:=OGraph.Edge (WFG d)) in H.
+    destruct H as (t'', H).
+    exists t''.
+    + assumption.
+    + assumption.
 Qed.
 
 Lemma blocked_in_waits:
@@ -334,7 +347,6 @@ Proof.
   destruct H as (rs, (H1, H2)).
   apply mapsto_to_in with (e:=rs); r_auto.
 Qed.
-
 
 Lemma in_inv_left:
   forall t t',
@@ -353,7 +365,7 @@ Proof.
   assumption.
 Qed.  
 
-Theorem soundness:
+Lemma soundness_totally:
   TotallyDeadlocked s.
 Proof.
   intros.

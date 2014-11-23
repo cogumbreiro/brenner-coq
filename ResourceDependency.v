@@ -32,26 +32,112 @@ Definition get_impedes (d:dependencies) : impedes := fst d.
 Definition prec (r1:resource) (r2:resource) :=
   get_phaser r1 = get_phaser r2 /\ get_phase r1 < get_phase r2.
 
-Definition Blocked (t:tid) (r:resource) (s:state) :=
+Section StateProps.
+
+Variable s:state.
+
+Definition Blocked (t:tid) (r:resource) :=
   exists prg,
   Map_TID.MapsTo t (pcons (Await (get_phaser r) (get_phase r)) prg) (get_tasks s) /\
   Map_PHID.In (get_phaser r) (get_phasers s).
 
-Definition Registered (t:tid) (r:resource) (s:state) :=
+Lemma blocked_fun:
+  forall t r r',
+  Blocked t r ->
+  Blocked t r' ->
+  r = r'.
+Proof.
+  intros.
+  unfold Blocked in *.
+  destruct H as (p1, (H1, H2)).
+  destruct H0 as (p2, (H3, H4)).
+  (* MapsTo is functional, so p1 = p2 *)
+  assert (Heq:= @Map_TID_Facts.MapsTo_fun _ _ _ _ _
+          H1 H3).
+  inversion Heq.
+  destruct r as (p,n).
+  destruct r' as (p', n').
+  simpl in *.
+  auto.
+Qed.
+
+
+Lemma mapsto_to_in : forall (elt:Type) m x (e e':elt),
+  Map_TID.MapsTo x e m -> Map_TID.In x m.
+Proof.
+  intros.
+  rewrite Map_TID_Facts.find_mapsto_iff in H.
+  assert (H1' : Map_TID.find (elt:=elt) x m <> None).
+  - intuition.
+    rewrite H in H0.
+    inversion H0.
+  - rewrite <- Map_TID_Facts.in_find_iff in H1'.
+    assumption.
+Qed.
+
+Lemma blocked_in_tasks:
+  forall t r,
+  Blocked t r ->
+  Map_TID.In t (get_tasks s).
+Proof.
+  intros.
+  unfold Blocked in H.
+  destruct H as (p, (H1, H2)).
+  apply mapsto_to_in in H1.
+  assumption.
+  auto.
+Qed.
+
+Definition Registered (t:tid) (r:resource) :=
   exists ph,
   Map_PHID.MapsTo (get_phaser r) ph (get_phasers s) /\
-  Map_TID.MapsTo t (get_phase r) ph.
+  Map_TID.MapsTo t (get_phase r) ph /\ exists r', Blocked t r'.
+
+Lemma registered_to_blocked:
+  forall t r,
+  Registered t r ->
+  exists r', Blocked t r'.
+Proof.
+  intros.
+  unfold Registered in H.
+  destruct H as (ph, (H1, (H2, H3))).
+  assumption.
+Qed.
+
+Definition W_of (w:waits) := 
+  forall t r,
+  (exists rs, Map_TID.MapsTo t rs w /\ Set_RES.In r rs)
+  <->
+  Blocked t r.
+
+Definition I_of (i:impedes) :=
+  forall t r,
+  (exists ts, Map_RES.MapsTo r ts i /\ Set_TID.In t ts)
+  <->
+  (exists r',
+  Registered t r' /\
+  prec r' r /\ (exists r'', Blocked t r'')).
+
+Definition Deps_of (d:dependencies) :=
+  W_of (get_waits d) /\ I_of (get_impedes d).
+
+End StateProps.
 
 Definition TotallyDeadlocked (s:state) :=
-  forall t,
-  Map_TID.In t (get_tasks s) /\
-  exists r,
-  Blocked t r s /\ 
+  forall t r,
+  (Map_TID.In t (get_tasks s) <-> Blocked s t r) /\
+  Blocked s t r ->
   exists t',
   Map_TID.In t' (get_tasks s) /\
-  exists r',
-  Registered t' r' s /\
-  prec r' r.
+  (exists r', Registered s t' r' /\ prec r' r).
+(*
+  forall t,
+  Map_TID.In t (get_tasks s) <->
+  exists r, Blocked s t r /\ 
+  exists t' r',
+  Map_TID.In t' (get_tasks s) /\
+  Registered s t' r' /\
+  prec r' r.*)
 
 Definition Deadlocked (s:state) :=
   exists tm tm',
@@ -59,23 +145,6 @@ Definition Deadlocked (s:state) :=
   Map_TID.Equal (get_tasks s) (Map_TID_Props.update tm tm') /\
   TotallyDeadlocked ((get_phasers s), tm).
 
-Definition W_of (w:waits) (s:state) := 
-  forall t r,
-  (exists rs, Map_TID.MapsTo t rs w /\ Set_RES.In r rs)
-  <->
-  Blocked t r s.
-
-Definition I_of (i:impedes) (s:state) :=
-  forall t r,
-  (exists ts, Map_RES.MapsTo r ts i /\ Set_TID.In t ts)
-  <->
-  (exists t' r',
-  Registered t' r s /\
-  Blocked t r' s /\
-  prec r' r).
-
-Definition Deps_of (d:dependencies) (s:state) :=
-  W_of (get_waits d) s /\ I_of (get_impedes d) s.
 
 Module T := PairOrderedType TID TID.
 Module Set_T := FSetAVL.Make T.
@@ -109,6 +178,7 @@ Definition TWalk := OGraph.Walk WFG.
 Definition RWalk := OGraph.Walk SG.
 Definition TCycle := OGraph.Cycle WFG.
 Definition RCycle := OGraph.Cycle SG.
+Definition t_walk := OGraph.walk WFG.
 
 Theorem wfg_to_sg:
   forall w,
@@ -135,13 +205,180 @@ End Dependencies.
 Section Correctness.
   Variable d:dependencies.
   Variable s:state.
-  Parameter d_of_s: Deps_of d s.
+  Parameter d_of_s: Deps_of s d.
 
+Lemma waits_for_to_blocked:
+  forall r t,
+  WaitsFor d r t ->
+  Blocked s t r.
+Proof.
+  intros.
+  unfold WaitsFor in H.
+  assert (H':= d_of_s).
+  destruct H' as (H', _).
+  apply H' in H.
+  assumption.
+Qed.
+
+Lemma blocked_to_waits_for:
+  forall r t,
+  Blocked s t r ->
+  WaitsFor d r t .
+Proof.
+  intros.
+  unfold WaitsFor in *.
+  assert (H':= d_of_s).
+  destruct H' as (H', _).
+  apply H' in H.
+  assumption.
+Qed.
+
+Lemma blocked_eq_waits_for:
+  forall r t,
+  Blocked s t r <->
+  WaitsFor d r t .
+Proof.
+  intros.
+  split.
+  apply blocked_to_waits_for.
+  apply waits_for_to_blocked.
+Qed.
+
+Lemma impedes_to_registered:
+  forall t r,
+  Impedes d t r ->
+  exists r', Registered s t r' /\ prec r' r.
+Proof.
+  intros.
+  unfold Impedes in H.
+  assert (H':= d_of_s).
+  destruct H' as (_, H').
+  apply H' in H.
+  destruct H as (r', H).
+  exists r'.
+  intuition.
+Qed.
+
+Lemma registered_to_impedes :
+  forall t r' r,
+  Registered s t r' ->
+  prec r' r ->
+  Impedes d t r.
+Proof.
+  intros.
+  unfold Impedes.
+  assert (H':= d_of_s).
+  destruct H' as (_, H').
+  apply H'.
+  exists r'.
+  intuition.
+  inversion H.
+  destruct H1 as (_, (_, H1)).
+  assumption.
+Qed.
+  
+Lemma impedes_eq_registered:
+  forall t r,
+  Impedes d t r <->
+  exists r', Registered s t r' /\ prec r' r.
+Proof.
+  intros.
+  intuition.
+  - apply_auto impedes_to_registered.
+  - destruct H as (r', (H1, H2)).
+    apply registered_to_impedes with (r':=r'); r_auto.
+Qed.
+
+Lemma tedge_inv:
+  forall w t t',
+  TWalk d w ->
+  List.In (t, t') w ->
+  exists r,
+  Impedes d t r /\ WaitsFor d r t'.
+Proof.
+  intros.
+  apply in_edge with (Edge:=OGraph.Edge (WFG d)) in H0.
+  simpl in H0.
+  inversion H0.
+  simpl in *.
+  subst.
+  exists b.
+  intuition.
+  assumption.
+Qed.
+
+Section Soundness.
+Variable w:t_walk d.
+Variable Hcycle: TCycle d w.
+
+Variable Hwalk: TWalk d w.
+
+Lemma in_waits_to_edge : 
+  forall t,
+  Map_TID.In t (get_waits d) ->
+  exists t', List.In (t', t) w.
+Proof.
+  intros.
+Qed.
+
+Lemma blocked_in_waits:
+  forall t r,
+  Blocked s t r ->
+  Map_TID.In t (get_waits d).
+Proof.
+  intros.
+  destruct d_of_s as (Hw, Hi).
+  unfold W_of in Hw.
+  assert (H':= Hw t r).
+  rewrite <- H' in H.
+  destruct H as (rs, (H1, H2)).
+  apply mapsto_to_in with (e:=rs); r_auto.
+Qed.
+
+
+Lemma in_inv_left:
+  forall t t',
+  List.In (t, t') w ->
+  Map_TID.In t (get_tasks s).
+Proof.
+  intros.
+  apply tedge_inv in H.
+  destruct H as (r, (H1, H2)).
+  apply impedes_to_registered in H1.
+  destruct H1 as (r', (H1, H3)).
+  apply registered_to_blocked in H1.
+  destruct H1 as (r'', H1).
+  apply blocked_in_tasks in H1.
+  assumption.
+  assumption.
+Qed.  
 
 Theorem soundness:
-  forall w,
-  TCycle d w ->
-  Deadlocked s.
-Admitted.
+  TotallyDeadlocked s.
+Proof.
+  intros.
+  unfold TotallyDeadlocked.
+  intros.
+  destruct H as (H, H0).
+  assert (Hblk := H0).
+  (* Task t is connected to another task, get t': *)
+  apply blocked_in_waits in H0.
+  apply in_waits_to_edge in H0.
+  destruct H0 as (t', H0).
+  exists t'. (* we've found t' *)
+  intuition.
+  + (* show that t' in dom T *)
+    apply in_inv_left in H0;
+    intuition.
+  + apply tedge_inv in H0.
+    *  destruct H0 as (r', (Hi, Hw)).
+       rewrite <- blocked_eq_waits_for in Hw.
+       assert (Heq : r = r').
+         apply blocked_fun with (s:=s) (t:=t); r_auto.
+       (* end assert *)
+       subst.
+       rewrite <- impedes_eq_registered; r_auto.
+    * inversion Hcycle; r_auto.
+Qed.
 
-End Correctness.
+End Soundness.

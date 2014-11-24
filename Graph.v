@@ -92,6 +92,17 @@ Proof.
     inversion H3.
 Qed.
 
+Lemma end_inv_cons:
+  forall e1 e2 e3 w,
+  End (e1 :: e2 :: w) e3 ->
+  End (e2 :: w) e3.
+Proof.
+  intros.
+  inversion H.
+  subst.
+  assumption.
+Qed.
+
 Lemma end_total:
   forall e w,
   exists e', End (e :: w) e'.
@@ -174,6 +185,24 @@ Proof.
   assumption.
 Qed.
 
+Lemma end_in:
+  forall w e,
+  End w e ->
+  In e w.
+Proof.
+  intros.
+  induction w.
+  - inversion H.
+  - destruct w.
+    + apply end_inv in H.
+      subst.
+      apply in_eq.
+    + apply end_inv_cons in H.
+      apply IHw in H; clear IHw.
+      apply in_cons.
+      assumption.
+Qed.
+
 Inductive Cycle: walk -> Prop :=
   cycle_def:
     forall v1 v2 vn w,
@@ -230,11 +259,86 @@ Proof.
   assumption.
 Qed.
 
-Axiom pred_in_cycle:
+Let list_inv:
+  forall A x y,
+  @In A x (y :: nil) ->
+  x = y.
+Proof.
+  intros.
+  inversion H.
+  - subst. auto.
+  - inversion H0.
+Qed.
+
+Lemma pred_in_walk:
+  forall w v1 v2,
+  Walk w ->
+  List.In (v1, v2) w ->
+  ((exists w', w = (v1,v2):: w') \/
+  exists v3, List.In (v3, v1) w).
+Proof.
+  intros.
+  induction H.
+  - assert (Hin := H0).
+    apply in_inv in H0.
+    destruct H0 as [H0|H0].
+    + subst.
+      left.
+      exists w.
+      auto.
+    + apply IHWalk in H0; clear IHWalk.
+      destruct H0 as [(w',H0)|H0].
+      * subst.
+        destruct e as (v3, v1').
+        compute in H2.
+        subst.
+        right.
+        exists v3.
+        apply in_eq.
+      * destruct H0 as (v3, H0).
+        right.
+        exists v3.
+        apply in_cons.
+        assumption.
+  - inversion H0.
+Qed.
+
+Lemma in_inv_nil:
+  forall A e e',
+  @In A e (e' :: nil) ->
+  e = e'.
+Proof.
+  intros.
+  inversion H.
+  auto.
+  inversion H0.
+Qed.
+
+Lemma pred_in_cycle:
   forall w v1 v2,
   Cycle w ->
   List.In (v1, v2) w ->
   exists v3, List.In (v3, v1) w.
+Proof.
+  intros.
+  inversion H.
+  subst.
+  destruct w0.
+  - apply end_inv in H1.
+    inversion H1; subst; clear H1.
+    apply in_inv_nil in H0.
+    inversion H0; subst; clear H0.
+    exists vn.
+    apply in_eq.
+  - apply pred_in_walk with (v1:=v1) (v2:=v2) in H2.
+    + destruct H2 as [(w,H2)|H2].
+      * inversion H2; subst; clear H2.
+        apply end_in in H1.
+        exists vn.
+        assumption.
+      * assumption.
+    + assumption.
+Qed.
 
 (*
 Axiom succ_in_cycle:

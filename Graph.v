@@ -1,6 +1,9 @@
 Require Import
   Coq.Lists.List.
 
+Require Import
+  TacticsUtil.
+
 Section Walk.
 Variable Implicit A:Type.
 Notation edge := (A*A)%type.
@@ -347,4 +350,74 @@ Axiom succ_in_cycle:
   List.In (v1, v2) w ->
   exists v3, List.In (v2, v3) w.
 *)
+
+Definition VertexInEdge (v:A) (e:edge) :=
+  v = fst e \/ v = snd e.
+
+Inductive VertexIn : A -> walk -> Prop :=
+  vertex_in_def:
+    forall e v w,
+    In e w ->
+    VertexInEdge v e ->
+    VertexIn v w.
+(*
+Inductive VertexIn: A -> walk -> Prop :=
+  | vertex_in_eq:
+    forall v e w,
+    VertexInEdge v e ->
+    VertexIn v (e :: w)
+  | vertex_in_cons:
+    forall v e w,
+    VertexIn v w ->
+    VertexIn v (e :: w).
+*)
+Section Mem.
+  Variable vertex_eq: forall (v v' : A), {v = v'} + {v <> v'}.
+  Definition mem_edge (v:A) (e:edge) :=
+    let (v1, v2) := e in
+    if vertex_eq v1 v then true
+    else if vertex_eq v2 v then true
+    else false.
+  Lemma mem_edge_eq_in:
+    forall v e,
+    mem_edge v e = true <-> VertexInEdge v e.
+  Proof.
+    intros.
+    unfold VertexInEdge.
+    intuition.
+    - unfold mem_edge in H.
+      destruct vertex_eq.
+      + auto.
+      + destruct vertex_eq.
+        * auto.
+        * inversion H.
+    - unfold mem_edge.
+      find_if_inside; repeat auto.
+    - subst. compute.
+      find_if_inside; repeat auto.
+      find_if_inside; repeat auto.
+  Qed.        
+  
+  Definition mem_walk (v:A) (w:walk) :=
+    existsb (mem_edge v) w.
+
+  Lemma mem_walk_eq_in:
+    forall v w,
+    mem_walk v w = true <-> VertexIn v w.
+  Proof.
+    intros.
+    unfold mem_walk.
+    rewrite existsb_exists.
+    split.
+    - intros.
+      destruct H as (x, (H1, H2)).
+      rewrite mem_edge_eq_in in H2.
+      apply vertex_in_def with (e:=x); r_auto.
+    - intros.
+      expand H.
+      rewrite <- mem_edge_eq_in in H1.
+      exists e.
+      auto.
+  Qed.
+End Mem.
 End Walk.

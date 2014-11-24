@@ -141,10 +141,8 @@ Definition TotallyDeadlocked (s:state) :=
 
 Definition Deadlocked (s:state) :=
   exists tm tm',
-  Map_TID_Props.Disjoint tm tm' /\
-  Map_TID.Equal (get_tasks s) (Map_TID_Props.update tm tm') /\
+  Map_TID_Props.Partition (get_tasks s) tm tm' /\
   TotallyDeadlocked ((get_phasers s), tm).
-
 
 Module T := PairOrderedType TID TID.
 Module Set_T := FSetAVL.Make T.
@@ -309,14 +307,24 @@ Qed.
 
 Section Soundness.
 Variable w:t_walk d.
-Variable Hcycle: TCycle d w.
 
-Variable Hwalk: TWalk d w.
+Variable is_cycle: TCycle d w.
+
+Let deadlocked := Map_TID_Props.partition
+                  (fun t p => mem_walk tid TID.eq_dec t w)
+                  (get_waits d).
 
 Variable all_in_walk:
   forall t,
   Map_TID.In t (get_waits d) ->
   exists t', List.In (t', t) w \/ List.In (t, t') w.
+
+Let Hwalk: TWalk d w.
+Proof.
+  intros.
+  inversion is_cycle.
+  assumption.
+Qed.
 
 Lemma in_waits_to_edge : 
   forall t,
@@ -362,7 +370,7 @@ Proof.
   destruct H1 as (r'', H1).
   apply blocked_in_tasks in H1.
   assumption.
-  assumption.
+  apply Hwalk.
 Qed.  
 
 Lemma soundness_totally:
@@ -390,7 +398,8 @@ Proof.
        (* end assert *)
        subst.
        rewrite <- impedes_eq_registered; r_auto.
-    * inversion Hcycle; r_auto.
+    * inversion is_cycle; r_auto.
 Qed.
-
 End Soundness.
+End Correctness.
+

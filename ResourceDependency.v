@@ -310,9 +310,17 @@ Variable w:t_walk d.
 
 Variable is_cycle: TCycle d w.
 
-Let deadlocked := Map_TID_Props.partition
-                  (fun t p => mem_walk tid TID.eq_dec t w)
-                  (get_waits d).
+Let split := (fun t (p:prog) => mem_walk tid TID.eq_dec t w).
+
+Let deadlocked := Map_TID_Props.partition split (get_tasks s).
+
+Let Hdeadlocked: Map_TID_Props.Partition (get_tasks s) (fst deadlocked) (snd deadlocked).
+Proof.
+  apply Map_TID_Props.partition_Partition with (f:=split).
+  auto with *.
+  unfold deadlocked.
+  auto.
+Qed.
 
 Variable all_in_walk:
   forall t,

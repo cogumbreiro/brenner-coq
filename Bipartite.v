@@ -48,6 +48,9 @@ Inductive bi_vertex :=
   | bi_a_vertex : a_vertex -> bi_vertex.
 
 Notation bi_edge := (bi_vertex * bi_vertex) % type.
+Notation bi_walk := (list bi_edge) % type.
+Notation ba := (fun b a => ((bi_b_vertex b), (bi_a_vertex a))).
+Notation ab := (fun a b => ((bi_a_vertex a), (bi_b_vertex b))).
 
 Inductive BAEdge : bi_edge -> Prop :=
   ba_edge :
@@ -59,10 +62,32 @@ Inductive ABEdge : bi_edge -> Prop :=
   ab_edge :
     forall a b,
     AB a b ->
-    ABEdge ((bi_b_vertex b), (bi_a_vertex a)).
+    ABEdge ((bi_a_vertex a), (bi_b_vertex b)).
 
 Definition BiEdge (e:bi_edge) :=
   ABEdge e \/ BAEdge e.
+
+Lemma ab_to_bi_edge:
+  forall a b,
+  AB a b ->
+  BiEdge (ab a b).
+Proof.
+  intros.
+  apply ab_edge in H.
+  unfold BiEdge.
+  auto.
+Qed.
+
+Lemma ba_to_bi_edge:
+  forall b a,
+  BA b a ->
+  BiEdge (ba b a).
+Proof.
+  intros.
+  apply ba_edge in H.
+  unfold BiEdge.
+  auto.
+Qed.
 
 Definition BiWalk := Walk bi_vertex BiEdge.
 Definition BiCycle := Cycle bi_vertex BiEdge.
@@ -138,7 +163,7 @@ Proof.
   apply_auto b_edge_to_bi_edge.
 Qed.    
 
-Lemma aba_to_a:
+Lemma aba_to_aa :
   forall a1 b a2,
   ABA a1 b a2 ->
   AEdge (a1, a2).
@@ -197,7 +222,7 @@ Proof.
   + apply bab_to_b with (a:=a2); r_auto.
 Qed.
 
-Lemma bab_to_a:
+Lemma bab_to_aa :
   forall b1 b2 b3 a1 a2,
   BAB b1 a1 b2 ->
   BAB b2 a2 b3 ->
@@ -206,7 +231,7 @@ Proof.
   intros.
   assert (H2: ABA a1 b2 a2).
   + apply bab_to_aba with (b1:=b1) (b3:=b3); r_auto.
-  + apply aba_to_a with (b:=b2); r_auto.
+  + apply aba_to_aa with (b:=b2); r_auto.
 Qed.
 
 Lemma aba_refl:
@@ -228,6 +253,8 @@ Proof.
   assert (H1:= bab_to_aba _ _ _ _ _ H H).
   assumption.
 Qed.
+
+Section CycleAAtoBB.
 
 Inductive edge_a_to_b : a_edge -> a_edge -> b_edge -> Prop :=
   edge_a_to_b_def:
@@ -301,7 +328,7 @@ Proof.
   apply walk_nil.  
 Qed.
 
-Lemma a_walk_to_t_to_b_edge:
+Lemma a_walk_to_edge_a_to_b:
   forall a1 a2 a3 aw,
   AWalk ((a1, a2) :: ((a2, a3) :: aw)%list) ->
   exists b1 b2, edge_a_to_b (a1, a2) (a2, a3) (b1, b2).
@@ -429,7 +456,7 @@ Proof.
   - (* Case 1: *)
     subst.
     assert (Hr := H).
-    apply a_walk_to_t_to_b_edge in Hr.
+    apply a_walk_to_edge_a_to_b in Hr.
     destruct Hr as (b1, (b2, Hr)).
     exists (cons (b1, b2) nil).
     intuition.
@@ -626,6 +653,151 @@ Proof.
     assumption.
     assumption.
 Qed.
+End CycleAAtoBB.
+
+Section CycleAtoC.
+
+Inductive edge_a_to_c : a_edge -> bi_edge -> bi_edge -> Prop :=
+  edge_a_to_c_def:
+    forall a1 b a2,
+    ABA a1 b a2 ->
+    edge_a_to_c (a1, a2) (ab a1 b) (ba b a2).
+
+Lemma edge_a_to_c_inv1:
+  forall e1 e2 e3,
+  edge_a_to_c e1 e2 e3 ->
+  AA e1.
+Proof.
+  intros.
+  inversion H.
+  apply aba_to_aa with (b:=b); r_auto.
+Qed.
+
+Lemma edge_a_to_c_inv2:
+  forall e1 e2 e3,
+  edge_a_to_c e1 e2 e3 ->
+  BiEdge e2.
+Proof.
+  intros.
+  inversion H.
+  unfold ABA in H0.
+  destruct H0 as (H0,_).
+  apply_auto ab_to_bi_edge.
+Qed.
+
+Lemma edge_a_to_c_inv3:
+  forall e1 e2 e3,
+  edge_a_to_c e1 e2 e3 ->
+  BiEdge e3.
+Proof.
+  intros.
+  inversion H.
+  unfold ABA in H0.
+  destruct H0 as (_,H0).
+  apply_auto ba_to_bi_edge.
+Qed.
+
+Inductive a_to_c : a_walk -> bi_walk -> Prop :=
+  | a_to_c_nil:
+    a_to_c nil nil
+  | a_to_c_cons:
+    forall e1 e2 e aw cw,
+    a_to_c aw cw ->
+    edge_a_to_c e e1 e2 ->
+    a_to_c (e :: aw)%list (e1 :: e2 :: cw)%list.
+
+
+Lemma aa_to_edge_a_to_c:
+  forall a1 a2,
+  AA (a1, a2) ->
+  exists b, edge_a_to_c (a1, a2) (ab a1 b) (ba b a2).
+Proof.
+  intros.
+  inversion H.
+  subst.
+  exists b.
+  apply edge_a_to_c_def.
+  unfold ABA.
+  auto.
+Qed.
+
+Let a_to_c_total_1:
+  forall a1 a2,
+  AEdge (a1, a2) ->
+  exists cw : bi_walk, a_to_c ((a1, a2) :: nil) cw /\ BiWalk cw.
+Proof.
+  intros.
+  apply aa_to_edge_a_to_c in H; r_auto.
+  destruct H as (b, H).
+  exists ((ab a1 b)::(ba b a2)::nil)%list.
+  intuition.
+  - apply a_to_c_cons.
+    + apply a_to_c_nil.
+    + assumption.
+  - inversion H; subst.
+    unfold ABA in H1.
+    destruct H1 as (H1, H2).
+    apply ab_to_bi_edge in H1.
+    apply ba_to_bi_edge in H2.
+    apply_auto edge2_to_walk.
+Qed.
+
+Let a_to_c_total_2:
+  forall a1 a2 a3 aw cw,
+  AWalk ((a1, a2) :: ((a2, a3) :: aw)%list) ->
+  a_to_c ((a2, a3) :: aw)%list cw ->
+  BiWalk cw ->
+  exists cw' : bi_walk,
+  a_to_c ((a1, a2) :: ((a2, a3) :: aw)%list)%list cw' /\ BiWalk cw'.
+Proof.
+  intros.
+  assert (H3: AEdge (a1, a2)).
+  inversion H; subst; assumption.
+  inversion H0.
+  subst.
+  assert (Hr := H).
+  inversion H7; subst; clear H9. (* expand: e1 e2 *)
+  apply aa_to_edge_a_to_c in H3; destruct H3 as (b1, H3).
+  rename b into b2.
+  exists (cons (ab a1 b1)
+         (cons (ba b1 a2)
+         (cons (ab a2 b2)
+         (cons (ba b2 a3) cw0)))).
+  intuition.
+  + apply_auto a_to_c_cons.
+  + apply walk_cons2.
+    apply edge_a_to_c_inv2 in H3.
+    assumption.
+    apply walk_cons2.
+    apply edge_a_to_c_inv3 in H3.
+    assumption.
+    assumption.
+Qed.
+
+Lemma a_to_c_total:
+  forall aw,
+  AWalk aw ->
+  exists cw, a_to_c aw cw /\ BiWalk cw.
+Proof.
+  intros.
+  induction aw.
+  - exists nil.
+    intuition.
+    + apply a_to_c_nil.
+    + apply walk_nil.
+  - inversion H.
+    subst.
+    apply IHaw in H2; clear IHaw.
+    destruct H2 as (cw, (H1, H2)).
+    destruct a as (a1, a2).
+    destruct aw.
+    + apply_auto a_to_c_total_1.
+    + destruct p as (a2', a3).
+      (* a2 = a2' *)
+      compute in H4; rewrite <- H4 in *; clear H4.
+      apply a_to_c_total_2 with (cw := cw); r_auto.
+Qed.
+End CycleAtoC.
 End Bipartite.
 
 Lemma aa_eq_bb:

@@ -26,6 +26,18 @@ Inductive Walk : walk -> Prop :=
   | walk_nil:
     Walk nil.
 
+Lemma walk_cons2:
+  forall v1 v2 v3 w,
+  Edge (v1, v2) ->
+  Walk ((v2, v3) :: w) ->
+  Walk ((v1, v2) :: (v2, v3) :: w).
+Proof.
+  intros.
+  apply_auto walk_cons.
+  compute.
+  trivial.
+Qed.
+
 Lemma edge_to_walk:
   forall e,
   Edge e ->

@@ -305,22 +305,10 @@ Proof.
   assumption.
 Qed.
 
-Section Soundness.
+Section TotallyDeadlockedSoundness.
 Variable w:t_walk d.
 
 Variable is_cycle: TCycle d w.
-
-Let split := (fun t (p:prog) => mem_walk tid TID.eq_dec t w).
-
-Let deadlocked := Map_TID_Props.partition split (get_tasks s).
-
-Let Hdeadlocked: Map_TID_Props.Partition (get_tasks s) (fst deadlocked) (snd deadlocked).
-Proof.
-  apply Map_TID_Props.partition_Partition with (f:=split).
-  auto with *.
-  unfold deadlocked.
-  auto.
-Qed.
 
 Variable all_in_walk:
   forall t,
@@ -408,6 +396,25 @@ Proof.
        rewrite <- impedes_eq_registered; r_auto.
     * inversion is_cycle; r_auto.
 Qed.
+End TotallyDeadlockedSoundness.
+
+Section Soundness.
+Variable w:t_walk d.
+
+Variable is_cycle: TCycle d w.
+Let split := (fun t (p:prog) => mem_walk tid TID.eq_dec t w).
+
+Let deadlocked := Map_TID_Props.partition split (get_tasks s).
+
+Let Hdeadlocked: Map_TID_Props.Partition (get_tasks s) (fst deadlocked) (snd deadlocked).
+Proof.
+  apply Map_TID_Props.partition_Partition with (f:=split).
+  auto with *.
+  unfold deadlocked.
+  auto.
+Qed.
+Check soundness_totally.
 End Soundness.
+
 End Correctness.
 

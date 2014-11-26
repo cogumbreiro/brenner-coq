@@ -91,6 +91,7 @@ Qed.
 
 Definition BiWalk := Walk bi_vertex BiEdge.
 Definition BiCycle := Cycle bi_vertex BiEdge.
+Definition BiEnd := End bi_vertex.
 
 Lemma a_edge_to_bi_edge:
   forall a1 a2,
@@ -797,6 +798,108 @@ Proof.
       compute in H4; rewrite <- H4 in *; clear H4.
       apply a_to_c_total_2 with (cw := cw); r_auto.
 Qed.
+
+Let cycle_a_to_c1:
+  forall a,
+  AEdge (a, a) ->
+  exists w', BiCycle w'.
+Proof.
+  intros.
+  apply a_to_aba in H.
+  destruct H as (b, H).
+  unfold ABA in H.
+  destruct H as (H1, H2).
+  apply ab_to_bi_edge in H1.
+  apply ba_to_bi_edge in H2.
+  exists (cons (ab a b)
+         (cons (ba b a) nil)).
+  apply_auto edge2_to_cycle.
+Qed.
+
+
+Lemma a_to_c_end:
+  forall aw a1 a2 cw e,
+  AEnd aw (a1, a2) ->
+  BiEnd cw e ->
+  a_to_c aw cw ->
+  exists b,
+  a_to_c ((a1,a2)::nil)%list ((ab a1 b)::(ba b a2)::nil)%list
+  /\ e = (ba b a2).
+Proof.
+  intros.
+  induction H1.
+  - inversion H0.
+  - destruct cw.
+    + expand H1. (* aw = nil *)
+      expand H2. (* e0 = (a1, a2); e1 = (a1, b); e2 = (b, a2) *)
+      apply end_inv in H; expand H.
+      exists b.
+      intuition.
+      * apply a_to_c_cons.
+        apply a_to_c_nil.
+        apply_auto edge_a_to_c_def.
+      * expand H0.
+        apply end_inv in H4.
+        auto.
+    + destruct aw.
+      * inversion H1.
+      * apply end_inv_cons in H.
+        apply IHa_to_c in H; clear IHa_to_c.
+        assumption.
+        repeat (apply end_inv_cons in H0).
+        assumption.
+Qed.
+
+Theorem cycle_a_to_c:
+  forall w,
+  ACycle w ->
+  exists w', BiCycle w'.
+Proof.
+  intros.
+  expand H. (* ACycle w *)
+  rename v1 into a1;
+  rename v2 into a2;
+  rename vn into an.
+  inversion H1; subst. (* AWalk ((v1, v2) :: w0) *)
+  apply a_to_c_total in H1.
+  destruct H1 as (bw, (H1, H2)).
+  expand H1.
+  destruct w0.
+  - (* Case: (a,a)::nil *)
+    subst.
+    apply end_inv in H0; inversion H0; subst.
+    apply cycle_a_to_c1 with (a:=an); r_auto.
+  - (* Case: (a1,a2) :: aw *)
+    subst.
+    inversion H9; subst.
+    destruct H10 as (H10, H11).
+    destruct p as (a2', a3);
+    compute in H5; subst; rename a2' into a2. (* a2' = a2 *)
+    (* Fun begins *)
+    remember ((bi_a_vertex a1, bi_b_vertex b)
+        :: ((bi_b_vertex b, bi_a_vertex a2) :: cw)%list)%list as w.
+    (* Hend := BiEnd w e *)
+    assert (Hend: exists e, BiEnd w e).
+      assert (H':= end_total _ (bi_a_vertex a1, bi_b_vertex b) ((bi_b_vertex b, bi_a_vertex a2) :: cw)).
+      subst.
+      assumption.
+    (* Hend *)
+    destruct Hend as (e, Hend).
+    assert (Hatoc := Hend).
+    remember ((a1, a2) :: ((a2, a3) :: w0))%list as aw.
+    apply a_to_c_end with (aw:= aw) (a1:=an) (a2:=a1) in Hatoc.
+    + destruct Hatoc as (bn, (Hac, Heqe)).
+      destruct e. inversion Heqe; rewrite H1 in *; rewrite H5 in *; clear Heqe H1 H5.
+      exists w.
+      (*
+      exists (cons (ab an bn)
+             (cons (ba bn a1) w)).*)
+      subst.
+      apply cycle_def with (vn:=(bi_b_vertex bn)); r_auto.
+    + assumption.
+    + subst; apply_auto a_to_c_cons.
+Qed.
+
 End CycleAtoC.
 End Bipartite.
 

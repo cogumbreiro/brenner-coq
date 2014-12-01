@@ -66,7 +66,7 @@ Proof.
 Qed.
 
 
-Lemma mapsto_to_in : forall (elt:Type) m x (e e':elt),
+Lemma mapsto_to_in : forall (elt:Type) m x (e:elt),
   Map_TID.MapsTo x e m -> Map_TID.In x m.
 Proof.
   intros.
@@ -79,6 +79,29 @@ Proof.
     assumption.
 Qed.
 
+Lemma opt_diff_none:
+  forall {A:Type} (o:option A),
+  o <> None ->
+  exists v, o = Some v.
+Proof.
+  intros.
+  destruct o.
+  - exists a.
+    auto.
+  - contradiction H. auto.
+Qed.
+
+Lemma in_to_mapsto : forall (elt:Type) m x,
+  Map_TID.In x m -> exists (e:elt), Map_TID.MapsTo x e m.
+Proof.
+  intros.
+  rewrite Map_TID_Facts.in_find_iff in H.
+  apply opt_diff_none in H.
+  destruct H as (e, H).
+  rewrite <- Map_TID_Facts.find_mapsto_iff in H.
+  exists e. assumption.
+Qed.
+
 Lemma blocked_in_tasks:
   forall t r,
   Blocked t r ->
@@ -89,7 +112,6 @@ Proof.
   destruct H as (p, (H1, H2)).
   apply mapsto_to_in in H1.
   assumption.
-  auto.
 Qed.
 
 Definition Registered (t:tid) (r:resource) :=

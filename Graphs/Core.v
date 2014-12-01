@@ -418,12 +418,29 @@ Axiom succ_in_cycle:
 Definition VertexInEdge (v:A) (e:edge) :=
   v = fst e \/ v = snd e.
 
+Lemma vertex_in_edge_left:
+  forall v v',
+  VertexInEdge v (v, v').
+Proof.
+  unfold VertexInEdge.
+  auto.
+Qed.
+
+Lemma vertex_in_edge_right:
+  forall v v',
+  VertexInEdge v' (v, v').
+Proof.
+  unfold VertexInEdge.
+  auto.
+Qed.
+
 Inductive VertexIn : A -> walk -> Prop :=
   vertex_in_def:
     forall e v w,
     In e w ->
     VertexInEdge v e ->
     VertexIn v w.
+
 (*
 Inductive VertexIn: A -> walk -> Prop :=
   | vertex_in_eq:

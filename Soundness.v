@@ -260,19 +260,19 @@ Proof.
 Qed.
 
 Let blocked_conv:
-  forall t1 r t2,
-  List.In (t1, t2) w ->
-  Blocked s t2 r ->
-  Blocked ds t2 r.
+  forall t r e,
+  VertexInEdge tid t e ->
+  List.In e w ->
+  Blocked s t r ->
+  Blocked ds t r.
 Proof.
   intros.
   unfold Blocked in *.
-  destruct H0 as (p, (H1, H2)).
+  destruct H1 as (p, (H1, H2)).
   exists p.
   intuition.
-  assert (H_in := vertex_in_edge_right tid t1 t2).
-  apply tid_in_walk in H_in.
-  destruct H_in as (p', (H4, H5)).
+  apply tid_in_walk in H.
+  destruct H as (p', (H4, H5)).
   apply Map_TID_Facts.MapsTo_fun with (e:=p') in H1; r_auto.
   subst.
   assumption.
@@ -280,11 +280,23 @@ Proof.
 Qed.
 
 Let registered_conv:
-  forall t1 r t2,
-  List.In (t1, t2) w ->
-  Registered s t1 r ->
-  Registered ds t1 r.
-Admitted.
+  forall t r e,
+  VertexInEdge tid t e ->
+  List.In e w ->
+  Registered s t r ->
+  Registered ds t r.
+Proof.
+  intros.
+  unfold Registered in *.
+  destruct H1 as (ph, H1); exists ph.
+  intuition.
+  destruct H4 as (r', H4).
+  apply blocked_conv with (e:=e) in H4.
+  exists r'.
+  assumption.
+  assumption.
+  assumption.
+Qed.
 
 Let Hd := (orig_deps_of DS).
 Let Hdd := (deadlocked_deps_of DS).
@@ -299,15 +311,17 @@ Proof.
   simpl in *.
   inversion H0; clear H0; subst.
   apply waits_for_to_blocked with (s:=s) in H2.
-  apply blocked_conv with (t1:=a1) in H2.
+  apply blocked_conv with (e:=(a1,a2)) in H2.
   apply impedes_to_registered with (s:=s) in H1.
   destruct H1 as (r, (H1, H3)).
-  apply registered_conv with (t2:=a2) in H1.
+  apply registered_conv with (e:=(a1,a2)) in H1.
   apply Core.aa with (b:=b).
   apply registered_to_impedes with (s:=ds) (r':=r); r_auto.
   apply blocked_to_waits_for with (s:=ds); r_auto.
+  apply vertex_in_edge_left.
   assumption.
   assumption.
+  apply vertex_in_edge_right.
   assumption.
   assumption.
 Qed.
@@ -358,16 +372,10 @@ Qed.
 (* deadlocked state *)
 Let ds:state := (get_phasers s, fst deadlocked).
 *)
-Check cycle_conv.
 
 Theorem soundness:
   forall d s w,
   Deps_of s d ->
   TCycle d w ->
   Deadlocked s.
-Proof.
-  intros.
-  Check cycle_conv.
-  apply cycle_conv in H0.
-  
-Check soundness.
+Admitted.  

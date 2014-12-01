@@ -16,4 +16,5 @@ Syntax.v
 TacticsUtil.v
 TaskMap.v
 Vars.v
+Soundness.v
 

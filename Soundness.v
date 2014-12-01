@@ -212,9 +212,12 @@ Record DeadlockedState := mk_deadlocked {
   orig_deps : dependencies;
   orig_deps_of : Deps_of orig_state orig_deps;
   (* partition *)
-  deadlocked_tasks : Map_TID.t prog; 
+  is_deadlocked : tid -> Prop;
+  deadlocked_tasks : Map_TID.t prog;
   other_tasks: Map_TID.t prog;
-  partion_holds: Map_TID_Props.Partition (get_tasks orig_state) deadlocked_tasks other_tasks;
+  partition_holds: Map_TID_Props.Partition (get_tasks orig_state) deadlocked_tasks other_tasks;
+  lhs_is_deadlocked:
+    (forall t, is_deadlocked t <-> Map_TID.In t deadlocked_tasks);
   (* deadlocked props *)
   deadlocked_state := (get_phasers orig_state, deadlocked_tasks);
   deadlocked_deps: dependencies;
@@ -222,33 +225,39 @@ Record DeadlockedState := mk_deadlocked {
 }.
 
 Section Totally.
-  Variable DS : DeadlockedState.
-  (*
-Variable d:dependencies.
-Variable s:state.
-Variable d_of_s: Deps_of s d.
-*)
+Variable DS : DeadlockedState.
 Variable w:t_walk.
 Notation d := (orig_deps DS).
 Notation dd := (deadlocked_deps DS).
 Notation s := (orig_state DS).
 Notation ds := (deadlocked_state DS).
 Variable is_cycle: TCycle d w.
-(*
-Let split := (fun t (p:prog) => mem_walk tid TID.eq_dec t w).
+Variable in_w_is_deadlocked:
+  forall t, VertexIn tid t w <-> is_deadlocked DS t.
+Let Hpart := partition_holds DS.
 
-Let deadlocked := Map_TID_Props.partition split (get_tasks s).
-Check deadlocked.
-Let Hdeadlocked: Map_TID_Props.Partition (get_tasks s) (fst deadlocked) (snd deadlocked).
+Let tid_in_walk:
+  forall t e,
+  VertexInEdge tid t e ->
+  List.In e w ->
+  exists p,
+  Map_TID.MapsTo t p (get_tasks (orig_state DS)) /\
+  Map_TID.MapsTo t p (deadlocked_tasks DS).
 Proof.
-  apply Map_TID_Props.partition_Partition with (f:=split).
-  auto with *.
-  unfold deadlocked.
-  auto.
+  intros.
+  apply vertex_in_def with (w:=w) in H.
+  rewrite in_w_is_deadlocked in H.
+  rewrite lhs_is_deadlocked in H.
+  apply in_to_mapsto in H.
+  destruct H as (p, H).
+  exists p.
+  intuition.
+  - unfold Map_TID_Props.Partition in Hpart.
+    destruct Hpart as (Hdj, Hrw).
+    rewrite Hrw.
+    auto.
+  - assumption.
 Qed.
-(* deadlocked state *)
-Let ds:state := (get_phasers s, fst deadlocked).
-*)
 
 Let blocked_conv:
   forall t1 r t2,
@@ -256,7 +265,19 @@ Let blocked_conv:
   Blocked s t2 r ->
   Blocked ds t2 r.
 Proof.
-Admitted.
+  intros.
+  unfold Blocked in *.
+  destruct H0 as (p, (H1, H2)).
+  exists p.
+  intuition.
+  assert (H_in := vertex_in_edge_right tid t1 t2).
+  apply tid_in_walk in H_in.
+  destruct H_in as (p', (H4, H5)).
+  apply Map_TID_Facts.MapsTo_fun with (e:=p') in H1; r_auto.
+  subst.
+  assumption.
+  assumption.
+Qed.
 
 Let registered_conv:
   forall t1 r t2,
@@ -321,6 +342,22 @@ Proof.
     apply t_walk_conv.
 Qed.
 End Totally.
+
+(*
+Let split := (fun t (p:prog) => mem_walk tid TID.eq_dec t w).
+
+Let deadlocked := Map_TID_Props.partition split (get_tasks s).
+Check deadlocked.
+Let Hdeadlocked: Map_TID_Props.Partition (get_tasks s) (fst deadlocked) (snd deadlocked).
+Proof.
+  apply Map_TID_Props.partition_Partition with (f:=split).
+  auto with *.
+  unfold deadlocked.
+  auto.
+Qed.
+(* deadlocked state *)
+Let ds:state := (get_phasers s, fst deadlocked).
+*)
 Check cycle_conv.
 
 Theorem soundness:

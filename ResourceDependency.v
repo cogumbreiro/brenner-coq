@@ -162,263 +162,46 @@ Module Map_R := FMapAVL.Make R.
 Definition r_edge := R.t.
 Definition set_r_edge := Set_R.t.
 
+Definition WaitsFor (d:dependencies) (r:resource) (t:tid) :=
+  exists rs, Map_TID.MapsTo t rs (get_waits d) /\ Set_RES.In r rs.
+
+Definition Impedes (d:dependencies) (t:tid) (r:resource) :=
+  exists ts, Map_RES.MapsTo r ts (get_impedes d) /\ Set_TID.In t ts.
+
+
+Definition GRG(d:dependencies) := B.mk_bipartite tid resource (Impedes d) (WaitsFor d).
+
+Notation WFG d := (B.contract_a (GRG d)).
+Notation SG d := (B.contract_b (GRG d)).
+Notation TWalk d := (G.Walk (WFG d)).
+Notation RWalk d := (G.Walk (SG d)).
+Notation TCycle d := (G.Cycle (WFG d)).
+Notation TEdge d := (G.Edge (WFG d)).
+Notation RCycle d := (G.Cycle (SG d)).
+Notation t_walk := (list t_edge).
+
 Section Dependencies.
 
 Variable d:dependencies.
 
-Definition WaitsFor (r:resource) (t:tid) :=
-  exists rs, Map_TID.MapsTo t rs (get_waits d) /\ Set_RES.In r rs.
-
-Definition Impedes (t:tid) (r:resource) :=
-  exists ts, Map_RES.MapsTo r ts (get_impedes d) /\ Set_TID.In t ts.
-
-
-Definition GRG := B.mk_bipartite tid resource Impedes WaitsFor.
-Definition WFG := B.contract_a GRG.
-Definition SG := B.contract_b GRG.
-Definition TWalk := G.Walk WFG.
-Definition RWalk := G.Walk SG.
-Definition TCycle := G.Cycle WFG.
-Definition RCycle := G.Cycle SG.
-Definition t_walk := G.walk WFG.
-
 Theorem wfg_to_sg:
   forall w,
-  TCycle w ->
-  exists w', RCycle w'.
+  TCycle d w ->
+  exists w', RCycle d w'.
 Proof.
   intros.
-  assert (H':= C.cycle_a_to_cycle_b GRG w H).
+  assert (H':= C.cycle_a_to_cycle_b (GRG d) w H).
   tauto.
 Qed.
 
 Theorem sg_to_wfg:
   forall w,
-  RCycle w ->
-  exists w', TCycle w'.
+  RCycle d w ->
+  exists w', TCycle d w'.
 Proof.
   intros.
-  assert (H':= C.cycle_b_to_cycle_a GRG w H).
+  assert (H':= C.cycle_b_to_cycle_a (GRG d) w H).
   tauto.
 Qed.
 
 End Dependencies.
-
-Section Correctness.
-  Variable d:dependencies.
-  Variable s:state.
-  Parameter d_of_s: Deps_of s d.
-
-Lemma waits_for_to_blocked:
-  forall r t,
-  WaitsFor d r t ->
-  Blocked s t r.
-Proof.
-  intros.
-  unfold WaitsFor in H.
-  assert (H':= d_of_s).
-  destruct H' as (H', _).
-  apply H' in H.
-  assumption.
-Qed.
-
-Lemma blocked_to_waits_for:
-  forall r t,
-  Blocked s t r ->
-  WaitsFor d r t .
-Proof.
-  intros.
-  unfold WaitsFor in *.
-  assert (H':= d_of_s).
-  destruct H' as (H', _).
-  apply H' in H.
-  assumption.
-Qed.
-
-Lemma blocked_eq_waits_for:
-  forall r t,
-  Blocked s t r <->
-  WaitsFor d r t .
-Proof.
-  intros.
-  split.
-  apply blocked_to_waits_for.
-  apply waits_for_to_blocked.
-Qed.
-
-Lemma impedes_to_registered:
-  forall t r,
-  Impedes d t r ->
-  exists r', Registered s t r' /\ prec r' r.
-Proof.
-  intros.
-  unfold Impedes in H.
-  assert (H':= d_of_s).
-  destruct H' as (_, H').
-  apply H' in H.
-  destruct H as (r', H).
-  exists r'.
-  intuition.
-Qed.
-
-Lemma registered_to_impedes :
-  forall t r' r,
-  Registered s t r' ->
-  prec r' r ->
-  Impedes d t r.
-Proof.
-  intros.
-  unfold Impedes.
-  assert (H':= d_of_s).
-  destruct H' as (_, H').
-  apply H'.
-  exists r'.
-  intuition.
-  inversion H.
-  destruct H1 as (_, (_, H1)).
-  assumption.
-Qed.
-  
-Lemma impedes_eq_registered:
-  forall t r,
-  Impedes d t r <->
-  exists r', Registered s t r' /\ prec r' r.
-Proof.
-  intros.
-  intuition.
-  - apply_auto impedes_to_registered.
-  - destruct H as (r', (H1, H2)).
-    apply registered_to_impedes with (r':=r'); r_auto.
-Qed.
-
-Lemma tedge_inv:
-  forall w t t',
-  TWalk d w ->
-  List.In (t, t') w ->
-  exists r,
-  Impedes d t r /\ WaitsFor d r t'.
-Proof.
-  intros.
-  apply in_edge with (Edge:=G.Edge (WFG d)) in H0.
-  simpl in H0.
-  inversion H0.
-  simpl in *.
-  subst.
-  exists b.
-  intuition.
-  assumption.
-Qed.
-
-Section TotallyDeadlockedSoundness.
-Variable w:t_walk d.
-
-Variable is_cycle: TCycle d w.
-
-Variable all_in_walk:
-  forall t,
-  Map_TID.In t (get_waits d) ->
-  exists t', List.In (t', t) w \/ List.In (t, t') w.
-
-Let Hwalk: TWalk d w.
-Proof.
-  intros.
-  inversion is_cycle.
-  assumption.
-Qed.
-
-Lemma in_waits_to_edge : 
-  forall t,
-  Map_TID.In t (get_waits d) ->
-  exists t', List.In (t', t) w.
-Proof.
-  intros.
-  apply all_in_walk in H.
-  destruct H as (t', [H|H]).
-  - exists t'. assumption.
-  - apply pred_in_cycle with (Edge:=G.Edge (WFG d)) in H.
-    destruct H as (t'', H).
-    exists t''.
-    + assumption.
-    + assumption.
-Qed.
-
-Lemma blocked_in_waits:
-  forall t r,
-  Blocked s t r ->
-  Map_TID.In t (get_waits d).
-Proof.
-  intros.
-  destruct d_of_s as (Hw, Hi).
-  unfold W_of in Hw.
-  assert (H':= Hw t r).
-  rewrite <- H' in H.
-  destruct H as (rs, (H1, H2)).
-  apply mapsto_to_in with (e:=rs); r_auto.
-Qed.
-
-Lemma in_inv_left:
-  forall t t',
-  List.In (t, t') w ->
-  Map_TID.In t (get_tasks s).
-Proof.
-  intros.
-  apply tedge_inv in H.
-  destruct H as (r, (H1, H2)).
-  apply impedes_to_registered in H1.
-  destruct H1 as (r', (H1, H3)).
-  apply registered_to_blocked in H1.
-  destruct H1 as (r'', H1).
-  apply blocked_in_tasks in H1.
-  assumption.
-  apply Hwalk.
-Qed.  
-
-Lemma soundness_totally:
-  TotallyDeadlocked s.
-Proof.
-  intros.
-  unfold TotallyDeadlocked.
-  intros.
-  destruct H as (H, H0).
-  assert (Hblk := H0).
-  (* Task t is connected to another task, get t': *)
-  apply blocked_in_waits in H0.
-  apply in_waits_to_edge in H0.
-  destruct H0 as (t', H0).
-  exists t'. (* we've found t' *)
-  intuition.
-  + (* show that t' in dom T *)
-    apply in_inv_left in H0;
-    intuition.
-  + apply tedge_inv in H0.
-    *  destruct H0 as (r', (Hi, Hw)).
-       rewrite <- blocked_eq_waits_for in Hw.
-       assert (Heq : r = r').
-         apply blocked_fun with (s:=s) (t:=t); r_auto.
-       (* end assert *)
-       subst.
-       rewrite <- impedes_eq_registered; r_auto.
-    * inversion is_cycle; r_auto.
-Qed.
-End TotallyDeadlockedSoundness.
-
-Section Soundness.
-Variable w:t_walk d.
-
-Variable is_cycle: TCycle d w.
-Let split := (fun t (p:prog) => mem_walk tid TID.eq_dec t w).
-
-Let deadlocked := Map_TID_Props.partition split (get_tasks s).
-
-Let Hdeadlocked: Map_TID_Props.Partition (get_tasks s) (fst deadlocked) (snd deadlocked).
-Proof.
-  apply Map_TID_Props.partition_Partition with (f:=split).
-  auto with *.
-  unfold deadlocked.
-  auto.
-Qed.
-
-End Soundness.
-
-End Correctness.
-

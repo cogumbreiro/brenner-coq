@@ -1,9 +1,4 @@
-Require Import
-  Coq.Structures.OrderedTypeEx
-  Coq.FSets.FSetAVL
-  Coq.Arith.Compare_dec.
-
-Require Import Graph TacticsUtil.
+Require Import Graphs.Core TacticsUtil.
 
 Section Bipartite.
 Variable a_vertex:Type.
@@ -140,8 +135,26 @@ Qed.
 Definition BAB (b1:b_vertex) (a:a_vertex) (b2:b_vertex) :=
   BA b1 a /\ AB a b2.
 
+Lemma ba_ab_to_bab:
+  forall b1 a b2,
+  BA b1 a ->
+  AB a b2 ->
+  BAB b1 a b2.
+Proof.
+  unfold BAB. auto.
+Qed.
+
 Definition ABA (a1:a_vertex) (b:b_vertex) (a2:a_vertex) :=
   AB a1 b /\ BA b a2.
+
+Lemma ab_ba_to_aba:
+  forall a1 b a2,
+  AB a1 b ->
+  BA b a2 ->
+  ABA a1 b a2.
+Proof.
+  unfold ABA. auto.
+Qed.
 
 Lemma bab_to_b:
   forall b1 a b2,

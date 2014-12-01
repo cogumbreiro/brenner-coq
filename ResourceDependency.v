@@ -4,11 +4,15 @@ Require Import
   Coq.Arith.Compare_dec.
 
 Require Import
-  Semantics TaskMap PhaserMap Vars Syntax
-  Graph Bipartite.
+  Semantics TaskMap PhaserMap Vars Syntax.
 
-Require OBipartite.
-Require OGraph.
+Require Graphs.Main.
+Require Import Graphs.Core.
+Require Graphs.Bipartite.Main.
+Require Graphs.Bipartite.Cycle.
+Module G := Graphs.Main.
+Module B := Graphs.Bipartite.Main.
+Module C := Graphs.Bipartite.Cycle.
 
 Ltac r_auto := repeat auto.
 Ltac apply_auto H := apply H; r_auto.
@@ -169,14 +173,14 @@ Definition Impedes (t:tid) (r:resource) :=
   exists ts, Map_RES.MapsTo r ts (get_impedes d) /\ Set_TID.In t ts.
 
 
-Definition GRG := OBipartite.mk_bipartite tid resource Impedes WaitsFor.
-Definition WFG := OBipartite.contract_a GRG.
-Definition SG := OBipartite.contract_b GRG.
-Definition TWalk := OGraph.Walk WFG.
-Definition RWalk := OGraph.Walk SG.
-Definition TCycle := OGraph.Cycle WFG.
-Definition RCycle := OGraph.Cycle SG.
-Definition t_walk := OGraph.walk WFG.
+Definition GRG := B.mk_bipartite tid resource Impedes WaitsFor.
+Definition WFG := B.contract_a GRG.
+Definition SG := B.contract_b GRG.
+Definition TWalk := G.Walk WFG.
+Definition RWalk := G.Walk SG.
+Definition TCycle := G.Cycle WFG.
+Definition RCycle := G.Cycle SG.
+Definition t_walk := G.walk WFG.
 
 Theorem wfg_to_sg:
   forall w,
@@ -184,7 +188,7 @@ Theorem wfg_to_sg:
   exists w', RCycle w'.
 Proof.
   intros.
-  assert (H':= OBipartite.cycle_a_to_cycle_b GRG w H).
+  assert (H':= C.cycle_a_to_cycle_b GRG w H).
   tauto.
 Qed.
 
@@ -194,7 +198,7 @@ Theorem sg_to_wfg:
   exists w', TCycle w'.
 Proof.
   intros.
-  assert (H':= OBipartite.cycle_b_to_cycle_a GRG w H).
+  assert (H':= C.cycle_b_to_cycle_a GRG w H).
   tauto.
 Qed.
 
@@ -295,7 +299,7 @@ Lemma tedge_inv:
   Impedes d t r /\ WaitsFor d r t'.
 Proof.
   intros.
-  apply in_edge with (Edge:=OGraph.Edge (WFG d)) in H0.
+  apply in_edge with (Edge:=G.Edge (WFG d)) in H0.
   simpl in H0.
   inversion H0.
   simpl in *.
@@ -331,7 +335,7 @@ Proof.
   apply all_in_walk in H.
   destruct H as (t', [H|H]).
   - exists t'. assumption.
-  - apply pred_in_cycle with (Edge:=OGraph.Edge (WFG d)) in H.
+  - apply pred_in_cycle with (Edge:=G.Edge (WFG d)) in H.
     destruct H as (t'', H).
     exists t''.
     + assumption.
@@ -413,7 +417,7 @@ Proof.
   unfold deadlocked.
   auto.
 Qed.
-Check soundness_totally.
+
 End Soundness.
 
 End Correctness.

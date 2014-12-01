@@ -1,0 +1,19 @@
+-R . Brenner
+
+Graphs/Core.v
+Graphs/Main.v
+Graphs/Bipartite/Core.v
+Graphs/Bipartite/Main.v
+Graphs/Bipartite/Cycle.v
+Brenner.v
+Example1.v
+PhaserMap.v
+Phaser.v
+# ResourceDependencyImpl.v
+ResourceDependency.v
+Semantics.v
+Syntax.v
+TacticsUtil.v
+TaskMap.v
+Vars.v
+

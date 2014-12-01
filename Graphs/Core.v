@@ -26,6 +26,58 @@ Inductive Walk : walk -> Prop :=
   | walk_nil:
     Walk nil.
 
+Inductive Connected : walk -> Prop :=
+  | connected_cons:
+    forall e w,
+    Connected w ->
+    Linked e w ->
+    Connected (e :: w)
+  | connected_nil:
+    Connected nil.
+
+Lemma connected_inv:
+  forall e w,
+  Connected (e :: w) ->
+  Linked e w.
+Proof.
+  intros.
+  inversion H.
+  subst.
+  assumption.
+Qed.
+
+Lemma walk_to_connected:
+  forall w,
+  Walk w ->
+  Connected w.
+Proof.
+  intros.
+  induction w.
+  - apply connected_nil.
+  - inversion H.
+    subst.
+    apply IHw in H2.
+    apply_auto connected_cons.
+Qed.
+
+Lemma walk_forall:
+  forall w,
+  Forall Edge w ->
+  Connected w ->
+  Walk w.
+Proof.
+  intros.
+  induction w.
+  - apply walk_nil.
+  - inversion H.
+    subst.
+    apply IHw in H4.
+    apply_auto walk_cons.
+    apply connected_inv.
+    assumption.
+    inversion H0; assumption.
+Qed.      
+
 Lemma walk_cons2:
   forall v1 v2 v3 w,
   Edge (v1, v2) ->

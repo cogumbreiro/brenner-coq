@@ -202,10 +202,6 @@ Qed.
 End TotallyDeadlocked.
 End Basic.
 
-Axiom d_of_s_total:
-  forall s,
-  exists d, Deps_of s d.
-
 Record DeadlockedState := mk_deadlocked {
   (* any state *)
   orig_state : state;
@@ -356,7 +352,6 @@ Proof.
     apply t_walk_conv.
 Qed.
 End Totally.
-
 (*
 Let split := (fun t (p:prog) => mem_walk tid TID.eq_dec t w).
 

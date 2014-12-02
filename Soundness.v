@@ -78,7 +78,7 @@ Proof.
   destruct H1 as (_, (_, H1)).
   assumption.
 Qed.
-  
+
 Lemma impedes_eq_registered:
   forall t r,
   Impedes d t r <->
@@ -107,6 +107,50 @@ Proof.
   exists b.
   intuition.
   assumption.
+Qed.
+
+Lemma blocked_in_tasks:
+  forall t r,
+  Blocked s t r ->
+  Map_TID.In t (get_tasks s).
+Proof.
+  intros.
+  unfold Blocked in H.
+  destruct H as (p', (H, _)).
+  apply mapsto_to_in in H.
+  assumption.
+Qed.
+
+Lemma vertex_in_tasks:
+  forall t w,
+  TWalk d w ->
+  VertexIn tid t w ->
+  Map_TID.In t (get_tasks s).
+Proof.
+  intros.
+  simpl in *.
+  inversion H0.
+  subst.
+  destruct e as (t1, t2).
+  destruct H2 as [H2|H2].
+  - subst. simpl in *.
+    apply tedge_inv in H1.
+    + destruct H1 as (r, (H1, H2)).
+      apply impedes_to_registered in H1.
+      destruct H1 as (r', (H3, H4)).
+      apply registered_to_blocked in H3.
+      destruct H3 as (r'', H5).
+      apply blocked_in_tasks in H5; r_auto.
+    + auto.
+  - subst; simpl in *.
+    apply tedge_inv in H1.
+    + destruct H1 as (r, (_, H1)).
+      apply waits_for_to_blocked in H1.
+      unfold Blocked in H1.
+      destruct H1 as (p', (Hf, _)).
+      apply mapsto_to_in in Hf.
+      assumption.
+    + auto.
 Qed.
 
 Section TotallyDeadlocked.
@@ -392,10 +436,85 @@ Qed.
 
 Let c_is_deadlocked t := VertexIn tid t w.
 
-Let deadlocked_in:
+Let split_to_vertex:
+  forall t e,
+  split t e = true ->
+  VertexIn tid t w.
+Proof.
+  intros.
+  unfold split in *.
+  rewrite (mem_walk_eq_in tid (TEdge d) TID.eq_dec) in H.
+  assumption.
+Qed.
+
+
+Let vertex_to_split:
+  forall t p,
+  VertexIn tid t w ->
+  split t p = true.
+Proof.
+  intros.
+  rewrite <- (mem_walk_eq_in tid (TEdge d) TID.eq_dec) in H.
+  unfold split in *.
+  assumption.
+Qed.
+
+Let deadlocked_in_right:
   forall t,
-  c_is_deadlocked t <-> Map_TID.In t (fst deadlocked).
-Admitted.
+  Map_TID.In t (fst deadlocked) -> c_is_deadlocked t.
+Proof.
+  intros.
+  unfold c_is_deadlocked.
+  apply in_to_mapsto in H.
+  destruct H as (e, H).
+  rewrite Map_TID_Props.partition_iff_1 with
+     (f:=split) (m:=(get_tasks s)) in H.
+  destruct H as (H1, H2).
+  apply split_to_vertex with (e:=e).
+  assumption.
+  auto with *.
+  auto.
+Qed.
+
+Let ds := ((get_phasers s), (fst deadlocked)).
+
+Let deadlocked_in_left:
+  forall dd,
+  Deps_of ds dd ->
+  forall t,
+  c_is_deadlocked t -> Map_TID.In t (fst deadlocked).
+Proof.
+  intros.
+  unfold c_is_deadlocked in *.
+  assert (Hin := H0).
+  apply vertex_in_tasks with (d:=d) (s:=s) (t:=t) (w:=w) in H0.
+  apply in_to_mapsto in H0.
+  destruct H0 as (p, Hmt).
+  apply vertex_to_split with (p:=p) in Hin.
+  assert (Hg: Map_TID.MapsTo t p (get_tasks s) /\ split t p = true).
+  intuition.
+  rewrite <- Map_TID_Props.partition_iff_1
+    with (m1:=(fst deadlocked)) in Hg.
+  apply mapsto_to_in in Hg.
+  assumption.
+  auto with *.
+  auto.
+  assumption.
+  inversion w_cycle.
+  auto.
+Qed.
+
+Let deadlocked_in:
+  forall dd,
+  Deps_of ds dd ->
+  forall t,
+  (c_is_deadlocked t <-> Map_TID.In t (fst deadlocked)).
+Proof.
+  intros.
+  split.
+  apply deadlocked_in_left with (dd:=dd); r_auto.
+  apply deadlocked_in_right.
+Qed.
 
 Let Hdeps_of := deps_of_total (get_phasers s, fst deadlocked).
 
@@ -403,7 +522,7 @@ Let DS (dd:dependencies) (Hdd : Deps_of ((get_phasers s), (fst deadlocked)) dd) 
   mk_deadlocked s d deps_of c_is_deadlocked
   (fst deadlocked)
   (snd deadlocked)
-  Hpart deadlocked_in dd Hdd.
+  Hpart (deadlocked_in dd Hdd)  dd Hdd.
 
 Theorem soundness :
   Deadlocked s.

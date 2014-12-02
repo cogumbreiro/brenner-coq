@@ -147,6 +147,10 @@ Definition I_of (i:impedes) :=
 Definition Deps_of (d:dependencies) :=
   W_of (get_waits d) /\ I_of (get_impedes d).
 
+Lemma deps_of_total:
+  exists d, Deps_of d.
+Admitted.
+
 End StateProps.
 
 Definition TotallyDeadlocked (s:state) :=

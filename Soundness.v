@@ -397,11 +397,10 @@ Let deadlocked_in:
   c_is_deadlocked t <-> Map_TID.In t (fst deadlocked).
 Admitted.
 
-Variable dd: dependencies.
-Let Hdd : Deps_of ((get_phasers s), (fst deadlocked)) dd.
-Admitted.
+Let Hdeps_of := deps_of_total (get_phasers s, fst deadlocked).
 
-Let DS := mk_deadlocked s d deps_of c_is_deadlocked
+Let DS (dd:dependencies) (Hdd : Deps_of ((get_phasers s), (fst deadlocked)) dd) :=
+  mk_deadlocked s d deps_of c_is_deadlocked
   (fst deadlocked)
   (snd deadlocked)
   Hpart deadlocked_in dd Hdd.
@@ -409,7 +408,8 @@ Let DS := mk_deadlocked s d deps_of c_is_deadlocked
 Theorem soundness :
   Deadlocked s.
 Proof.
-  apply (ds_deadlocked DS w).
+  destruct Hdeps_of as (dd, Hdd).
+  apply (ds_deadlocked (DS dd Hdd) w).
   auto.
   unfold is_deadlocked.
   intuition.

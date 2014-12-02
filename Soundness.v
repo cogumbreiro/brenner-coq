@@ -115,7 +115,9 @@ Variable is_cycle: TCycle d w.
 Variable all_in_walk:
   forall t,
   Map_TID.In t (get_waits d) ->
-  exists t', List.In (t', t) w \/ List.In (t, t') w.
+  VertexIn tid t w.
+Variable vertex_in_tasks:
+  forall t, VertexIn tid t w <-> Map_TID.In t (get_tasks s).
 
 Let Hwalk: TWalk d w.
 Proof.
@@ -124,34 +126,31 @@ Proof.
   assumption.
 Qed.
 
-Lemma in_waits_to_edge : 
-  forall t,
-  Map_TID.In t (get_waits d) ->
-  exists t', List.In (t', t) w.
-Proof.
-  intros.
-  apply all_in_walk in H.
-  destruct H as (t', [H|H]).
-  - exists t'. assumption.
-  - apply pred_in_cycle with (Edge:=G.Edge (WFG d)) in H.
-    destruct H as (t'', H).
-    exists t''.
-    + assumption.
-    + assumption.
-Qed.
-
-Lemma blocked_in_waits:
+Lemma blocked_in_walk:
   forall t r,
   Blocked s t r ->
-  Map_TID.In t (get_waits d).
+  exists t' : nat, List.In (t', t) w.
 Proof.
   intros.
-  destruct d_of_s as (Hw, Hi).
-  unfold W_of in Hw.
-  assert (H':= Hw t r).
-  rewrite <- H' in H.
-  destruct H as (rs, (H1, H2)).
-  apply mapsto_to_in with (e:=rs); r_auto.
+  unfold Blocked in *.
+  destruct H as (p, (H1, H2)).
+  apply mapsto_to_in in H1.
+  rewrite <- vertex_in_tasks in H1.
+  inversion H1.
+  subst.
+  destruct e as (t1, t2).
+  destruct H0.
+  - simpl in *.
+    subst.
+    apply pred_in_cycle with (Edge:=TEdge d) in H.
+    destruct H as (t', H).
+    exists t'.
+    assumption.
+    assumption.
+  - subst.
+    simpl in *.
+    exists t1.
+    assumption.
 Qed.
 
 Lemma in_inv_left:
@@ -181,8 +180,7 @@ Proof.
   destruct H as (H, H0).
   assert (Hblk := H0).
   (* Task t is connected to another task, get t': *)
-  apply blocked_in_waits in H0.
-  apply in_waits_to_edge in H0.
+  apply blocked_in_walk in H0.
   destruct H0 as (t', H0).
   exists t'. (* we've found t' *)
   intuition.
@@ -351,7 +349,19 @@ Proof.
   - rewrite H1 in *.
     apply t_walk_conv.
 Qed.
-End Totally.
+
+Let vertex_in_tasks:
+  forall t, VertexIn tid t w <-> Map_TID.In t (get_tasks ds).
+Proof.
+  intros.
+  rewrite in_w_is_deadlocked.
+  apply (lhs_is_deadlocked DS).
+Qed.
+
+Let ds_totally_deadlocked :=
+  soundness_totally dd ds Hdd w cycle_conv vertex_in_tasks.
+
+
 (*
 Let split := (fun t (p:prog) => mem_walk tid TID.eq_dec t w).
 

@@ -340,7 +340,7 @@ Proof.
   apply_auto walk_forall.
 Qed.
 
-Lemma cycle_conv:
+Let cycle_conv:
   TCycle dd w.
 Proof.
   inversion is_cycle.
@@ -361,26 +361,58 @@ Qed.
 Let ds_totally_deadlocked :=
   soundness_totally dd ds Hdd w cycle_conv vertex_in_tasks.
 
+Lemma ds_deadlocked:
+  Deadlocked (orig_state DS).
+Proof.
+  unfold Deadlocked.
+  exists (deadlocked_tasks DS).
+  exists (other_tasks DS).
+  auto.
+Qed.
+End Totally.
 
-(*
+Section Soundness.
+Variable d:dependencies.
+Variable s:state.
+Variable w:t_walk.
+Variable deps_of: Deps_of s d.
+Variable w_cycle: TCycle d w.
+
 Let split := (fun t (p:prog) => mem_walk tid TID.eq_dec t w).
 
 Let deadlocked := Map_TID_Props.partition split (get_tasks s).
-Check deadlocked.
-Let Hdeadlocked: Map_TID_Props.Partition (get_tasks s) (fst deadlocked) (snd deadlocked).
+
+Let Hpart: Map_TID_Props.Partition (get_tasks s) (fst deadlocked) (snd deadlocked).
 Proof.
   apply Map_TID_Props.partition_Partition with (f:=split).
   auto with *.
   unfold deadlocked.
   auto.
 Qed.
-(* deadlocked state *)
-Let ds:state := (get_phasers s, fst deadlocked).
-*)
 
-Theorem soundness:
-  forall d s w,
-  Deps_of s d ->
-  TCycle d w ->
+Let c_is_deadlocked t := VertexIn tid t w.
+
+Let deadlocked_in:
+  forall t,
+  c_is_deadlocked t <-> Map_TID.In t (fst deadlocked).
+Admitted.
+
+Variable dd: dependencies.
+Let Hdd : Deps_of ((get_phasers s), (fst deadlocked)) dd.
+Admitted.
+
+Let DS := mk_deadlocked s d deps_of c_is_deadlocked
+  (fst deadlocked)
+  (snd deadlocked)
+  Hpart deadlocked_in dd Hdd.
+
+Theorem soundness :
   Deadlocked s.
-Admitted.  
+Proof.
+  apply (ds_deadlocked DS w).
+  auto.
+  unfold is_deadlocked.
+  intuition.
+Qed.
+
+End Soudness.

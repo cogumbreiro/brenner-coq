@@ -415,4 +415,4 @@ Proof.
   intuition.
 Qed.
 
-End Soudness.
+End Soundness.

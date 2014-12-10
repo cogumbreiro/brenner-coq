@@ -45,4 +45,4 @@ dist-anon: clean
 	cd $(DIR); tar czvf ../micropolicies-coq-anon.tar.gz . --transform 's/^\./micropolicies-coq-anon/' --exclude=testing --exclude=.gitignore --exclude=cfi/review.org --exclude=compartmentalization/global-hint.el
 
 coqide:
-	coqide -R . MicroPolicies
+	coqide -R . Brenner

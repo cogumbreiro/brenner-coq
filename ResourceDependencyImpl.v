@@ -1,29 +1,16 @@
-Require Import Coq.Structures.OrderedTypeEx.
-Require Import Coq.FSets.FSetAVL.
-Require Import Brenner.
+Require Import ResourceDependency.
+Require Import Vars.
+Require Import Syntax.
+Require Import Semantics.
+Require Import PhaserMap.
+Require Import TaskMap.
+Require Import Phaser.
 Require Import Coq.Arith.Compare_dec.
-(*Definition resource := (phid * nat) % type.*)
-
-Definition get_tasks (s:state) :taskmap := snd s.
-Definition get_phasers (s:state) : phasermap := fst s.
-
-Module RES := PairOrderedType PHID Nat_as_OT.
-Module Set_RES := FSetAVL.Make RES.
-Module Map_RES := FMapAVL.Make RES.
-Definition resource := RES.t.
-Definition set_resource := Set_RES.t.
-Definition res (p:phid) (n:nat) : resource := (p, n).
-Definition get_phaser (r:resource) : phid := fst r.
-Definition get_phase (r:resource) : nat := snd r.
-
-(* Defines the module of I *)
-Definition impedes := Map_RES.t set_tid.
-Definition waits := Map_TID.t set_resource.
-Definition resdeps := (impedes * waits) % type.
 
 Definition impedes_empty : impedes := @Map_RES.empty set_tid.
 Definition waits_empty : waits := @Map_TID.empty set_resource.
 
+(*
 Definition blocked (t:tid) (prg:prog) (pm:phasermap) : option resource :=
   match prg with
     | pcons i _ =>
@@ -44,7 +31,7 @@ Definition blocked (t:tid) (prg:prog) (pm:phasermap) : option resource :=
       end
     | _ => None
   end.
-
+*)
 Definition mk_R (p:phid) (n:nat) (ph:phaser) : set_tid := 
   (fix mk_R_aux (el:list (tid * nat)%type ): set_tid :=
     match el with
@@ -90,39 +77,172 @@ Definition mk_I (pm:phasermap) (tm:taskmap) : impedes :=
     ) (* fun *)
   tm impedes_empty.
 
-Definition mk_W (pm:phasermap) (tm:taskmap) : waits :=
-  (fix mk_W_aux (el:list (tid * prog)%type ): waits :=
-    match el with
-      | cons e l =>
-        let result := mk_W_aux l in
-        let t := fst e in
-        (* check the program *)
-        match (snd e) with
-          | pcons i _ =>
-            (* check the instruction *)
-            match i with
-              | Await p _ =>
-                (* Get the phaser *)
-                match Map_PHID.find p pm with
-                  | Some ph =>
-                    (* Get the phase t is awaiting *)
-                    match Map_TID.find t ph with
-                      | Some n =>
-                        let r := (p, n) in
-                        let w := Set_RES.singleton r in
-                        Map_TID.add t w result
-                      | None => result
-                    end
-                  | None => result
-                end
-              | _ => result
-            end
-          | pnil => result
-        end
-      | nil =>  waits_empty
-    end
-  ) (Map_TID.elements tm).
+Section Waits.
+Variable s: state.
+Let pm := fst s.
+Let tm := snd s.
 
+Definition phid_defined (p:phid) := Map_PHID.mem p pm.
+
+Lemma phid_defined_prop:
+  forall p,
+  phid_defined p = true ->
+  Map_PHID.In p pm.
+Proof.
+  unfold phid_defined.
+  intros.
+  rewrite <- Map_PHID_Facts.mem_in_iff with (elt:=phaser) (x:=p) (m:=pm) in H.
+  auto.
+Qed.
+
+Definition is_registered p t : bool :=
+  match Map_PHID.find p pm with
+    | Some ph =>
+      match Map_TID.find t ph with
+        | Some _ => true
+        | None => false
+      end
+    | None => false
+  end.
+
+Lemma is_registered_prop:
+  forall p t,
+  is_registered p t = true ->
+  exists ph, Map_PHID.MapsTo p ph pm /\ Map_TID.In t ph.
+Proof.
+  intros.
+  unfold is_registered in *.
+  remember (Map_PHID.find (elt:=phaser) p pm) as y.
+  destruct y.
+  symmetry in Heqy.
+  rewrite <- Map_PHID_Props.F.find_mapsto_iff in Heqy.
+  exists p0.
+  remember (Map_TID.find (elt:=nat) t p0) as z.
+  destruct z.
+  symmetry in Heqz.
+  rewrite <- Map_TID_Props.F.find_mapsto_iff in Heqz.
+  apply Map_TID_Extra.mapsto_to_in in Heqz.
+  intuition.
+  inversion H.
+  inversion H.
+Qed.
+
+Definition await t : option resource :=
+  match Map_TID.find t tm with
+    (* Check if it is in the map *)
+    | Some prg =>
+      (* Check if the sequence of instruction has an instruction *)
+      match prg with
+        | pcons i _ =>
+          (* check the instruction *)
+          match i with
+            | Await p n => Some (p, n)
+            | _ => None
+          end
+        | pnil => None
+      end
+    | None => None
+  end.
+
+Lemma await_prop:
+  forall t r,
+  await t = Some r ->
+  exists p, Map_TID.MapsTo t (pcons (Await (get_phaser r) (get_phase r)) p) tm.
+Proof.
+  intros.
+  unfold await in *.
+  remember (Map_TID.find (elt:=prog) t tm) as x.
+  destruct x.
+  - symmetry in Heqx.
+    rewrite <- Map_TID_Props.F.find_mapsto_iff
+      with (elt:=prog) (m:=tm) (x:=t) in Heqx.
+    destruct p.
+    destruct i.
+    inversion H.
+    inversion H.
+    inversion H.
+    exists p.
+    destruct r.
+    inversion H.
+    subst.
+    assumption.
+    inversion H.
+    inversion H.
+  - inversion H.
+Qed.
+
+Definition blocked t : option resource :=
+  match await t with
+    | Some r =>
+      if phid_defined (get_phaser r)
+      then Some r
+      else None
+    | None => None
+  end.
+
+Lemma blocked_prop:
+  forall t r,
+  blocked t = Some r ->
+  Blocked s t r.
+Proof.
+  intros.
+  unfold blocked in *.
+  unfold Blocked.
+  remember (await t) as x.
+  symmetry in Heqx.
+  destruct x.
+  apply await_prop in Heqx.
+  destruct Heqx as (p, H1).
+  exists p.
+  remember (phid_defined (get_phaser r0)) as y.
+  symmetry in Heqy.
+  destruct y.
+  apply phid_defined_prop in Heqy.
+  inversion H; subst.
+  intuition.
+  inversion H.
+  inversion H.
+Qed.
+
+Definition mk_W (s:state) :=
+  let (pm, tm) := s in
+  let f := fun t p W =>
+    match blocked t with
+      | Some r =>
+        (*cons (t, Set_RES.singleton r) W*)
+        let w := Set_RES.singleton r in
+        Map_TID.add t w W
+      | None => W
+    end
+  in
+  Map_PHID.fold f pm waits_empty.
+
+(*
+Lemma mk_w_to_blocked:
+  forall t r,
+  List.In (t, r) (mk_W s) ->
+  Blocked s t r.
+Proof.
+  intros.
+  unfold mk_W in H.
+*)
+Check Map_PHID.fold_1.
+Lemma mk_w_to_i_of:
+  forall s,
+  W_of s (mk_W s).
+Proof.
+  intros.
+  unfold W_of.
+  intros.
+  split.
+  - intros.
+    destruct H as (rs, (H1, H2)).
+    unfold mk_W in H1.
+    destruct s0.
+    destruct s.
+    simpl in *.
+    Map_TID.MapsTo 
+  
 Definition Await (t:tid) (r:resource) (s:state) :=
   exists prg,
   Map_TID.MapsTo t (pcons (Await (get_phaser r) (get_phase r)) prg) (get_tasks s) /\
@@ -158,7 +278,7 @@ Definition Orig_I_of (i:impedes) (s:state) :=
     get_phase r' < get_phase r
   ) ts.
 
-Definition mk_resdeps (s:state) : resdeps :=
+Definition mk_resdeps (s:state) : dependencies :=
   match s with
     | (pm, tm) =>
       let I := mk_I pm tm in

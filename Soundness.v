@@ -3,6 +3,7 @@ Require Import Semantics.
 Require Import Graphs.Core.
 Require Import Vars.
 Require Import Syntax.
+Import Map_TID_Extra.
 
 Section Basic.
   Variable d:dependencies.

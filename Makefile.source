@@ -17,4 +17,6 @@ TacticsUtil.v
 TaskMap.v
 Vars.v
 Soundness.v
+OptionUtil.v
+MapUtil.v
 

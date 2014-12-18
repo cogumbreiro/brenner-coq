@@ -78,6 +78,24 @@ Proof.
     inversion H0; assumption.
 Qed.      
 
+Lemma walk_to_forall:
+  forall w,
+  Walk w ->
+  Forall Edge w.
+Proof.
+  intros.
+  induction w.
+  - auto.
+  - apply Forall_cons.
+    + inversion H.
+      subst.
+      assumption.
+    + inversion H.
+      subst.
+      apply IHw.
+      assumption.
+Qed.
+
 Lemma walk_cons2:
   forall v1 v2 v3 w,
   Edge (v1, v2) ->

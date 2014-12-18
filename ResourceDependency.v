@@ -123,14 +123,6 @@ Definition TotallyDeadlocked (s:state) :=
   exists t',
   Map_TID.In t' (get_tasks s) /\
   (exists r', Registered s t' r' /\ prec r' r).
-(*
-  forall t,
-  Map_TID.In t (get_tasks s) <->
-  exists r, Blocked s t r /\ 
-  exists t' r',
-  Map_TID.In t' (get_tasks s) /\
-  Registered s t' r' /\
-  prec r' r.*)
 
 Definition Deadlocked (s:state) :=
   exists tm tm',

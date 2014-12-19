@@ -19,18 +19,14 @@ Notation a_edge bp := (vertex_a bp * vertex_a bp) % type.
 
 Notation b_walk bp := (list (b_edge bp)).
 Notation a_walk bp := (list (a_edge bp)).
+Notation AA bp := (B.AA (AB bp) (BA bp)).
+Notation BB bp := (B.BB (AB bp) (BA bp)).
 
-Notation AA bp := (B.AA (vertex_a bp) (vertex_b bp) (AB bp) (BA bp)).
-Notation BB bp := (B.BB (vertex_a bp) (vertex_b bp) (AB bp) (BA bp)).
+Notation AWalk bp := (G.Walk (AA bp)).
+Notation BWalk bp := (G.Walk (BB bp)).
 
-Notation AWalk bp := (G.Walk (vertex_a bp) (AA bp)).
-Notation BWalk bp := (G.Walk (vertex_b bp) (BB bp)).
-
-Notation AEnd bp := (G.End (vertex_a bp)).
-Notation BEnd bp := (G.End (vertex_b bp)).
-
-Notation ABA bp := (B.ABA (vertex_a bp) (vertex_b bp) (AB bp) (BA bp)).
-Notation BAB bp := (B.BAB (vertex_a bp) (vertex_b bp) (AB bp) (BA bp)).
+Notation ABA bp := (B.ABA (AB bp) (BA bp)).
+Notation BAB bp := (B.BAB (AB bp) (BA bp)).
 
 Notation contract_a bp := (I.mk_digraph (vertex_a bp) (AA bp)).
 Notation contract_b bp := (I.mk_digraph (vertex_b bp) (BB bp)).

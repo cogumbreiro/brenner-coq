@@ -24,19 +24,13 @@ Inductive BB : b_edge -> Prop :=
     AB a b2 ->
     BB (b1, b2).
 
-Notation AEdge := AA.
-Notation AWalk := (Walk a_vertex AEdge).
-Notation ACycle := (Cycle a_vertex AEdge).
-Notation a_cycle_def := (cycle_def a_vertex AEdge).
+Notation AWalk := (Walk AA).
+Notation ACycle := (Cycle AA).
 Notation a_walk := (list a_edge).
-Notation AEnd := (End a_vertex).
 
-Notation BEdge := BB.
-Notation BWalk := (Walk b_vertex BEdge).
-Notation BCycle := (Cycle b_vertex BEdge).
-Notation b_cycle_def := (cycle_def b_vertex BEdge).
+Notation BWalk := (Walk BB).
+Notation BCycle := (Cycle BB).
 Notation b_walk := (list b_edge).
-Notation BEnd := (End b_vertex).
 
 Inductive bi_vertex :=
   | bi_b_vertex : b_vertex -> bi_vertex
@@ -84,13 +78,12 @@ Proof.
   auto.
 Qed.
 
-Definition BiWalk := Walk bi_vertex BiEdge.
-Definition BiCycle := Cycle bi_vertex BiEdge.
-Definition BiEnd := End bi_vertex.
+Notation BiWalk := Walk BiEdge.
+Notation BiCycle := Cycle BiEdge.
 
 Lemma a_edge_to_bi_edge:
   forall a1 a2,
-  AEdge (a1, a2) ->
+  AA (a1, a2) ->
   exists b,
   AB a1 b /\ BA b a2.
 Proof.
@@ -104,7 +97,7 @@ Lemma bi_edge_to_a_edge:
   forall a1 b a2,
   AB a1 b ->
   BA b a2 ->
-  AEdge (a1, a2).
+  AA (a1, a2).
 Proof.
   intros.
   apply aa with (b:=b); r_auto.
@@ -112,7 +105,7 @@ Qed.
 
 Lemma b_edge_to_bi_edge:
   forall b1 b2,
-  BEdge (b1, b2) ->
+  BB (b1, b2) ->
   exists a,
   BA b1 a /\ AB a b2.
 Proof.
@@ -126,7 +119,7 @@ Lemma bi_edge_to_b_edge:
   forall b1 a b2,
   BA b1 a ->
   AB a b2 ->
-  BEdge (b1, b2).
+  BB (b1, b2).
 Proof.
   intros.
   apply bb with (a:=a); r_auto.
@@ -159,7 +152,7 @@ Qed.
 Lemma bab_to_b:
   forall b1 a b2,
   BAB b1 a b2 ->
-  BEdge (b1, b2).
+  BB (b1, b2).
 Proof.
   intros.
   destruct H.
@@ -168,7 +161,7 @@ Qed.
 
 Lemma b_to_bab:
   forall b1 b2,
-  BEdge (b1, b2) ->
+  BB (b1, b2) ->
   exists a,
   BAB b1 a b2.
 Proof.
@@ -180,7 +173,7 @@ Qed.
 Lemma aba_to_aa :
   forall a1 b a2,
   ABA a1 b a2 ->
-  AEdge (a1, a2).
+  AA (a1, a2).
 Proof.
   intros.
   destruct H.
@@ -189,7 +182,7 @@ Qed.
 
 Lemma a_to_aba:
   forall a1 a2,
-  AEdge (a1, a2) ->
+  AA (a1, a2) ->
   exists b,
   ABA a1 b a2.
 Proof.
@@ -228,7 +221,7 @@ Lemma aba_to_b:
   forall a1 a2 a3 b1 b2,
   ABA a1 b1 a2 ->
   ABA a2 b2 a3 ->
-  BEdge (b1, b2).
+  BB (b1, b2).
 Proof.
   intros.
   assert (H2: BAB b1 a2 b2).
@@ -240,7 +233,7 @@ Lemma bab_to_aa :
   forall b1 b2 b3 a1 a2,
   BAB b1 a1 b2 ->
   BAB b2 a2 b3 ->
-  AEdge (a1, a2).
+  AA (a1, a2).
 Proof.
   intros.
   assert (H2: ABA a1 b2 a2).
@@ -280,7 +273,7 @@ Inductive edge_a_to_b : a_edge -> a_edge -> b_edge -> Prop :=
 Lemma a_to_b_b_edge:
   forall e1 e2 e3,
   edge_a_to_b e1 e2 e3 ->
-  BEdge e3.
+  BB e3.
 Proof.
   intros.
   inversion H.
@@ -292,8 +285,8 @@ Qed.
  
 Lemma edge_a_to_b_total:
   forall a1 a2 a3,
-  AEdge (a1, a2) ->
-  AEdge (a2, a3) ->
+  AA (a1, a2) ->
+  AA (a2, a3) ->
   exists b1 b2,
   edge_a_to_b (a1, a2) (a2, a3) (b1, b2).
 Proof.
@@ -333,7 +326,7 @@ Qed.
 
 Lemma a_to_b_total_edge:
   forall a1 a2,
-  AWalk ((a1, a2) :: nil) ->
+  AWalk ((a1, a2) :: nil)%list ->
   exists bw : b_walk, a_to_b ((a1, a2) :: nil)%list bw /\ BWalk bw.
 Proof.
   exists nil.
@@ -464,7 +457,7 @@ Lemma a_to_b_total_step:
   a_to_b ((a1, a2) :: ((a2, a3) :: aw)%list)%list bw' /\ BWalk bw'.
 Proof.
   intros.
-  assert (H3: AEdge (a1, a2)).
+  assert (H3: AA (a1, a2)).
   inversion H; subst; assumption.
   inversion H0.
   - (* Case 1: *)
@@ -570,11 +563,11 @@ Qed.
 
 Lemma a_to_b_end:
   forall aw bw b1 b2,
-  BEnd bw (b1,b2) ->
+  End bw (b1,b2) ->
   a_to_b aw bw ->
   exists a1 a2 a3,
   a_to_b ((a1,a2)::(a2,a3)::nil)%list ((b1,b2)::nil) /\
-  ABA a1 b1 a2 /\ ABA a2 b2 a3 /\ AEnd aw (a2, a3).
+  ABA a1 b1 a2 /\ ABA a2 b2 a3 /\ End aw (a2, a3).
 Proof.
   intros.
   induction H0.
@@ -604,7 +597,7 @@ Qed.
 
 Lemma cycle_a_to_b1:
   forall t,
-  AEdge (t, t) ->
+  AA (t, t) ->
   exists w', BCycle w'.
 Proof.
   intros.
@@ -641,7 +634,7 @@ Proof.
     destruct e as (b1, b2).
     (* Fun begins *)
     rename bw0 into bw.
-    assert (Hre: exists r rn, BEnd ((b1, b2) :: bw) (r, rn) ).
+    assert (Hre: exists r rn, End ((b1, b2) :: bw) (r, rn) ).
       assert (H':= end_total _ (b1, b2) bw).
       destruct H' as ((rn,b1'), H').
       exists rn; exists b1'.
@@ -737,7 +730,7 @@ Qed.
 
 Let a_to_c_total_1:
   forall a1 a2,
-  AEdge (a1, a2) ->
+  AA (a1, a2) ->
   exists cw : bi_walk, a_to_c ((a1, a2) :: nil) cw /\ BiWalk cw.
 Proof.
   intros.
@@ -765,7 +758,7 @@ Let a_to_c_total_2:
   a_to_c ((a1, a2) :: ((a2, a3) :: aw)%list)%list cw' /\ BiWalk cw'.
 Proof.
   intros.
-  assert (H3: AEdge (a1, a2)).
+  assert (H3: AA (a1, a2)).
   inversion H; subst; assumption.
   inversion H0.
   subst.
@@ -814,7 +807,7 @@ Qed.
 
 Let cycle_a_to_c1:
   forall a,
-  AEdge (a, a) ->
+  AA (a, a) ->
   exists w', BiCycle w'.
 Proof.
   intros.
@@ -832,8 +825,8 @@ Qed.
 
 Lemma a_to_c_end:
   forall aw a1 a2 cw e,
-  AEnd aw (a1, a2) ->
-  BiEnd cw e ->
+  End aw (a1, a2) ->
+  End cw e ->
   a_to_c aw cw ->
   exists b,
   a_to_c ((a1,a2)::nil)%list ((ab a1 b)::(ba b a2)::nil)%list
@@ -892,7 +885,7 @@ Proof.
     remember ((bi_a_vertex a1, bi_b_vertex b)
         :: ((bi_b_vertex b, bi_a_vertex a2) :: cw)%list)%list as w.
     (* Hend := BiEnd w e *)
-    assert (Hend: exists e, BiEnd w e).
+    assert (Hend: exists e, End w e).
       assert (H':= end_total _ (bi_a_vertex a1, bi_b_vertex b) ((bi_b_vertex b, bi_a_vertex a2) :: cw)).
       subst.
       assumption.
@@ -916,9 +909,14 @@ Qed.
 End CycleAtoC.
 End Bipartite.
 
+Implicit Arguments AA.
+Implicit Arguments BB.
+Implicit Arguments BAB.
+Implicit Arguments ABA.
+
 Lemma aa_eq_bb:
-  forall A B AB BA e,
-  AA A B AB BA e <-> BB B A BA AB e.
+  forall {A} {B} AB BA e,
+  @AA A B AB BA e <-> BB BA AB e.
 Proof.
   intros.
   intuition.
@@ -927,8 +925,8 @@ Proof.
 Qed.
 
 Lemma walk_a_aa_eq_bb:
-  forall A B AB BA w,
-  Walk A (AA A B AB BA) w <-> Walk A (BB B A BA AB) w.
+  forall {A} {B} AB BA w,
+  Walk (@AA A B AB BA) w <-> Walk (BB BA AB) w.
 Proof.
   intros.
   induction w.
@@ -946,8 +944,8 @@ Proof.
 Qed.
 
 Lemma walk_b_aa_eq_bb:
-  forall A B AB BA w,
-  Walk B (BB A B BA AB) w <-> Walk B (AA B A AB BA) w.
+  forall {A} {B} AB BA w,
+  Walk (@BB A B BA AB) w <-> Walk (AA AB BA) w.
 Proof.
   intros.
   induction w.
@@ -965,8 +963,8 @@ Proof.
 Qed.
 
 Lemma cycle_a_aa_eq_bb:
-  forall A B AB BA w,
-  Cycle A (AA A B AB BA) w <-> Cycle A (BB B A BA AB) w.
+  forall {A} {B} AB BA w,
+  Cycle (@AA A B AB BA) w <-> Cycle (BB BA AB) w.
 Proof.
   intros.
   intuition.
@@ -979,8 +977,8 @@ Proof.
 Qed.
 
 Lemma cycle_b_aa_eq_bb:
-  forall A B AB BA w,
-  Cycle B (BB A B BA AB) w <-> Cycle B (AA B A AB BA) w.
+  forall {A} {B} AB BA w,
+  Cycle (@BB A B BA AB) w <-> Cycle (AA AB BA) w.
 Proof.
   intros.
   intuition.

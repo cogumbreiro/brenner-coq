@@ -78,8 +78,8 @@ Proof.
   auto.
 Qed.
 
-Notation BiWalk := Walk BiEdge.
-Notation BiCycle := Cycle BiEdge.
+Notation BiWalk := (Walk BiEdge).
+Notation BiCycle := (Cycle BiEdge).
 
 Lemma a_edge_to_bi_edge:
   forall a1 a2,

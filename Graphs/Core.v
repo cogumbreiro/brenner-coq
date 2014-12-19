@@ -520,3 +520,11 @@ Section Mem.
   Qed.
 End Mem.
 End Walk.
+
+Implicit Arguments Cycle.
+Implicit Arguments Walk.
+Implicit Arguments Linked.
+Implicit Arguments Connected.
+Implicit Arguments End.
+Implicit Arguments In.
+Implicit Arguments cycle_def.

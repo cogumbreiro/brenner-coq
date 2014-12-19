@@ -21,8 +21,6 @@ Notation a_walk := (M.a_walk G).
 Notation b_walk := (M.b_walk G).
 Notation BWalk := (M.BWalk G).
 Notation AWalk := (M.AWalk G).
-Notation AEnd := (M.AEnd G).
-Notation BEnd := (M.BEnd G).
 Notation ACycle := (M.ACycle G).
 Notation BCycle := (M.BCycle G).
 Notation ABA := (M.ABA G).
@@ -330,11 +328,11 @@ Qed.
 
 Lemma a_to_b_end:
   forall aw bw b1 b2,
-  BEnd bw (b1,b2) ->
+  End bw (b1,b2) ->
   a_to_b aw bw ->
   exists a1 a2 a3,
   a_to_b ((a1,a2)::(a2,a3)::nil)%list ((b1,b2)::nil)%list /\
-  ABA a1 b1 a2 /\ ABA a2 b2 a3 /\ AEnd aw (a2, a3).
+  ABA a1 b1 a2 /\ ABA a2 b2 a3 /\ End aw (a2, a3).
 Proof.
   intros.
   induction H0.
@@ -402,7 +400,7 @@ Proof.
     destruct e as (b1, b2).
     (* Fun begins *)
     rename bw0 into bw.
-    assert (Hre: exists r rn, BEnd ((b1, b2) :: bw) (r, rn) ).
+    assert (Hre: exists r rn, End ((b1, b2) :: bw) (r, rn) ).
       assert (H':= end_total _ (b1, b2) bw).
       destruct H' as ((rn,b1'), H').
       exists rn; exists b1'.

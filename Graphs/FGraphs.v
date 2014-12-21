@@ -1,126 +1,127 @@
-Require Lists.List.
+Require Import Lists.List.
+Require Import Lists.ListSet.
 Require Import Graphs.Core.
+Require Import PairUtil.
+Require Import ListUtil.
+Section FGRAPHS.
 
-(* Finite graph *)
-Record fgraph := mk_fgraph {
-  fg_t : Type;
-  fg_edges : list (fg_t * fg_t) % type
-}.
-
-Implicit Arguments mk_fgraph.
-
-(* Typed version of finite graphs *)
-Definition fgraph_t (V:Type) := {x : fgraph | fg_t x = V }.
-
-Definition fg_t_unpack {V:Type} (g:fgraph_t V) : fgraph := 
-  match g with
-    | exist a b => a
-  end.
-
-Lemma fg_t_prop:
-  forall {V:Type} (g:fgraph_t V),
-  fg_t (fg_t_unpack g) = V.
-Proof.
-  intros.
-  destruct g.
-  auto.
-Qed.
-
-Definition fg_t_edges {V:Type} (g:fgraph_t V) : (list (V * V) % type).
-Proof.
-  inversion g.
-  assert (Y:= fg_edges x).
-  subst.
-  assumption.
-Defined.
-
-Definition mk_fgraph_t {V:Type} (es:list (V*V)%type) : fgraph_t V.
-  set (g := mk_fgraph es).
-  unfold fgraph_t.
-  apply exist with (x:=g).
-  auto.
-Defined.
+Variable V:Type.
 
 Definition EqDec (V:Type) := forall (v1 v2:V), {v1 = v2} + {v1 <> v2}.
 
-Definition In {V:Type} (v:V) (g:fgraph_t V) :=
-  exists e, List.In e (fg_t_edges g) /\ ((fst e) = v \/ (snd e) = v).
+Variable eq_dec : forall (v1 v2:V), {v1 = v2} + {v1 <> v2}.
 
-Definition Edge {V:Type} (g:fgraph_t V) (e:(V*V)%type)  := List.In e (fg_t_edges g).
+Let edge := (V*V)%type.
+Let fgraph := list edge.
 
-Axiom all_pos_odegree_impl_cycle:
-  forall {V:Type} g,
-  EqDec V ->
-  fg_t_edges g <> nil ->
-  (forall v1, In v1 g -> exists (v2:V), Edge g (v1, v2)) ->
-  exists w, Cycle (Edge g) w.
+Definition In (v:V) (g:fgraph) :=
+  exists e, List.In e g /\ pair_In v e.
 
-Require Import Lists.ListSet.
-Print ListSet.
-
-Definition set_leb {A : Type}
-  (eq_dec: EqDec A)
-  (s1 s2:list A): bool :=
-  match set_diff eq_dec s1 s2 with
-    | nil => true
-    | cons _ _ => false
-  end.
-
-Definition set_le {A : Type}
-  (eq_dec: EqDec A)
-  (s1 s2:list A) :=
-  forall x, set_In x s1 -> set_In x s2.
-
-Lemma set_le_in:
-  forall {A:Type} eq_dec (x:A) s1 s2,
-  List.In x s1 ->
-  set_le eq_dec s1 s2 ->
-  List.In x s2.
+Lemma in_def:
+  forall v e g,
+  pair_In v e ->
+  List.In e g ->
+  In v g.
 Proof.
   intros.
-  unfold set_le in *.
-  assert (x_in := H0 x).
-  unfold set_In in *.
-  apply x_in in H.
+  unfold In.
+  exists e.
+  auto.
+Qed.
+
+Lemma in_left:
+  forall v v' g,
+  List.In (v, v') g ->
+  In v g.
+Proof.
+  intros.
+  apply in_def with (e:=(v,v')); repeat auto.
+  apply pair_in_left.
+Qed.
+
+Lemma in_right:
+  forall v v' g,
+  List.In (v', v) g ->
+  In v g.
+Proof.
+  intros.
+  apply in_def with (e:=(v',v)); repeat auto.
+  apply pair_in_right.
+Qed.
+
+Lemma in_nil:
+  forall v,
+  In v nil -> False.
+Proof.
+  intros.
+  inversion H.
+  inversion H0.
+  inversion H1.
+Qed.
+
+Definition mem (v:V) (g:fgraph) : bool :=
+  existsb (fun e => pair_mem eq_dec v e) g.
+
+Lemma mem_prop:
+  forall v g,
+  mem v g = true ->
+  In v g.
+Proof.
+  intros.
+  unfold mem in *.
+  apply existsb_exists in H.
+  destruct H as (x, (x_in_g, mem_in_x)).
+  apply pair_mem_prop in mem_in_x.
+  apply in_def with (e:=x); repeat auto.
+Qed.
+
+Lemma mem_from_prop:
+  forall v g,
+  In v g ->
+  mem v g = true.
+Proof.
+  intros.
+  unfold In in *.
+  destruct H as (e, (e_in_g, v_in_e)).
+  unfold mem.
+  rewrite existsb_exists.
+  exists e.
+  apply pair_mem_from_prop with (eq_dec:=eq_dec) in v_in_e.
+  auto.
+Qed.  
+
+Definition Edge (g:fgraph) (e:edge) := List.In e g.
+
+Lemma edge_def:
+  forall e g,
+  List.In e g ->
+  Edge g e.
+Proof.
+  intros.
+  unfold Edge.
   assumption.
 Qed.
 
-Lemma pair_eq_dec:
-  forall {A} (eq_dec:EqDec A),
-  EqDec (A*A) % type.
-Proof.
-  intros.
-  unfold EqDec in *.
-  intros.
-  destruct v1 as (x1, x2).
-  destruct v2 as (y1, y2).
-  destruct (eq_dec x1 y1).
-  destruct (eq_dec x2 y2).
-  subst. left. auto.
-  subst. right. intuition. inversion H. apply n in H1. assumption.
-  subst. right. intuition. inversion H. apply n in H1. assumption.
-Qed.
-
-Definition subgraph {V:Type} (eq_dec: EqDec V) (g g':fgraph_t V) :=
-  set_le (pair_eq_dec eq_dec) (fg_t_edges g) (fg_t_edges g').
+Definition subgraph (g g':fgraph) :=
+  incl g g'.
 
 Lemma edge_subgraph:
-  forall {V:Type} (eq_dec: EqDec V) (g g':fgraph_t V) e,
-  subgraph eq_dec g g' ->
+  forall (g g':fgraph) e,
+  subgraph g g' ->
   (Edge g) e ->
   (Edge g') e.
 Proof.
   intros.
   unfold Edge in *.
   unfold subgraph in H.
-  apply set_le_in with (eq_dec0:=(pair_eq_dec eq_dec)) (s2:=(fg_t_edges g')) in H0.
-  assumption.
+  unfold incl in H.
+  apply H in H0.
   assumption.
 Qed.
 
 Lemma walk_subgraph:
-  forall {V:Type} (eq_dec: EqDec V) (g g':fgraph_t V) w,
-  subgraph eq_dec g g' ->
+  forall (g g':fgraph) w,
+  subgraph g g' ->
   Walk (Edge g) w ->
   Walk (Edge g') w.
 Proof.
@@ -130,7 +131,7 @@ Proof.
   apply walk_to_forall; assumption.
   rewrite List.Forall_forall in *.
   intros.
-  apply edge_subgraph with (eq_dec0 := eq_dec) (g0:=g).
+  apply edge_subgraph with (g:=g).
   assumption.
   apply forall_w.
   assumption.
@@ -140,8 +141,8 @@ Proof.
 Qed.
 
 Lemma cycle_subgraph:
-  forall {V:Type} (eq_dec: EqDec V) (g g':fgraph_t V) w,
-  subgraph eq_dec g g' ->
+  forall (g g':fgraph) w,
+  subgraph g g' ->
   Cycle (Edge g) w ->
   Cycle (Edge g') w.
 Proof.
@@ -150,56 +151,355 @@ Proof.
   subst.
   apply cycle_def with (vn:=vn).
   assumption.
-  apply walk_subgraph with (eq_dec0:=eq_dec) (g0:=g); repeat auto.
-Qed.
-
-Definition add {V:Type} (e:(V*V)%type) (g:fgraph_t V) : (fgraph_t V) :=
-  mk_fgraph_t (cons e (fg_t_edges g)).
-
-Lemma fg_edges_mk:
-  forall {V:Type} e,
-  fg_t_edges (@mk_fgraph_t V e) = e.
-Proof.
-  intros.
-  remember (mk_fgraph_t e) as g.
-  unfold fgraph_t in *.
-  inversion g.
-  unfold mk_fgraph_t in *.
-  subst.
-  unfold fg_t_edges.
-  auto.
-Qed.
-
-Lemma add_edges:
-  forall {V} e g,
-  fg_t_edges (add (V:=V) e g) =
-  cons e (fg_t_edges g).
-Proof.
-  intros.
-  unfold add.
-  rewrite fg_edges_mk.
-  auto.
+  apply walk_subgraph with (g:=g); repeat auto.
 Qed.
 
 Lemma add_le:
-  forall {V:Type} (eq_dec: EqDec V) (g:fgraph_t V) e,
-  subgraph eq_dec g (add e g).
+  forall (g:fgraph) e,
+  subgraph g (cons e g).
 Proof.
   intros.
   unfold subgraph.
-  unfold set_le.
+  unfold incl.
   intros.
-  rewrite add_edges.
   apply List.in_cons.
   assumption.
 Qed.
 
 Lemma cycle_add:
-  forall {V:Type} (eq_dec: EqDec V) (g:fgraph_t V) e w,
+  forall (g:fgraph) e w,
   Cycle (Edge g) w ->
-  Cycle (Edge (add e g)) w.
+  Cycle (Edge (cons e g)) w.
 Proof.
   intros.
-  assert (sub := add_le eq_dec g e).
-  apply cycle_subgraph with (eq_dec0:=eq_dec) (g0:=g); repeat assumption.
+  assert (sub := add_le g e).
+  apply cycle_subgraph with (g:=g); repeat assumption.
 Qed.
+
+Inductive HasIncoming : fgraph -> V -> Prop :=
+  has_incoming_def:
+    forall v v' g,
+    Edge g (v', v) ->
+    HasIncoming g v.
+
+Lemma has_incoming_cons:
+  forall e g v,
+  HasIncoming g v ->
+  HasIncoming (cons e g) v.
+Proof.
+  intros.
+  inversion H. subst.
+  unfold Edge in *.
+  apply List.in_cons with (a:=e) in H0.
+  apply has_incoming_def with (v':=v').
+  auto.
+Qed.
+
+Inductive HasOutgoing : fgraph -> V -> Prop :=
+  has_outgoing_def:
+    forall v v' g,
+    Edge g (v, v') ->
+    HasOutgoing g v.
+
+Definition has_incoming (g:fgraph) (v:V) : bool :=
+  existsb (fun e => if eq_dec v (snd e) then true else false) g.
+
+Lemma has_incoming_prop :
+  forall g v,
+  has_incoming g v = true ->
+  HasIncoming g v.
+Proof.
+  intros.
+  unfold has_incoming in H.
+  apply existsb_exists in H.
+  destruct H as (x, (x_in_g, v_in_x)).
+  destruct x as (v1, v2).
+  simpl in *.
+  destruct (eq_dec v v2).
+  - subst.
+    apply edge_def in x_in_g.
+    apply has_incoming_def with (v':=v1); assumption.
+  - inversion v_in_x.
+Qed.
+
+Lemma has_incoming_from_prop:
+  forall g v,
+  HasIncoming g v ->
+  has_incoming g v = true.
+Proof.
+  intros.
+  unfold has_incoming.
+  apply existsb_exists.
+  inversion H.
+  subst.
+  exists (v', v).
+  unfold Edge in H0.
+  split.
+  assumption.
+  - simpl. destruct (eq_dec v v). auto. contradiction n.
+    trivial.
+Qed.
+
+Definition rm_sources (g:fgraph) :=
+  List.filter (fun e => has_incoming g (fst e)) g.
+(*
+Lemma in_rm_sources_inv:
+  forall g v,
+  In v (rm_sources g) ->
+  exists e, pair_In v e /\ List.In e g /\ HasIncoming g (fst e).
+Proof.
+  intros.
+  unfold rm_sources in H.
+  unfold In in H.
+  destruct H as (e, (e_in_g, v_in_e)).
+  apply List.filter_In in e_in_g.
+  destruct e_in_g as (e_in_g, has_i).
+  exists e.
+  intuition.
+  apply has_incoming_prop.
+  assumption.
+Qed.
+*)
+
+Lemma has_incoming_left:
+  forall v1 v2 g,
+  List.In (v1, v2) g ->
+  HasIncoming g v2.
+Proof.
+  intros.
+  apply has_incoming_def with (v' := v1).
+  unfold Edge.
+  assumption.
+Qed.
+
+Lemma rm_sources_eq_in:
+  forall e g,
+  List.In e g /\ HasIncoming g (fst e) <->
+  List.In e (rm_sources g).
+Proof.
+  intros.
+  unfold rm_sources.
+  split.
+  intros.
+  destruct H.
+  apply List.filter_In.
+  intuition.
+  apply has_incoming_from_prop.
+  trivial.
+  intros.
+  apply List.filter_In in H.
+  destruct H.
+  intuition.
+  apply has_incoming_prop.
+  trivial.
+Qed.
+
+Lemma in_rm_sources_inv2:
+  forall v g,
+  In v (rm_sources g) ->
+  HasIncoming (rm_sources g) v.
+Proof.
+  intros.
+  inversion H.
+  destruct H0.
+  destruct x as (v1, v2).
+  apply pair_in_inv in H1.
+  destruct H1.
+  - subst.
+    apply rm_sources_eq_in in H0.
+    destruct H0.
+    simpl in H1.
+    inversion H1.
+    subst.
+    unfold Edge in *.
+Admitted.
+  
+
+Lemma has_incoming_in_rm:
+  forall g v,
+  HasIncoming g v ->
+  HasIncoming (rm_sources g) v.
+Proof.
+  intros.
+  inversion H.
+  subst.
+  unfold Edge in H0.
+  apply has_incoming_prop.
+  unfold has_incoming in *.
+  apply existsb_exists.
+  inversion H.
+  subst.
+  exists (v', v).
+    unfold rm_sources.
+    intuition.
+    apply filter_In.
+    intuition.
+    simpl.
+Qed.
+  destruct H as (e, (e_in_g, cnd)).
+  destruct e as (v1, v2).
+  simpl in *.
+  destruct (eq_dec v v2).
+  subst.
+  - exists (v1, v2).
+    unfold rm_sources.
+    intuition.
+    apply filter_In.
+  exists e.
+  intuition.
+  intuition.
+  - subst.
+  
+  
+Admitted.
+
+Lemma rm_sources_imp_has_incoming:
+  forall g v,
+  In v (rm_sources g) ->
+  HasIncoming (rm_sources g) v.
+Proof.
+  intros.
+  apply in_rm_sources_inv in H.
+  destruct H as (e, (v_in_e, (e_in_g, fst_inc))).
+  destruct e as (v1, v2). simpl in *.
+  destruct (eq_dec v v1).
+  - subst.
+    apply has_incoming_in_rm.
+    assumption.
+  - destruct (eq_dec v v2).
+    + subst.
+      apply has_incoming_def in e_in_g.
+      apply has_incoming_in_rm.
+      assumption.
+    + (* absurd *)
+      inversion v_in_e.
+      simpl in H.
+      subst.
+      contradiction n.
+      trivial.
+      simpl in *.
+      subst.
+      contradiction n0.
+      trivial.
+Qed.
+
+Lemma rm_sources_imp_has_incoming:
+  forall g v,
+  In v (rm_sources g) ->
+  HasIncoming (rm_sources g) v.
+Proof.
+  intros.
+  remember (rm_sources g) as g'.
+  rewrite Heqg' in H.
+  unfold rm_sources in H.
+
+  apply has_incoming_from_prop.
+  unfold rm_sources.
+  rewrite <- List.filter_In.
+  intros.
+  unfold rm_sources in H.
+  assert (v_in_rm := H).
+  unfold rm_sources in H.
+  unfold In in H.
+  destruct H as (e, (e_in_g, v_in_e)).
+  apply List.filter_In in e_in_g.
+  destruct e_in_g as (e_in_g, has_i).
+  apply has_incoming_prop in has_i.
+  destruct e as (v1, v2).
+  simpl in has_i.
+  destruct v_in_e.
+  - simpl in H.
+    subst.
+    inversion has_i. subst.
+    apply has_incoming_def with (v':=v').
+    
+  destruct 
+  apply has_incoming_def with .
+  List.filter
+  induction g.
+  - compute in H.  (* absurd *)
+    apply in_nil in H.
+    inversion H.
+  - remember (rm_sources (a :: g)%list) as g'.
+    inversion H.
+    destruct H0 as (x_in_g, v_in_x).
+    destruct g'.
+    inversion x_in_g.
+    apply List.in_inv in x_in_g.
+    destruct x_in_g as [e_eq_x|x_in_g].
+    rewrite e_eq_x in *; clear e_eq_x.
+    inversion H.
+    clear H1 H2 g0.
+    destruct a as (v1, v2).
+    destruct (rm_sources_simpl v1 v2 ((v1,v2)::g)%list (g)%list)
+    as [(H1,H2)|(H1,H2)].
+    unfold rm_sources in *.
+    remember (rm_sources' ((v1, v2) :: g)%list ((v1, v2) :: g)%list) as g'.
+    rewrite <- Heqg' in H.
+    rewrite H2 in H.
+    Check List.in_inv.
+    apply List.in_inv in H0.
+    destruct a.
+    unfold rm_sources in H.
+    remember (has_incoming ((v0, v1) :: g)%list v0) as b.
+    symmetry in Heqb.
+    destruct b.
+    + rewrite rm_sources_simpl in H.
+    subst.
+    destruct b.
+    rewrite Heqb in H.
+    + 
+      
+      
+
+End FGRAPHS.
+
+Implicit Arguments Edge.
+Implicit Arguments In.
+Implicit Arguments subgraph.
+Implicit Arguments HasIncoming.
+Implicit Arguments HasOutgoing.
+
+Lemma all_pos_degree_impl_cycle1:
+  forall {V:Type} g e,
+  EqDec V ->
+  g = cons e nil ->
+  (forall (v:V), In v g -> HasIncoming g v) ->
+  (forall (v:V), In v g -> HasOutgoing g v) ->
+  exists w, Cycle (Edge g) w.
+Proof.
+  intros.
+  destruct e as (v, v').
+  assert (v_in : In v g).
+  apply in_left with (v':=v').
+  rewrite H.
+  apply List.in_eq.
+  destruct (H0 _ v_in) as (v'', v_inc).
+  unfold Edge in v_inc.
+Admitted.
+
+Lemma all_pos_degree_impl_cycle:
+  forall {V:Type} g,
+  EqDec V ->
+  g <> nil ->
+  (forall (v:V), In v g -> HasIncoming g v) ->
+  (forall (v:V), In v g -> HasOutgoing g v) ->
+  exists w, Cycle (Edge g) w.
+Proof.
+  intros.
+  induction g.
+  (* absurd case: *) contradiction H; auto.
+  (* otherwise *)
+  destruct g.
+  - apply all_pos_degree_impl_cycle1 with (e:=a); repeat auto.
+  - Admitted.
+
+(** This is what we want to prove: *)
+
+Axiom all_pos_odegree_impl_cycle:
+  forall {V:Type} g,
+  EqDec V ->
+  g <> nil ->
+  (forall (v:V), In v g -> HasOutgoing g v) ->
+  exists w, Cycle (Edge g) w.
+

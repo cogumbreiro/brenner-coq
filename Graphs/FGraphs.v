@@ -7,7 +7,7 @@ Section FGRAPHS.
 
 Variable V:Type.
 
-Definition EqDec (V:Type) := forall (v1 v2:V), {v1 = v2} + {v1 <> v2}.
+(*Definition EqDec (V:Type) := forall (v1 v2:V), {v1 = v2} + {v1 <> v2}.*)
 
 Variable eq_dec : forall (v1 v2:V), {v1 = v2} + {v1 <> v2}.
 

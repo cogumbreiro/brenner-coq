@@ -213,7 +213,7 @@ Proof.
     assumption.
 Qed.
 
-Definition set_eq (l1:list A) (l2:list A) := incl l1 l2 /\ incl l2 l1.
+Definition set_eq (l1:list A) (l2:list A) := (forall x, In x l1 <-> In x l2).
 
 Lemma set_eq_nil:
   set_eq nil nil.
@@ -230,27 +230,46 @@ Proof.
   split.
   - unfold set_eq.
     intuition.
-    apply as_set_def1.
-    apply as_set_def2.
+    apply as_set_def1; assumption.
+    apply as_set_def2; assumption.
   - apply as_set_no_dup.
 Qed.
 
-Lemma incl_size:
+Require Import Coq.Sorting.Permutation.
+
+Lemma set_eq_perm:
+  forall l1 l2,
+  NoDup l1 ->
+  NoDup l2 ->
+  set_eq l1 l2 ->
+  length l1 = length l2.
+Proof.
+  intros.
+  unfold set_eq in H1.
+  assert (p: Permutation l1 l2).
+  apply NoDup_Permutation; repeat auto.
+  apply  Permutation_length ; repeat auto.
+Qed.
+  
+
+Lemma incl_eq:
   forall (l1 l2:list A),
   NoDup l1 ->
   NoDup l2 ->
   incl l1 l2 ->
   length l1 <= length l2.
 Proof.
-  intros.
   induction l2.
-  - apply incl_nil_eq in H1.
+  - intros. apply incl_nil_eq in H1.
     subst.
     trivial.
-  - inversion H0.
+  - intros.
+    simpl.
+    inversion H0.
     subst.
+    simpl.
+    assert (Hx := IHl2 H5); clear IHl2.
 Qed.
-    
 
 Lemma incl_size:
   forall (l1 l2:list A),

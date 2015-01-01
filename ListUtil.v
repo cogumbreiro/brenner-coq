@@ -60,6 +60,18 @@ Proof.
   intuition.
 Qed.
 
+Lemma filter_in:
+  forall x l,
+  In x (filter f l) ->
+  In x l.
+Proof.
+  intros.
+  assert (f_i := filter_incl l).
+  unfold incl in f_i.
+  apply f_i.
+  assumption.
+Qed.
+
 Lemma filter_refl:
   forall l,
   filter f l = l ->
@@ -135,41 +147,6 @@ Proof.
     rewrite <- IHl.
     auto.
 Qed.
-(*
-Lemma forallb_existsb:
-  forall l,
-  forallb f l = false <->
-  existsb (fun x => negb (f x)) l = true.
-Proof.
-  intros.
-  split.
-  * intros.
-  induction l.
-  - inversion H.
-  - simpl in H.
-    remember (f a) as fa.
-    destruct fa.
-    + simpl in *.
-      apply IHl in H.
-      intuition.
-    + rewrite existsb_exists.
-      exists a.
-      intuition.
-      rewrite <- Heqfa.
-      auto.
-  * intros.
-    induction l.
-    - inversion H.
-    - simpl.
-      remember (f a) as fa.
-      destruct fa.
-      apply existsb_inv in H.
-      apply IHl.
-      assumption.
-      rewrite <- Heqfa.
-      auto.
-      auto.
-Qed.*)
 
 Lemma Forall_forallb:
   forall l,
@@ -337,7 +314,8 @@ Proof.
        * auto.
 Qed.
 
-Lemma feedback_filter_in:
+
+Lemma feedback_filter_in_f:
   forall x l,
   In x (feedback_filter l) -> f (feedback_filter l) x = true.
 Proof.
@@ -352,7 +330,18 @@ Proof.
   - apply IHl0. auto.
 Qed.
 
-End FEEDBACK.
+Lemma feedback_filter_in:
+  forall x l,
+  In x (feedback_filter l) ->
+  In x l.
+Proof.
+  intros.
+  assert (Hx := feedback_filter_incl l).
+  unfold incl in Hx.
+  apply Hx; assumption.
+Qed.
 
+End FEEDBACK.
+Implicit Arguments filter_incl.
 Implicit Arguments feedback_filter.
 Implicit Arguments feedback_filter_equation.

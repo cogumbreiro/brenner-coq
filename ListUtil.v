@@ -2,8 +2,6 @@ Require Import Lists.ListSet.
 Require Import Lists.List.
 Require Import Bool.
 
-Print Bool.
-
 Require Import Recdef. (* Required by Function *)
 Require Import Coq.Arith.Wf_nat. (* Required implicitly by measure obligations *)
 
@@ -339,7 +337,7 @@ Proof.
        * auto.
 Qed.
 
-Lemma feedback_filter_forall:
+Lemma feedback_filter_in:
   forall x l,
   In x (feedback_filter l) -> f (feedback_filter l) x = true.
 Proof.

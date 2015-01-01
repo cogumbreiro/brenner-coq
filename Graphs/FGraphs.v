@@ -252,7 +252,7 @@ Proof.
   apply feedback_filter_incl.
 Qed.
 
-Lemma rm_sources_in:
+Lemma rm_sources_has_incoming:
   forall g v,
   In v (rm_sources g) ->
   HasIncoming (rm_sources g) v.
@@ -262,7 +262,7 @@ Proof.
   unfold In in H.
   destruct H as (e, (e_in_g, v_in_e)).
   assert (Hx := e_in_g).
-  apply feedback_filter_in in e_in_g.
+  apply feedback_filter_in_f in e_in_g.
   apply has_incoming_prop in e_in_g.
   inversion v_in_e.
   - rewrite <- H in e_in_g.
@@ -275,6 +275,111 @@ Proof.
     rewrite <- H in *.
     apply has_incoming_def with (v' := v1).
     unfold Edge.
+    assumption.
+Qed.
+
+Let rm_sources_in:
+  forall v g,
+  In v (rm_sources g) ->
+  In v g.
+Proof.
+  intros.
+  inversion H.
+  destruct H0.
+  unfold In.
+  exists x.
+  intuition.
+  apply rm_sources_incl.
+  auto.
+  auto.
+Qed.
+
+Let has_outgoing_filter:
+  forall g v,
+  let fg := (fun e : V * V => has_incoming g (fst e)) in
+  In v (filter fg g) ->
+  HasOutgoing g v ->
+  HasOutgoing (filter fg g) v.
+Proof.
+  intros.
+  inversion H.
+  subst.
+  destruct H1.
+  destruct x.
+  inversion H2.
+  - simpl in H3.
+    rewrite H3 in *.
+    apply has_outgoing_def with (v':=v1).
+    unfold Edge.
+    assumption.
+  - simpl in H3. subst.
+    (* let's check the edge in the original graph *)
+    inversion H0; subst; clear H0.
+    unfold Edge in H3.
+    remember (fg (v1, v')) as b.
+    symmetry in Heqb.
+    destruct b.
+    + assert (Hx : List.In (v1, v') (filter fg g)).
+      rewrite filter_In.
+      intuition. (* eoa *)
+      apply has_outgoing_def with (v' := v').
+      unfold Edge.
+      assumption.
+    + (* absurd case *)
+      unfold fg in Heqb.
+      simpl in Heqb.
+      assert (Hx: HasIncoming g v1).
+      apply has_incoming_def with (v':=v0).
+      unfold Edge.
+      apply filter_in in H1.
+      assumption.
+      apply has_incoming_from_prop in Hx.
+      rewrite Hx in Heqb.
+      inversion Heqb.
+Qed.
+
+Let has_outgoing_rm_incl:
+  forall v g,
+  HasOutgoing g v ->
+  In v (rm_sources g) ->
+  HasOutgoing (rm_sources g) v.
+Proof.
+  intros.
+  unfold rm_sources.
+  unfold rm_sources in H0.
+  remember (fun (g' : list (V * V)) e => has_incoming g' (fst e)) as f.
+  functional induction (feedback_filter edge_eq_dec f g).
+  - assumption.
+  - rename l into g.
+    remember (fun (g' : list (V * V)) (e0 : V * V) => has_incoming g' (fst e0)) as f.
+    remember (filter (fun e : V * V => has_incoming g (fst e)) g) as fg.
+    apply IHl.
+    rewrite Heqfg.
+    apply has_outgoing_filter.
+    assumption.
+    remember (fun e : V * V => has_incoming g (fst e)) as ff.
+    assumption.
+Qed.
+
+Theorem exists_has_incoming:
+  forall g,
+  (forall (v:V), In v g -> HasOutgoing g v) ->
+  exists (g':fgraph),
+  subgraph g' g /\
+  (forall (v:V), In v g' -> HasOutgoing g' v) /\
+  (forall (v:V), In v g' -> HasIncoming g' v).
+Proof.
+  intros.
+  exists (rm_sources g).
+  intuition.
+  - unfold rm_sources.
+    apply feedback_filter_incl.
+  - apply has_outgoing_rm_incl.
+    apply rm_sources_in in H0.
+    apply H.
+    assumption.
+    assumption.
+  - apply rm_sources_has_incoming.
     assumption.
 Qed.
 

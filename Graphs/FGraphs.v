@@ -7,8 +7,6 @@ Section FGRAPHS.
 
 Variable V:Type.
 
-(*Definition EqDec (V:Type) := forall (v1 v2:V), {v1 = v2} + {v1 <> v2}.*)
-
 Variable eq_dec : forall (v1 v2:V), {v1 = v2} + {v1 <> v2}.
 
 Let edge := (V*V)%type.
@@ -240,217 +238,45 @@ Proof.
     trivial.
 Qed.
 
+Let edge_eq_dec := pair_eq_dec eq_dec.
+
 Definition rm_sources (g:fgraph) :=
-  List.filter (fun e => has_incoming g (fst e)) g.
-(*
-Lemma in_rm_sources_inv:
-  forall g v,
-  In v (rm_sources g) ->
-  exists e, pair_In v e /\ List.In e g /\ HasIncoming g (fst e).
-Proof.
-  intros.
-  unfold rm_sources in H.
-  unfold In in H.
-  destruct H as (e, (e_in_g, v_in_e)).
-  apply List.filter_In in e_in_g.
-  destruct e_in_g as (e_in_g, has_i).
-  exists e.
-  intuition.
-  apply has_incoming_prop.
-  assumption.
-Qed.
-*)
+  feedback_filter edge_eq_dec (fun g' e => has_incoming g' (fst e)) g.
 
-Lemma has_incoming_left:
-  forall v1 v2 g,
-  List.In (v1, v2) g ->
-  HasIncoming g v2.
-Proof.
-  intros.
-  apply has_incoming_def with (v' := v1).
-  unfold Edge.
-  assumption.
-Qed.
-
-Lemma rm_sources_eq_in:
-  forall e g,
-  List.In e g /\ HasIncoming g (fst e) <->
-  List.In e (rm_sources g).
+Let rm_sources_incl:
+  forall g (v:V),
+  incl (rm_sources g) g.
 Proof.
   intros.
   unfold rm_sources.
-  split.
-  intros.
-  destruct H.
-  apply List.filter_In.
-  intuition.
-  apply has_incoming_from_prop.
-  trivial.
-  intros.
-  apply List.filter_In in H.
-  destruct H.
-  intuition.
-  apply has_incoming_prop.
-  trivial.
+  apply feedback_filter_incl.
 Qed.
 
-Lemma in_rm_sources_inv2:
-  forall v g,
-  In v (rm_sources g) ->
-  HasIncoming (rm_sources g) v.
-Proof.
-  intros.
-  inversion H.
-  destruct H0.
-  destruct x as (v1, v2).
-  apply pair_in_inv in H1.
-  destruct H1.
-  - subst.
-    apply rm_sources_eq_in in H0.
-    destruct H0.
-    simpl in H1.
-    inversion H1.
-    subst.
-    unfold Edge in *.
-Admitted.
-  
-
-Lemma has_incoming_in_rm:
-  forall g v,
-  HasIncoming g v ->
-  HasIncoming (rm_sources g) v.
-Proof.
-  intros.
-  inversion H.
-  subst.
-  unfold Edge in H0.
-  apply has_incoming_prop.
-  unfold has_incoming in *.
-  apply existsb_exists.
-  inversion H.
-  subst.
-  exists (v', v).
-    unfold rm_sources.
-    intuition.
-    apply filter_In.
-    intuition.
-    simpl.
-Qed.
-  destruct H as (e, (e_in_g, cnd)).
-  destruct e as (v1, v2).
-  simpl in *.
-  destruct (eq_dec v v2).
-  subst.
-  - exists (v1, v2).
-    unfold rm_sources.
-    intuition.
-    apply filter_In.
-  exists e.
-  intuition.
-  intuition.
-  - subst.
-  
-  
-Admitted.
-
-Lemma rm_sources_imp_has_incoming:
+Lemma rm_sources_in:
   forall g v,
   In v (rm_sources g) ->
   HasIncoming (rm_sources g) v.
 Proof.
   intros.
-  apply in_rm_sources_inv in H.
-  destruct H as (e, (v_in_e, (e_in_g, fst_inc))).
-  destruct e as (v1, v2). simpl in *.
-  destruct (eq_dec v v1).
-  - subst.
-    apply has_incoming_in_rm.
+  unfold rm_sources in *.
+  unfold In in H.
+  destruct H as (e, (e_in_g, v_in_e)).
+  assert (Hx := e_in_g).
+  apply feedback_filter_in in e_in_g.
+  apply has_incoming_prop in e_in_g.
+  inversion v_in_e.
+  - rewrite <- H in e_in_g.
     assumption.
-  - destruct (eq_dec v v2).
-    + subst.
-      apply has_incoming_def in e_in_g.
-      apply has_incoming_in_rm.
-      assumption.
-    + (* absurd *)
-      inversion v_in_e.
-      simpl in H.
-      subst.
-      contradiction n.
-      trivial.
-      simpl in *.
-      subst.
-      contradiction n0.
-      trivial.
+  - remember (feedback_filter edge_eq_dec
+              (fun (g' : list (V * V)) (e0 : V * V) =>
+               has_incoming g' (fst e0)) g) as rm_g.
+    destruct e as (v1, v2).
+    simpl in *.
+    rewrite <- H in *.
+    apply has_incoming_def with (v' := v1).
+    unfold Edge.
+    assumption.
 Qed.
-
-Lemma rm_sources_imp_has_incoming:
-  forall g v,
-  In v (rm_sources g) ->
-  HasIncoming (rm_sources g) v.
-Proof.
-  intros.
-  remember (rm_sources g) as g'.
-  rewrite Heqg' in H.
-  unfold rm_sources in H.
-
-  apply has_incoming_from_prop.
-  unfold rm_sources.
-  rewrite <- List.filter_In.
-  intros.
-  unfold rm_sources in H.
-  assert (v_in_rm := H).
-  unfold rm_sources in H.
-  unfold In in H.
-  destruct H as (e, (e_in_g, v_in_e)).
-  apply List.filter_In in e_in_g.
-  destruct e_in_g as (e_in_g, has_i).
-  apply has_incoming_prop in has_i.
-  destruct e as (v1, v2).
-  simpl in has_i.
-  destruct v_in_e.
-  - simpl in H.
-    subst.
-    inversion has_i. subst.
-    apply has_incoming_def with (v':=v').
-    
-  destruct 
-  apply has_incoming_def with .
-  List.filter
-  induction g.
-  - compute in H.  (* absurd *)
-    apply in_nil in H.
-    inversion H.
-  - remember (rm_sources (a :: g)%list) as g'.
-    inversion H.
-    destruct H0 as (x_in_g, v_in_x).
-    destruct g'.
-    inversion x_in_g.
-    apply List.in_inv in x_in_g.
-    destruct x_in_g as [e_eq_x|x_in_g].
-    rewrite e_eq_x in *; clear e_eq_x.
-    inversion H.
-    clear H1 H2 g0.
-    destruct a as (v1, v2).
-    destruct (rm_sources_simpl v1 v2 ((v1,v2)::g)%list (g)%list)
-    as [(H1,H2)|(H1,H2)].
-    unfold rm_sources in *.
-    remember (rm_sources' ((v1, v2) :: g)%list ((v1, v2) :: g)%list) as g'.
-    rewrite <- Heqg' in H.
-    rewrite H2 in H.
-    Check List.in_inv.
-    apply List.in_inv in H0.
-    destruct a.
-    unfold rm_sources in H.
-    remember (has_incoming ((v0, v1) :: g)%list v0) as b.
-    symmetry in Heqb.
-    destruct b.
-    + rewrite rm_sources_simpl in H.
-    subst.
-    destruct b.
-    rewrite Heqb in H.
-    + 
-      
-      
 
 End FGRAPHS.
 
@@ -462,7 +288,6 @@ Implicit Arguments HasOutgoing.
 
 Lemma all_pos_degree_impl_cycle1:
   forall {V:Type} g e,
-  EqDec V ->
   g = cons e nil ->
   (forall (v:V), In v g -> HasIncoming g v) ->
   (forall (v:V), In v g -> HasOutgoing g v) ->

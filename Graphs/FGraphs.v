@@ -57,6 +57,19 @@ Proof.
   inversion H1.
 Qed.
 
+Lemma in_cons:
+  forall v e g,
+  In v g ->
+  In v (e :: g).
+Proof.
+  intros.
+  inversion H.
+  destruct H0.
+  assert (x_in : List.In x (e::g)).
+  apply List.in_cons. assumption.
+  apply in_def with (e := x); repeat auto.
+Qed.
+
 Definition mem (v:V) (g:fgraph) : bool :=
   existsb (fun e => pair_mem eq_dec v e) g.
 
@@ -183,7 +196,7 @@ Inductive HasIncoming : fgraph -> V -> Prop :=
 Lemma has_incoming_cons:
   forall e g v,
   HasIncoming g v ->
-  HasIncoming (cons e g) v.
+  HasIncoming (e :: g) v.
 Proof.
   intros.
   inversion H. subst.
@@ -199,10 +212,23 @@ Inductive HasOutgoing : fgraph -> V -> Prop :=
     Edge g (v, v') ->
     HasOutgoing g v.
 
+Lemma has_outgoing_cons:
+  forall e g v,
+  HasOutgoing g v ->
+  HasOutgoing (e :: g) v.
+Proof.
+  intros.
+  inversion H. subst.
+  unfold Edge in *.
+  apply List.in_cons with (a:=e) in H0.
+  apply has_outgoing_def with (v':=v').
+  auto.
+Qed.
+
 Definition has_incoming (g:fgraph) (v:V) : bool :=
   existsb (fun e => if eq_dec v (snd e) then true else false) g.
 
-Lemma has_incoming_prop :
+Lemma has_incoming_prop:
   forall g v,
   has_incoming g v = true ->
   HasIncoming g v.
@@ -243,13 +269,29 @@ Let edge_eq_dec := pair_eq_dec eq_dec.
 Definition rm_sources (g:fgraph) :=
   feedback_filter edge_eq_dec (fun g' e => has_incoming g' (fst e)) g.
 
-Let rm_sources_incl:
+Lemma rm_sources_incl:
   forall g (v:V),
   incl (rm_sources g) g.
 Proof.
   intros.
   unfold rm_sources.
   apply feedback_filter_incl.
+Qed.
+
+Lemma rm_sources_in:
+  forall v g,
+  In v (rm_sources g) ->
+  In v g.
+Proof.
+  intros.
+  inversion H.
+  destruct H0.
+  unfold In.
+  exists x.
+  intuition.
+  apply rm_sources_incl.
+  auto.
+  auto.
 Qed.
 
 Lemma rm_sources_has_incoming:
@@ -278,23 +320,7 @@ Proof.
     assumption.
 Qed.
 
-Let rm_sources_in:
-  forall v g,
-  In v (rm_sources g) ->
-  In v g.
-Proof.
-  intros.
-  inversion H.
-  destruct H0.
-  unfold In.
-  exists x.
-  intuition.
-  apply rm_sources_incl.
-  auto.
-  auto.
-Qed.
-
-Let has_outgoing_filter:
+Lemma has_outgoing_filter:
   forall g v,
   let fg := (fun e : V * V => has_incoming g (fst e)) in
   In v (filter fg g) ->
@@ -338,7 +364,7 @@ Proof.
       inversion Heqb.
 Qed.
 
-Let has_outgoing_rm_incl:
+Lemma has_outgoing_rm_incl:
   forall v g,
   HasOutgoing g v ->
   In v (rm_sources g) ->
@@ -356,24 +382,116 @@ Proof.
     apply IHl.
     rewrite Heqfg.
     apply has_outgoing_filter.
+    inversion H0.
+    destruct H1.
+    unfold In.
+    exists x.
+    intuition.
+    apply feedback_filter_in in H1.
+    subst.
     assumption.
-    remember (fun e : V * V => has_incoming g (fst e)) as ff.
+    assumption.
     assumption.
 Qed.
 
+Definition Forall (P: V -> Prop) (g:fgraph) := 
+  forall (v:V), In v g -> P v.
+
+Lemma forall_inv:
+  forall (v:V) g e P,
+  Forall P (e :: g) ->
+  Forall P g.
+Proof.
+  intros.
+  unfold Forall in *.
+  intros.
+  apply H.
+  apply in_cons.
+  assumption.
+Qed.
+
+Definition AllOutgoing g : Prop := Forall (fun v => HasOutgoing g v) g.
+
+Lemma all_outgoing_dec:
+  forall g,
+  AllOutgoing g \/ ~ AllOutgoing g.
+Admitted.
+
+Definition AllIncoming g : Prop := Forall (fun v => HasIncoming g v) g.
+
+Lemma all_outgoing_1:
+  forall v1 v2,
+  AllOutgoing ((v1, v2) :: nil) ->
+  v1 = v2.
+Proof.
+Admitted.
+
+Let rm_filter_nonempty:
+  forall g,
+  let f := fun e : V * V => has_incoming g (fst e) in
+  AllOutgoing g ->
+  g <> nil ->
+  filter f g <> nil.
+Proof.
+  intros.
+  induction g.
+  - (* absurd *) contradiction H0. trivial.
+  - simpl in IHg.
+    simpl.
+    remember (f a).
+    destruct b.
+    + (* absurd *)
+      intuition.
+      inversion H1.
+    + unfold f in Heqb.
+      destruct a.
+      simpl in Heqb.
+      destruct (eq_dec v v0).
+      * (* absurd *) simpl in Heqb. inversion Heqb.
+      * simpl in Heqb.
+        destruct g.
+        apply all_outgoing_1 in H. (* absurd *)
+        contradiction n.
+        (* otherwise *)
+        
+        
+  (*assert (Hx : exists x, List.In x (filter f g)).*)
+Admitted.
+
+Let rm_sources_nonempty:
+  forall g,
+  AllOutgoing g ->
+  g <> nil ->
+  rm_sources g <> nil.
+Proof.
+  intros.
+  unfold rm_sources.
+  remember (fun (g' : list (V * V)) (e : V * V) => has_incoming g' (fst e)) as fl.
+  functional induction (feedback_filter edge_eq_dec fl g).
+  - assumption.
+  - remember (fun e : V * V => has_incoming l (fst e)) as f.
+    remember (fun (g' : list (V * V)) (e0 : V * V) => has_incoming g' (fst e0)) as ff.
+    apply IHl.
+    + intros.
+      
+Admitted.
+
 Theorem exists_has_incoming:
   forall g,
-  (forall (v:V), In v g -> HasOutgoing g v) ->
+  AllOutgoing g ->
+  g <> nil ->
   exists (g':fgraph),
   subgraph g' g /\
-  (forall (v:V), In v g' -> HasOutgoing g' v) /\
-  (forall (v:V), In v g' -> HasIncoming g' v).
+  g' <> nil /\
+  AllOutgoing g' /\
+  AllIncoming g'.
 Proof.
   intros.
   exists (rm_sources g).
   intuition.
   - unfold rm_sources.
     apply feedback_filter_incl.
+  - 
   - apply has_outgoing_rm_incl.
     apply rm_sources_in in H0.
     apply H.

@@ -585,6 +585,34 @@ Proof.
     apply rm_sources_nonempty; repeat auto.
 Qed.
 
+
+(*****************)
+
+Axiom all_io_imp_cycle:
+  forall g,
+  g <> nil ->
+  AllIncoming g ->
+  AllOutgoing g ->
+  exists w, Cycle (Edge g) w.
+
+(** This is what we want to prove: *)
+
+Corollary all_pos_odegree_impl_cycle:
+  forall g,
+  g <> nil ->
+  AllOutgoing g ->
+  exists w, Cycle (Edge g) w.
+Proof.
+  intros.
+  destruct (exists_has_incoming _ H0 H) as
+  (g', (H1, (H2, (H3, H4)))).
+  assert (cycle: exists w, Cycle (Edge g') w).
+  apply all_io_imp_cycle; repeat auto. (* eoa *)
+  destruct cycle.
+  exists x.
+  apply cycle_subgraph with (g:=g'); repeat auto.
+Qed.
+
 End FGRAPHS.
 
 Implicit Arguments Edge.
@@ -592,46 +620,4 @@ Implicit Arguments In.
 Implicit Arguments subgraph.
 Implicit Arguments HasIncoming.
 Implicit Arguments HasOutgoing.
-
-Lemma all_pos_degree_impl_cycle1:
-  forall {V:Type} g e,
-  g = cons e nil ->
-  (forall (v:V), In v g -> HasIncoming g v) ->
-  (forall (v:V), In v g -> HasOutgoing g v) ->
-  exists w, Cycle (Edge g) w.
-Proof.
-  intros.
-  destruct e as (v, v').
-  assert (v_in : In v g).
-  apply in_left with (v':=v').
-  rewrite H.
-  apply List.in_eq.
-  destruct (H0 _ v_in) as (v'', v_inc).
-  unfold Edge in v_inc.
-Admitted.
-
-Lemma all_pos_degree_impl_cycle:
-  forall {V:Type} g,
-  EqDec V ->
-  g <> nil ->
-  (forall (v:V), In v g -> HasIncoming g v) ->
-  (forall (v:V), In v g -> HasOutgoing g v) ->
-  exists w, Cycle (Edge g) w.
-Proof.
-  intros.
-  induction g.
-  (* absurd case: *) contradiction H; auto.
-  (* otherwise *)
-  destruct g.
-  - apply all_pos_degree_impl_cycle1 with (e:=a); repeat auto.
-  - Admitted.
-
-(** This is what we want to prove: *)
-
-Axiom all_pos_odegree_impl_cycle:
-  forall {V:Type} g,
-  EqDec V ->
-  g <> nil ->
-  (forall (v:V), In v g -> HasOutgoing g v) ->
-  exists w, Cycle (Edge g) w.
 

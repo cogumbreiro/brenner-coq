@@ -413,51 +413,36 @@ Qed.
 
 Definition AllOutgoing g : Prop := Forall (fun v => HasOutgoing g v) g.
 
-Lemma all_outgoing_dec:
+Lemma all_outgoing_rm_incl:
   forall g,
-  AllOutgoing g \/ ~ AllOutgoing g.
-Admitted.
-
-Definition AllIncoming g : Prop := Forall (fun v => HasIncoming g v) g.
-(*
-Lemma all_outgoing_1:
-  forall v1 v2,
-  AllOutgoing ((v1, v2) :: nil) ->
-  v1 = v2.
-Proof.
-Admitted.*)
-(*
-Lemma rm_filter_dec_in:
-  forall g,
-  let fg := fun (e:edge) => has_incoming g (fst e) in
-  {forall e, List.In e g -> ~ HasIncoming g (fst e)}
-  +
-  {exists v, In v (filter fg g)}.
+  AllOutgoing g ->
+  AllOutgoing (rm_sources g).
 Proof.
   intros.
-  destruct (filter_dec_in _ fg g).
-  - left.
-    rewrite Forall_forall in *.
-    intros.
-    apply f in H.
-    apply negb_prop_elim in H.
-    intuition.
-    apply has_incoming_from_prop in H0.
-    unfold fg in H.
-    rewrite H0 in H.
-    apply H.
-    auto with *.
-  - right.
-    destruct e.
-    destruct H.
-    unfold fg in H0.
-    destruct x as (vi, vo).
-    exists vi.
-    unfold In.
-    exists (vi, vo).
-    intuition.
-    apply pair_in_left.
-Qed.*)
+  unfold AllOutgoing in *.
+  unfold Forall in *.
+  intros.
+  apply has_outgoing_rm_incl.
+  apply rm_sources_in in H0.
+  apply H; assumption.
+  assumption.
+Qed.
+
+Definition AllIncoming g : Prop := Forall (fun v => HasIncoming g v) g.
+
+Lemma all_incoming_rm_incl:
+  forall g,
+  AllOutgoing g ->
+  AllIncoming (rm_sources g).
+Proof.
+  intros.
+  unfold AllOutgoing in *.
+  unfold AllIncoming.
+  unfold Forall in *.
+  intros.
+  apply rm_sources_has_incoming.
+  assumption.
+Qed.
 
 Lemma rm_filter_nonempty:
   forall g,
@@ -497,7 +482,7 @@ Proof.
   apply pair_in_right.
 Qed.
 
-Let rm_sources_nonempty:
+Let rm_sources_nonempty':
   forall g,
   let g' := (rm_sources g) in
   AllOutgoing g ->
@@ -536,23 +521,44 @@ Proof.
     assumption.
 Qed.
 
-Let rm_sources_nonempty:
+Lemma nonempty_exists_vertex:
+  forall g,
+  g <> nil <->
+  exists v, In v g.
+Proof.
+  intros.
+  split.
+  + intros; destruct g.
+    - contradiction H.
+      trivial.
+    - destruct e.
+      exists v.
+      unfold In.
+      exists (v, v0).
+      intuition.
+      apply pair_in_left.
+  + intros.
+    intuition.
+    destruct H.
+    inversion H.
+    destruct H1.
+    subst.
+    inversion H1.
+Qed.
+
+Lemma rm_sources_nonempty:
   forall g,
   AllOutgoing g ->
   g <> nil ->
+  AllOutgoing (rm_sources g) ->
+  AllIncoming (rm_sources g) ->
   rm_sources g <> nil.
 Proof.
   intros.
-  unfold rm_sources.
-  remember (fun (g' : list (V * V)) (e : V * V) => has_incoming g' (fst e)) as fl.
-  functional induction (feedback_filter edge_eq_dec fl g).
-  - assumption.
-  - remember (fun e : V * V => has_incoming l (fst e)) as f.
-    remember (fun (g' : list (V * V)) (e0 : V * V) => has_incoming g' (fst e0)) as ff.
-    apply IHl.
-    + intros.
-      
-Admitted.
+  apply nonempty_exists_vertex in H0.
+  apply nonempty_exists_vertex.
+  apply rm_sources_nonempty'; repeat auto.
+Qed.
 
 Theorem exists_has_incoming:
   forall g,
@@ -560,23 +566,23 @@ Theorem exists_has_incoming:
   g <> nil ->
   exists (g':fgraph),
   subgraph g' g /\
-  g' <> nil /\
   AllOutgoing g' /\
-  AllIncoming g'.
+  AllIncoming g' /\
+  g' <> nil.
 Proof.
   intros.
   exists (rm_sources g).
-  intuition.
+  assert (Ha : AllOutgoing (rm_sources g)).
+  apply all_outgoing_rm_incl; assumption.
+  assert (Hb : AllIncoming (rm_sources g)).
+  apply all_incoming_rm_incl; assumption.
+  split.
   - unfold rm_sources.
+    unfold subgraph.
     apply feedback_filter_incl.
-  - 
-  - apply has_outgoing_rm_incl.
-    apply rm_sources_in in H0.
-    apply H.
-    assumption.
-    assumption.
-  - apply rm_sources_has_incoming.
-    assumption.
+  - split. assumption.
+    split. assumption.
+    apply rm_sources_nonempty; repeat auto.
 Qed.
 
 End FGRAPHS.

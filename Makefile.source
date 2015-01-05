@@ -5,6 +5,7 @@ Graphs/Main.v
 Graphs/Bipartite/Core.v
 Graphs/Bipartite/Main.v
 Graphs/Bipartite/Cycle.v
+Graphs/FGraphs.v
 Brenner.v
 Example1.v
 PhaserMap.v

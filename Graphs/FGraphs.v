@@ -3,6 +3,7 @@ Require Import Lists.ListSet.
 Require Import Graphs.Core.
 Require Import PairUtil.
 Require Import ListUtil.
+Require Import Bool.
 Section FGRAPHS.
 
 Variable V:Type.
@@ -418,45 +419,122 @@ Lemma all_outgoing_dec:
 Admitted.
 
 Definition AllIncoming g : Prop := Forall (fun v => HasIncoming g v) g.
-
+(*
 Lemma all_outgoing_1:
   forall v1 v2,
   AllOutgoing ((v1, v2) :: nil) ->
   v1 = v2.
 Proof.
-Admitted.
-
-Let rm_filter_nonempty:
+Admitted.*)
+(*
+Lemma rm_filter_dec_in:
   forall g,
-  let f := fun e : V * V => has_incoming g (fst e) in
-  AllOutgoing g ->
-  g <> nil ->
-  filter f g <> nil.
+  let fg := fun (e:edge) => has_incoming g (fst e) in
+  {forall e, List.In e g -> ~ HasIncoming g (fst e)}
+  +
+  {exists v, In v (filter fg g)}.
 Proof.
   intros.
-  induction g.
-  - (* absurd *) contradiction H0. trivial.
-  - simpl in IHg.
-    simpl.
-    remember (f a).
-    destruct b.
-    + (* absurd *)
-      intuition.
-      inversion H1.
-    + unfold f in Heqb.
-      destruct a.
-      simpl in Heqb.
-      destruct (eq_dec v v0).
-      * (* absurd *) simpl in Heqb. inversion Heqb.
-      * simpl in Heqb.
-        destruct g.
-        apply all_outgoing_1 in H. (* absurd *)
-        contradiction n.
-        (* otherwise *)
-        
-        
-  (*assert (Hx : exists x, List.In x (filter f g)).*)
-Admitted.
+  destruct (filter_dec_in _ fg g).
+  - left.
+    rewrite Forall_forall in *.
+    intros.
+    apply f in H.
+    apply negb_prop_elim in H.
+    intuition.
+    apply has_incoming_from_prop in H0.
+    unfold fg in H.
+    rewrite H0 in H.
+    apply H.
+    auto with *.
+  - right.
+    destruct e.
+    destruct H.
+    unfold fg in H0.
+    destruct x as (vi, vo).
+    exists vi.
+    unfold In.
+    exists (vi, vo).
+    intuition.
+    apply pair_in_left.
+Qed.*)
+
+Lemma rm_filter_nonempty:
+  forall g,
+  AllOutgoing g ->
+  let fg := fun (e:edge) => has_incoming g (fst e) in
+  (exists v, In v g) ->
+  exists v, In v (filter fg g).
+Proof.
+  intros.
+  destruct H0 as (v, H0).
+  inversion H0.
+  destruct H1.
+  destruct x as (vi, vo).
+  assert (vo_out: HasOutgoing g vo).
+  unfold AllOutgoing in H.
+  unfold Forall in H.
+  apply H.
+  unfold In.
+  exists (vi, vo).
+  intuition.
+  apply pair_in_right.
+  (* eoa *)
+  inversion vo_out.
+  subst.
+  unfold Edge in *.
+  exists v'.
+  unfold In.
+  exists (vo, v').
+  intuition.
+  rewrite filter_In.
+  intuition.
+  unfold fg.
+  simpl.
+  apply has_incoming_from_prop.
+  apply has_incoming_def with (v':= vi).
+  unfold Edge. trivial.
+  apply pair_in_right.
+Qed.
+
+Let rm_sources_nonempty:
+  forall g,
+  let g' := (rm_sources g) in
+  AllOutgoing g ->
+  (exists v, In v g) ->
+  AllOutgoing g' ->
+  AllIncoming g' ->
+  exists v', In v' g'.
+Proof.
+  intros.
+  unfold rm_sources in *.
+  remember (fun (g' : list (V * V)) (e : V * V) => has_incoming g' (fst e)) as fl.
+  functional induction (feedback_filter edge_eq_dec fl g).
+  - auto.
+  - unfold g' in *.
+    rename l into g.
+    remember (feedback_filter (pair_eq_dec eq_dec) fl (filter (fl g) g)) as gf.
+    apply IHl.
+    unfold AllOutgoing.
+    unfold Forall.
+    intros.
+    rewrite Heqfl.
+    rewrite Heqfl in H3.
+    unfold AllOutgoing in H.
+    unfold Forall in H.
+    inversion H3.
+    destruct H4.
+    apply filter_in in H4.
+    apply has_outgoing_filter; repeat auto.
+    apply H.
+    unfold In.
+    exists x.
+    auto.
+    rewrite Heqfl.
+    apply rm_filter_nonempty; repeat auto.
+    assumption.
+    assumption.
+Qed.
 
 Let rm_sources_nonempty:
   forall g,

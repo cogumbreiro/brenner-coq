@@ -3,6 +3,7 @@ Require Import Semantics.
 Require Import Graphs.Core.
 Require Import Vars.
 Require Import Syntax.
+Require Import PairUtil.
 Import Map_TID_Extra.
 
 Section Basic.
@@ -277,7 +278,7 @@ Let Hpart := partition_holds DS.
 
 Let tid_in_walk:
   forall t e,
-  VertexInEdge tid t e ->
+  pair_In t e ->
   List.In e w ->
   exists p,
   Map_TID.MapsTo t p (get_tasks (orig_state DS)) /\
@@ -300,7 +301,7 @@ Qed.
 
 Let blocked_conv:
   forall t r e,
-  VertexInEdge tid t e ->
+  pair_In t e ->
   List.In e w ->
   Blocked s t r ->
   Blocked ds t r.
@@ -320,7 +321,7 @@ Qed.
 
 Let registered_conv:
   forall t r e,
-  VertexInEdge tid t e ->
+  pair_In t e ->
   List.In e w ->
   Registered s t r ->
   Registered ds t r.
@@ -357,10 +358,10 @@ Proof.
   apply Core.aa with (b:=b).
   apply registered_to_impedes with (s:=ds) (r':=r); r_auto.
   apply blocked_to_waits_for with (s:=ds); r_auto.
-  apply vertex_in_edge_left.
+  apply pair_in_left.
   assumption.
   assumption.
-  apply vertex_in_edge_right.
+  apply pair_in_right.
   assumption.
   assumption.
 Qed.

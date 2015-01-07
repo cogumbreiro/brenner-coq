@@ -586,6 +586,32 @@ Proof.
   assumption.
   apply walk_subgraph with (E:=E); repeat auto.
 Qed.
+
+Lemma walk_is_subgraph:
+  forall E w,
+  Walk E w ->
+  subgraph (fun x => List.In x w) E.
+Proof.
+  intros.
+  unfold subgraph.
+  intros.
+  apply in_edge with (Edge:=E) in H0.
+  assumption.
+  assumption.
+Qed.
+
+Lemma cycle_is_subgraph:
+  forall E w,
+  Cycle E w ->
+  subgraph (fun x => List.In x w) E.
+Proof.
+  intros.
+  inversion H.
+  subst.
+  apply walk_is_subgraph in H1.
+  assumption.
+Qed.
+  
 End SUBGRAPH.
 
 Implicit Arguments subgraph.

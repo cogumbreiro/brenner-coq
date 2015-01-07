@@ -114,8 +114,7 @@ Proof.
   assumption.
 Qed.
 
-Definition subgraph (g g':fgraph) :=
-  incl g g'.
+Definition subgraph g g' := Core.subgraph (Edge g) (Edge g').
 
 Lemma edge_subgraph:
   forall (g g':fgraph) e,
@@ -124,11 +123,8 @@ Lemma edge_subgraph:
   (Edge g') e.
 Proof.
   intros.
-  unfold Edge in *.
-  unfold subgraph in H.
-  unfold incl in H.
-  apply H in H0.
-  assumption.
+  unfold subgraph in *.
+  apply Core.edge_subgraph with (E:=Edge g) (E':=Edge g'); repeat auto.
 Qed.
 
 Lemma walk_subgraph:
@@ -138,18 +134,8 @@ Lemma walk_subgraph:
   Walk (Edge g') w.
 Proof.
   intros.
-  assert (forall_w: List.Forall (Edge g') w).
-  assert (forall_w: List.Forall (Edge g) w).
-  apply walk_to_forall; assumption.
-  rewrite List.Forall_forall in *.
-  intros.
-  apply edge_subgraph with (g:=g).
-  assumption.
-  apply forall_w.
-  assumption.
-  apply walk_forall.
-  assumption.
-  apply walk_to_connected with (Edge:=Edge g); assumption.
+  unfold subgraph in *.
+  apply Core.walk_subgraph with (E:=Edge g) (E':=Edge g'); repeat auto.
 Qed.
 
 Lemma cycle_subgraph:
@@ -159,20 +145,18 @@ Lemma cycle_subgraph:
   Cycle (Edge g') w.
 Proof.
   intros.
-  inversion H0.
-  subst.
-  apply cycle_def with (vn:=vn).
-  assumption.
-  apply walk_subgraph with (g:=g); repeat auto.
+  unfold subgraph in *.
+  apply Core.cycle_subgraph with (E:=Edge g) (E':=Edge g'); repeat auto.
 Qed.
 
+(* todo: rename *)
 Lemma add_le:
   forall (g:fgraph) e,
   subgraph g (cons e g).
 Proof.
   intros.
   unfold subgraph.
-  unfold incl.
+  unfold Core.subgraph.
   intros.
   apply List.in_cons.
   assumption.
@@ -413,6 +397,18 @@ Qed.
 
 Definition AllOutgoing g : Prop := Forall (fun v => HasOutgoing g v) g.
 
+Lemma all_outgoing_in:
+  forall v g,
+  In v g ->
+  AllOutgoing g ->
+  HasOutgoing g v.
+Proof.
+  intros.
+  unfold AllOutgoing in *.
+  unfold Forall in *.
+  apply H0; assumption.
+Qed.
+
 Lemma all_outgoing_rm_incl:
   forall g,
   AllOutgoing g ->
@@ -429,6 +425,18 @@ Proof.
 Qed.
 
 Definition AllIncoming g : Prop := Forall (fun v => HasIncoming g v) g.
+
+Lemma all_incoming_in:
+  forall v g,
+  In v g ->
+  AllIncoming g ->
+  HasIncoming g v.
+Proof.
+  intros.
+  unfold AllIncoming in *.
+  unfold Forall in *.
+  apply H0; assumption.
+Qed.
 
 Lemma all_incoming_rm_incl:
   forall g,
@@ -588,14 +596,62 @@ Qed.
 
 (*****************)
 
-Axiom all_io_imp_cycle:
-  forall g,
-  g <> nil ->
+Axiom walk_to_cycle:
+  forall e w g,
+  Walk (Edge g) w ->
+  Connected (e :: w) ->
+  Edge g e ->
+  In (fst e) w ->
+  exists w', subgraph w' w /\ Cycle (Edge g) w'.
+
+(*
+Variable g: fgraph.
+Variable g_nonempty: g <> nil.
+Variable all_in: AllIncoming g.
+Variable all_out: AllOutgoing g.
+*)
+
+Lemma fill_walk:
+  forall e w g,
   AllIncoming g ->
-  AllOutgoing g ->
-  exists w, Cycle (Edge g) w.
+  Walk (Edge g) w ->
+  Edge g e ->
+  Connected (e :: w) ->
+  subgraph w g ->
+  subgraph g (e :: w) ->
+  exists w',
+  Cycle (Edge g) w'.
+Proof.
+  intros.
+  assert (e_in_g:= H1).
+  destruct e as (vi, vo); simpl.
+  (* part 1 *)
+  assert (vi_in_g : In vi g).
+  apply in_left in H1. assumption.
+  (* eoa *)
+  assert (vi_in : HasIncoming g vi).
+  apply all_incoming_in; repeat assumption.
+  (* eoa*)
+  inversion vi_in; subst.
+  apply edge_subgraph with (g':=((vi, vo) :: w)) in H5; repeat auto.
+  inversion H5.
+  + inversion H6; subst; clear H6.
+    exists ((v',v')::nil).
+    apply edge1_to_cycle.
+    assumption.
+  + apply walk_to_cycle with (e:=(vi,vo)) in H0; repeat auto.
+    destruct H0 as (w', (_, cyc)).
+    exists w'; assumption.
+    simpl.
+    unfold In.
+    exists (v', vi).
+    intuition.
+    apply pair_in_right.
+Qed.
 
 (** This is what we want to prove: *)
+Axiom all_io_imp_cycle:
+  exists w, Cycle (Edge g) w.
 
 Corollary all_pos_odegree_impl_cycle:
   forall g,

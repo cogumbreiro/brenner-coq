@@ -1,8 +1,8 @@
 Require Import
   Coq.Lists.List.
 
-Require Import
-  TacticsUtil.
+Require Import TacticsUtil.
+Require Import PairUtil.
 
 Section Walk.
 Variable Implicit A:Type.
@@ -425,51 +425,48 @@ Proof.
     + assumption.
 Qed.
 
-(*
-Axiom succ_in_cycle:
-  forall w v1 v2,
-  Cycle w ->
-  List.In (v1, v2) w ->
-  exists v3, List.In (v2, v3) w.
-*)
+Definition In (v:A) :=
+  exists e, Edge e /\ pair_In v e.
 
-Definition VertexInEdge (v:A) (e:edge) :=
-  v = fst e \/ v = snd e.
-
-Lemma vertex_in_edge_left:
-  forall v v',
-  VertexInEdge v (v, v').
+Lemma in_def:
+  forall v e,
+  pair_In v e ->
+  Edge e ->
+  In v.
 Proof.
-  unfold VertexInEdge.
+  intros.
+  unfold In.
+  exists e.
   auto.
 Qed.
 
-Lemma vertex_in_edge_right:
+Lemma in_left:
   forall v v',
-  VertexInEdge v' (v, v').
+  Edge (v, v') ->
+  In v.
 Proof.
-  unfold VertexInEdge.
-  auto.
+  intros.
+  apply in_def with (e:=(v,v')); repeat auto.
+  apply pair_in_left.
+Qed.
+
+Lemma in_right:
+  forall v v',
+  Edge (v', v) ->
+  In v.
+Proof.
+  intros.
+  apply in_def with (e:=(v',v)); repeat auto.
+  apply pair_in_right.
 Qed.
 
 Inductive VertexIn : A -> walk -> Prop :=
   vertex_in_def:
     forall e v w,
-    In e w ->
-    VertexInEdge v e ->
+    List.In e w ->
+    pair_In v e ->
     VertexIn v w.
 
-(*
-Inductive VertexIn: A -> walk -> Prop :=
-  | vertex_in_eq:
-    forall v e w,
-    VertexInEdge v e ->
-    VertexIn v (e :: w)
-  | vertex_in_cons:
-    forall v e w,
-    VertexIn v w ->
-    VertexIn v (e :: w).
-*)
 Section Mem.
   Variable vertex_eq: forall (v v' : A), {v = v'} + {v <> v'}.
   Definition mem_edge (v:A) (e:edge) :=
@@ -479,10 +476,10 @@ Section Mem.
     else false.
   Lemma mem_edge_eq_in:
     forall v e,
-    mem_edge v e = true <-> VertexInEdge v e.
+    mem_edge v e = true <-> pair_In v e.
   Proof.
     intros.
-    unfold VertexInEdge.
+    unfold pair_In.
     intuition.
     - unfold mem_edge in H.
       destruct vertex_eq.
@@ -528,3 +525,68 @@ Implicit Arguments Connected.
 Implicit Arguments End.
 Implicit Arguments In.
 Implicit Arguments cycle_def.
+
+
+
+(** Subgraph relation *)
+
+Section SUBGRAPH.
+
+Variable A:Type.
+Notation edge := (A*A)%type.
+
+Definition subgraph (E E':edge -> Prop) :=
+  forall e,
+  E e ->
+  E' e.
+
+Lemma edge_subgraph:
+  forall (E E':edge -> Prop) e,
+  subgraph E E' ->
+  E e ->
+  E' e.
+Proof.
+  intros.
+  unfold subgraph in *.
+  apply H.
+  assumption.
+Qed.
+
+Lemma walk_subgraph:
+  forall (E E':edge -> Prop) w,
+  subgraph E E' ->
+  Walk E w ->
+  Walk E' w.
+Proof.
+  intros.
+  assert (forall_w: List.Forall E' w).
+  assert (forall_w: List.Forall E w).
+  apply walk_to_forall; assumption.
+  rewrite List.Forall_forall in *.
+  intros.
+  apply edge_subgraph with (E:=E).
+  assumption.
+  apply forall_w.
+  assumption.
+  apply walk_forall.
+  assumption.
+  apply walk_to_connected with (Edge:=E); assumption.
+Qed.
+
+Lemma cycle_subgraph:
+  forall (E E':edge -> Prop) w,
+  subgraph E E' ->
+  Cycle E w ->
+  Cycle E' w.
+Proof.
+  intros.
+  inversion H0.
+  subst.
+  apply cycle_def with (vn:=vn).
+  assumption.
+  apply walk_subgraph with (E:=E); repeat auto.
+Qed.
+End SUBGRAPH.
+
+Implicit Arguments subgraph.
+

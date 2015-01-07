@@ -13,8 +13,19 @@ Variable eq_dec : forall (v1 v2:V), {v1 = v2} + {v1 <> v2}.
 Let edge := (V*V)%type.
 Let fgraph := list edge.
 
-Definition In (v:V) (g:fgraph) :=
-  exists e, List.In e g /\ pair_In v e.
+Definition Edge (g:fgraph) (e:edge) := List.In e g.
+
+Lemma edge_def:
+  forall e g,
+  List.In e g ->
+  Edge g e.
+Proof.
+  intros.
+  unfold Edge.
+  assumption.
+Qed.
+
+Definition In (v:V) (g:fgraph) := Core.In (Edge g) v.
 
 Lemma in_def:
   forall v e g,
@@ -23,9 +34,7 @@ Lemma in_def:
   In v g.
 Proof.
   intros.
-  unfold In.
-  exists e.
-  auto.
+  apply Core.in_def with (e:=e); repeat auto.
 Qed.
 
 Lemma in_left:
@@ -34,8 +43,7 @@ Lemma in_left:
   In v g.
 Proof.
   intros.
-  apply in_def with (e:=(v,v')); repeat auto.
-  apply pair_in_left.
+  apply Core.in_left with (v':=v'); auto.
 Qed.
 
 Lemma in_right:
@@ -44,8 +52,7 @@ Lemma in_right:
   In v g.
 Proof.
   intros.
-  apply in_def with (e:=(v',v)); repeat auto.
-  apply pair_in_right.
+  apply Core.in_right with (v':=v'); auto.
 Qed.
 
 Lemma in_nil:
@@ -101,18 +108,6 @@ Proof.
   apply pair_mem_from_prop with (eq_dec:=eq_dec) in v_in_e.
   auto.
 Qed.  
-
-Definition Edge (g:fgraph) (e:edge) := List.In e g.
-
-Lemma edge_def:
-  forall e g,
-  List.In e g ->
-  Edge g e.
-Proof.
-  intros.
-  unfold Edge.
-  assumption.
-Qed.
 
 Definition subgraph g g' := Core.subgraph (Edge g) (Edge g').
 
@@ -286,9 +281,9 @@ Lemma rm_sources_has_incoming:
 Proof.
   intros.
   unfold rm_sources in *.
-  unfold In in H.
   destruct H as (e, (e_in_g, v_in_e)).
   assert (Hx := e_in_g).
+  unfold Edge in e_in_g.
   apply feedback_filter_in_f in e_in_g.
   apply has_incoming_prop in e_in_g.
   inversion v_in_e.
@@ -341,7 +336,7 @@ Proof.
       simpl in Heqb.
       assert (Hx: HasIncoming g v1).
       apply has_incoming_def with (v':=v0).
-      unfold Edge.
+      unfold Edge in *.
       apply filter_in in H1.
       assumption.
       apply has_incoming_from_prop in Hx.
@@ -370,6 +365,7 @@ Proof.
     inversion H0.
     destruct H1.
     unfold In.
+    unfold Edge in *.
     exists x.
     intuition.
     apply feedback_filter_in in H1.
@@ -480,6 +476,7 @@ Proof.
   unfold In.
   exists (vo, v').
   intuition.
+  unfold Edge.
   rewrite filter_In.
   intuition.
   unfold fg.
@@ -517,6 +514,7 @@ Proof.
     unfold Forall in H.
     inversion H3.
     destruct H4.
+    unfold Edge in H4.
     apply filter_in in H4.
     apply has_outgoing_filter; repeat auto.
     apply H.

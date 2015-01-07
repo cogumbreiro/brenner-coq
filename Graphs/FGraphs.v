@@ -150,7 +150,7 @@ Proof.
 Qed.
 
 (* todo: rename *)
-Lemma add_le:
+Lemma subgraph_cons:
   forall (g:fgraph) e,
   subgraph g (cons e g).
 Proof.
@@ -168,7 +168,7 @@ Lemma cycle_add:
   Cycle (Edge (cons e g)) w.
 Proof.
   intros.
-  assert (sub := add_le g e).
+  assert (sub := subgraph_cons g e).
   apply cycle_subgraph with (g:=g); repeat assumption.
 Qed.
 
@@ -604,13 +604,6 @@ Axiom walk_to_cycle:
   In (fst e) w ->
   exists w', subgraph w' w /\ Cycle (Edge g) w'.
 
-(*
-Variable g: fgraph.
-Variable g_nonempty: g <> nil.
-Variable all_in: AllIncoming g.
-Variable all_out: AllOutgoing g.
-*)
-
 Lemma fill_walk:
   forall e w g,
   AllIncoming g ->
@@ -651,6 +644,10 @@ Qed.
 
 (** This is what we want to prove: *)
 Axiom all_io_imp_cycle:
+  forall g,
+  g <> nil ->
+  AllIncoming g ->
+  AllOutgoing g ->
   exists w, Cycle (Edge g) w.
 
 Corollary all_pos_odegree_impl_cycle:

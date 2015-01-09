@@ -25,12 +25,21 @@ Proof.
   assumption.
 Qed.
 
+Lemma edge_eq:
+  forall e g,
+  Edge (e :: g) e.
+Proof.
+  intros.
+  unfold Edge.
+  apply in_eq.
+Qed.
+
 Definition In (v:V) (g:fgraph) := Core.In (Edge g) v.
 
 Lemma in_def:
   forall v e g,
   pair_In v e ->
-  List.In e g ->
+  Edge g e ->
   In v g.
 Proof.
   intros.
@@ -39,7 +48,7 @@ Qed.
 
 Lemma in_left:
   forall v v' g,
-  List.In (v, v') g ->
+  Edge g (v, v') ->
   In v g.
 Proof.
   intros.
@@ -48,7 +57,7 @@ Qed.
 
 Lemma in_right:
   forall v v' g,
-  List.In (v', v) g ->
+  Edge g (v', v) ->
   In v g.
 Proof.
   intros.
@@ -107,11 +116,35 @@ Proof.
   exists e.
   apply pair_mem_from_prop with (eq_dec:=eq_dec) in v_in_e.
   auto.
-Qed.  
+Qed.
 
 Definition subgraph g g' := Core.subgraph (Edge g) (Edge g').
 
-Lemma edge_subgraph:
+Lemma subgraph_incl:
+  forall g g',
+  incl g g' ->
+  subgraph g g'.
+Proof.
+  intros.
+  unfold subgraph.
+  unfold Core.subgraph.
+  intros.
+  unfold Edge in *.
+  unfold incl in *.
+  apply H; auto.
+Qed.
+
+Lemma subgraph_filter:
+  forall g f,
+  subgraph (filter f g) g.
+Proof.
+  intros.
+  assert (Hx := filter_incl f g).
+  apply subgraph_incl.
+  auto.
+Qed.
+
+Lemma subgraph_edge:
   forall (g g':fgraph) e,
   subgraph g g' ->
   (Edge g) e ->
@@ -119,10 +152,22 @@ Lemma edge_subgraph:
 Proof.
   intros.
   unfold subgraph in *.
-  apply Core.edge_subgraph with (E:=Edge g) (E':=Edge g'); repeat auto.
+  apply Core.subgraph_edge with (E:=Edge g) (E':=Edge g'); repeat auto.
 Qed.
 
-Lemma walk_subgraph:
+Lemma subgraph_in:
+  forall (g g':fgraph) v,
+  subgraph g g' ->
+  In v g ->
+  In v g'.
+Proof.
+  intros.
+  unfold In in *.
+  unfold subgraph in *.
+  apply Core.subgraph_in with (E:=Edge g); repeat auto.
+Qed.
+
+Lemma subgraph_walk:
   forall (g g':fgraph) w,
   subgraph g g' ->
   Walk (Edge g) w ->
@@ -130,10 +175,10 @@ Lemma walk_subgraph:
 Proof.
   intros.
   unfold subgraph in *.
-  apply Core.walk_subgraph with (E:=Edge g) (E':=Edge g'); repeat auto.
+  apply Core.subgraph_walk with (E:=Edge g) (E':=Edge g'); repeat auto.
 Qed.
 
-Lemma cycle_subgraph:
+Lemma subgraph_cycle:
   forall (g g':fgraph) w,
   subgraph g g' ->
   Cycle (Edge g) w ->
@@ -141,10 +186,9 @@ Lemma cycle_subgraph:
 Proof.
   intros.
   unfold subgraph in *.
-  apply Core.cycle_subgraph with (E:=Edge g) (E':=Edge g'); repeat auto.
+  apply Core.subgraph_cycle with (E:=Edge g) (E':=Edge g'); repeat auto.
 Qed.
 
-(* todo: rename *)
 Lemma subgraph_cons:
   forall (g:fgraph) e,
   subgraph g (cons e g).
@@ -164,7 +208,7 @@ Lemma cycle_add:
 Proof.
   intros.
   assert (sub := subgraph_cons g e).
-  apply cycle_subgraph with (g:=g); repeat assumption.
+  apply subgraph_cycle with (g:=g); repeat assumption.
 Qed.
 
 Inductive HasIncoming : fgraph -> V -> Prop :=
@@ -250,12 +294,21 @@ Definition rm_sources (g:fgraph) :=
   feedback_filter edge_eq_dec (fun g' e => has_incoming g' (fst e)) g.
 
 Lemma rm_sources_incl:
-  forall g (v:V),
+  forall g,
   incl (rm_sources g) g.
 Proof.
   intros.
   unfold rm_sources.
   apply feedback_filter_incl.
+Qed.
+
+Lemma rm_sources_subgraph:
+  forall g,
+  subgraph (rm_sources g) g.
+Proof.
+  intros.
+  apply subgraph_incl.
+  apply rm_sources_incl.
 Qed.
 
 Lemma rm_sources_in:
@@ -264,14 +317,9 @@ Lemma rm_sources_in:
   In v g.
 Proof.
   intros.
-  inversion H.
-  destruct H0.
-  unfold In.
-  exists x.
-  intuition.
-  apply rm_sources_incl.
-  auto.
-  auto.
+  apply (subgraph_in (rm_sources g)).
+  apply rm_sources_subgraph.
+  assumption.
 Qed.
 
 Lemma rm_sources_has_incoming:
@@ -300,6 +348,33 @@ Proof.
     assumption.
 Qed.
 
+Lemma filter_edge_in:
+  forall e f g,
+  Edge g e ->
+  f e = true ->
+  Edge (filter f g) e.
+Proof.
+  intros.
+  apply edge_def.
+  apply filter_In.
+  intuition.
+Qed.
+
+Lemma filter_vertex_in:
+  forall v e f g,
+  pair_In v e ->
+  Edge g e ->
+  f e = true ->
+  In v (filter f g).
+Proof.
+  intros.
+  unfold In.
+  unfold Core.In.
+  exists e.
+  intuition.
+  apply filter_edge_in; repeat auto.
+Qed.
+
 Lemma has_outgoing_filter:
   forall g v,
   let fg := (fun e : V * V => has_incoming g (fst e)) in
@@ -316,30 +391,25 @@ Proof.
   - simpl in H3.
     rewrite H3 in *.
     apply has_outgoing_def with (v':=v1).
-    unfold Edge.
     assumption.
   - simpl in H3. subst.
     (* let's check the edge in the original graph *)
     inversion H0; subst; clear H0.
-    unfold Edge in H3.
     remember (fg (v1, v')) as b.
     symmetry in Heqb.
     destruct b.
-    + assert (Hx : List.In (v1, v') (filter fg g)).
-      rewrite filter_In.
-      intuition. (* eoa *)
-      apply has_outgoing_def with (v' := v').
-      unfold Edge.
-      assumption.
+    + apply has_outgoing_def with (v' := v').
+      apply filter_edge_in; repeat auto.
     + (* absurd case *)
       unfold fg in Heqb.
       simpl in Heqb.
-      assert (Hx: HasIncoming g v1).
+      assert (Hx: has_incoming g v1 = true).
+      apply has_incoming_from_prop.
       apply has_incoming_def with (v':=v0).
-      unfold Edge in *.
-      apply filter_in in H1.
+      apply subgraph_edge with (g:=(filter fg g)).
+      apply subgraph_filter.
       assumption.
-      apply has_incoming_from_prop in Hx.
+      (* eoa *)
       rewrite Hx in Heqb.
       inversion Heqb.
 Qed.
@@ -351,16 +421,15 @@ Lemma has_outgoing_rm_incl:
   HasOutgoing (rm_sources g) v.
 Proof.
   intros.
-  unfold rm_sources.
-  unfold rm_sources in H0.
+  unfold rm_sources in *.
   remember (fun (g' : list (V * V)) e => has_incoming g' (fst e)) as f.
   functional induction (feedback_filter edge_eq_dec f g).
   - assumption.
   - rename l into g.
     remember (fun (g' : list (V * V)) (e0 : V * V) => has_incoming g' (fst e0)) as f.
-    remember (filter (fun e : V * V => has_incoming g (fst e)) g) as fg.
+    remember (fun e : V * V => has_incoming g (fst e)) as ff.
     apply IHl.
-    rewrite Heqfg.
+    rewrite Heqff.
     apply has_outgoing_filter.
     inversion H0.
     destruct H1.
@@ -375,19 +444,42 @@ Proof.
     assumption.
 Qed.
 
-Definition Forall (P: V -> Prop) (g:fgraph) := 
-  forall (v:V), In v g -> P v.
+Definition Forall (P: V -> Prop) (g:fgraph) :=
+  Core.Forall (Edge g) P.
 
-Lemma forall_inv:
-  forall (v:V) g e P,
-  Forall P (e :: g) ->
+Lemma subgraph_forall:
+  forall g g' P,
+  subgraph g g' ->
+  Forall P g' ->
   Forall P g.
 Proof.
   intros.
   unfold Forall in *.
+  unfold subgraph in *.
+  apply Core.subgraph_forall with (E':=Edge g'); repeat auto.
+Qed.
+
+Lemma forall_incl:
+  forall g (P P': V -> Prop),
+  (forall x, P x -> P' x) ->
+  Forall P g ->
+  Forall P' g.
+Proof.
   intros.
-  apply H.
-  apply in_cons.
+  unfold Forall in *.
+  apply Core.forall_incl with (P:=P); repeat auto.
+Qed.
+
+Lemma forall_inv:
+  forall (v:V) g (e:edge) P,
+  Forall P (e :: g) ->
+  Forall P g.
+Proof.
+  intros.
+  apply subgraph_forall with (g':= e :: g).
+  apply subgraph_incl.
+  apply incl_tl.
+  apply incl_refl.
   assumption.
 Qed.
 
@@ -413,6 +505,7 @@ Proof.
   intros.
   unfold AllOutgoing in *.
   unfold Forall in *.
+  unfold Core.Forall in *.
   intros.
   apply has_outgoing_rm_incl.
   apply rm_sources_in in H0.
@@ -443,6 +536,7 @@ Proof.
   unfold AllOutgoing in *.
   unfold AllIncoming.
   unfold Forall in *.
+  unfold Core.Forall in *.
   intros.
   apply rm_sources_has_incoming.
   assumption.
@@ -461,30 +555,31 @@ Proof.
   destruct H1.
   destruct x as (vi, vo).
   assert (vo_out: HasOutgoing g vo).
-  unfold AllOutgoing in H.
-  unfold Forall in H.
-  apply H.
-  unfold In.
-  exists (vi, vo).
-  intuition.
-  apply pair_in_right.
+  apply all_outgoing_in.
+  apply in_right with (v':=vi); auto.
+  assumption.
   (* eoa *)
   inversion vo_out.
   subst.
-  unfold Edge in *.
   exists v'.
-  unfold In.
-  exists (vo, v').
-  intuition.
-  unfold Edge.
-  rewrite filter_In.
-  intuition.
+  apply filter_vertex_in with (e:=(vo, v')); repeat auto.
+  apply pair_in_right.
   unfold fg.
   simpl.
   apply has_incoming_from_prop.
   apply has_incoming_def with (v':= vi).
-  unfold Edge. trivial.
-  apply pair_in_right.
+  apply edge_def; auto.
+Qed.
+
+Let subgraph_forall_filter:
+  forall P f g,
+  Forall P g ->
+  Forall P (filter f g).
+Proof.
+  intros.
+  apply subgraph_forall with (g':=g).
+  apply subgraph_filter.
+  assumption.
 Qed.
 
 Let rm_sources_nonempty':
@@ -498,18 +593,20 @@ Let rm_sources_nonempty':
 Proof.
   intros.
   unfold rm_sources in *.
-  remember (fun (g' : list (V * V)) (e : V * V) => has_incoming g' (fst e)) as fl.
-  functional induction (feedback_filter edge_eq_dec fl g).
+  remember (fun (g' : list (V * V)) (e : V * V) => has_incoming g' (fst e)) as fg.
+  functional induction (feedback_filter edge_eq_dec fg g).
   - auto.
   - unfold g' in *.
     rename l into g.
-    remember (feedback_filter (pair_eq_dec eq_dec) fl (filter (fl g) g)) as gf.
+    remember (feedback_filter (pair_eq_dec eq_dec) fg (filter (fg g) g)) as gf.
     apply IHl.
+    (* 1 *)
     unfold AllOutgoing.
     unfold Forall.
+    unfold Core.Forall.
     intros.
-    rewrite Heqfl.
-    rewrite Heqfl in H3.
+    rewrite Heqfg.
+    rewrite Heqfg in H3.
     unfold AllOutgoing in H.
     unfold Forall in H.
     inversion H3.
@@ -521,9 +618,12 @@ Proof.
     unfold In.
     exists x.
     auto.
-    rewrite Heqfl.
+    (* 2 *)
+    rewrite Heqfg.
     apply rm_filter_nonempty; repeat auto.
+    (* 3 *)
     assumption.
+    (* 4 *)
     assumption.
 Qed.
 
@@ -539,10 +639,8 @@ Proof.
       trivial.
     - destruct e.
       exists v.
-      unfold In.
-      exists (v, v0).
-      intuition.
-      apply pair_in_left.
+      apply in_left with (v':=v0).
+      apply edge_eq.
   + intros.
     intuition.
     destruct H.
@@ -624,7 +722,7 @@ Proof.
   apply all_incoming_in; repeat assumption.
   (* eoa*)
   inversion vi_in; subst.
-  apply edge_subgraph with (g':=((vi, vo) :: w)) in H5; repeat auto.
+  apply subgraph_edge with (g':=((vi, vo) :: w)) in H5; repeat auto.
   inversion H5.
   + inversion H6; subst; clear H6.
     exists ((v',v')::nil).
@@ -661,7 +759,7 @@ Proof.
   apply all_io_imp_cycle; repeat auto. (* eoa *)
   destruct cycle.
   exists x.
-  apply cycle_subgraph with (g:=g'); repeat auto.
+  apply subgraph_cycle with (g:=g'); repeat auto.
 Qed.
 
 End FGRAPHS.

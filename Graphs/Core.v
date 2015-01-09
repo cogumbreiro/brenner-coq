@@ -538,9 +538,9 @@ Notation edge := (A*A)%type.
 Definition subgraph (E E':edge -> Prop) :=
   forall e,
   E e ->
-  E' e.
+  E' e.  
 
-Lemma edge_subgraph:
+Lemma subgraph_edge:
   forall (E E':edge -> Prop) e,
   subgraph E E' ->
   E e ->
@@ -552,7 +552,20 @@ Proof.
   assumption.
 Qed.
 
-Lemma walk_subgraph:
+Lemma subgraph_in:
+  forall E E' (v:A),
+  subgraph E E' ->
+  In E v ->
+  In E' v.
+Proof.
+  intros.
+  inversion H0.
+  destruct H1.
+  apply (subgraph_edge E E') in H1; repeat auto.
+  apply in_def with (e:=x); repeat auto.
+Qed.
+
+Lemma subgraph_walk:
   forall (E E':edge -> Prop) w,
   subgraph E E' ->
   Walk E w ->
@@ -564,7 +577,7 @@ Proof.
   apply walk_to_forall; assumption.
   rewrite List.Forall_forall in *.
   intros.
-  apply edge_subgraph with (E:=E).
+  apply subgraph_edge with (E:=E).
   assumption.
   apply forall_w.
   assumption.
@@ -573,7 +586,7 @@ Proof.
   apply walk_to_connected with (Edge:=E); assumption.
 Qed.
 
-Lemma cycle_subgraph:
+Lemma subgraph_cycle:
   forall (E E':edge -> Prop) w,
   subgraph E E' ->
   Cycle E w ->
@@ -584,7 +597,7 @@ Proof.
   subst.
   apply cycle_def with (vn:=vn).
   assumption.
-  apply walk_subgraph with (E:=E); repeat auto.
+  apply subgraph_walk with (E:=E); repeat auto.
 Qed.
 
 Lemma walk_is_subgraph:
@@ -611,8 +624,38 @@ Proof.
   apply walk_is_subgraph in H1.
   assumption.
 Qed.
-  
-End SUBGRAPH.
 
+Definition Forall (E:edge -> Prop) (P: A -> Prop) := 
+  forall (v:A), In E v -> P v.
+
+Lemma subgraph_forall:
+  forall E E' P,
+  subgraph E E' ->
+  Forall E' P ->
+  Forall E P.
+Proof.
+  intros.
+  unfold Forall in *.
+  intros.
+  apply H0.
+  apply (subgraph_in E); repeat auto.
+Qed.
+
+Lemma forall_incl:
+  forall E (P P': A -> Prop),
+  (forall x, P x -> P' x) ->
+  Forall E P ->
+  Forall E P'.
+Proof.
+  intros.
+  unfold Forall in *.
+  intros.
+  apply H0 in H1.
+  apply H.
+  trivial.
+Qed.
+
+End SUBGRAPH.
+Implicit Arguments Forall.
 Implicit Arguments subgraph.
 

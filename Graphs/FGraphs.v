@@ -515,6 +515,134 @@ Qed.
 
 Definition AllIncoming g : Prop := Forall (fun v => HasIncoming g v) g.
 
+Fixpoint all_incoming (g:fgraph) v :=
+  match g with
+    | e :: g' =>
+      let res := all_incoming g' v in
+      if eq_dec (snd e) v
+      then e :: res
+      else res
+    | nil => nil
+  end.
+
+Lemma all_incoming_inv:
+  forall v1 v2 v g,
+  List.In (v1, v2) (all_incoming g v) ->
+  v2 = v.
+Proof.
+  intros.
+  induction g.
+  - simpl in H. inversion H.
+  - destruct a.
+    simpl in H.
+    destruct (eq_dec v3 v).
+    + subst.
+      inversion H.
+      * inversion H0.
+        trivial.
+      * apply IHg; assumption.
+    + apply IHg.
+      assumption.
+Qed.
+
+Lemma all_incoming_prop:
+  forall v v' g,
+  Edge g (v', v) ->
+  List.In (v', v) (all_incoming g v).
+Proof.
+  intros.
+  induction g.
+  - inversion H. (* absurd *)
+  - destruct a.
+    simpl.
+    destruct (eq_dec v1 v).
+    + subst.
+      destruct H.
+      * inversion H.
+        subst.
+        apply in_eq.
+      * apply IHg in H; clear IHg.
+        apply List.in_cons; assumption.
+    + apply IHg.
+      unfold Edge in *.
+      inversion H.
+      inversion H0.
+      subst.
+      contradiction n.
+      trivial.
+      assumption.
+Qed.
+
+Lemma all_incoming_from_prop:
+  forall e g v,
+  List.In e (all_incoming g v) ->
+  Edge g e.
+Proof.
+  intros.
+  induction g.
+  - simpl in H. inversion H.
+  - simpl in H.
+    unfold Edge.
+    destruct a.
+    simpl in H.
+    destruct (eq_dec v1 v).
+    + inversion H.
+      * inversion H0; subst.
+        apply List.in_eq.
+      * apply IHg in H0.
+        unfold Edge in H0.
+        apply List.in_cons.
+        assumption.
+    + apply IHg in H.
+      unfold Edge in H.
+      apply List.in_cons.
+      assumption.
+Qed.
+
+Lemma subgraph_all_incoming:
+  forall g v,
+  subgraph (all_incoming g v) g.
+Proof.
+  intros.
+  unfold subgraph.
+  unfold Core.subgraph.
+  intros.
+  unfold Edge in H.
+  apply all_incoming_from_prop with (v:=v).
+  assumption.
+Qed.
+
+Lemma has_incoming_neq_nil:
+  forall g v,
+  HasIncoming g v <->
+  all_incoming g v <> nil.
+Proof.
+  intros.
+  split.
+  + intros.
+    inversion H.
+    subst.
+    apply all_incoming_prop in H0.
+    remember (all_incoming g v).
+    destruct l.
+    - inversion H0.
+    - intuition.
+      inversion H1.
+  + intros.
+    remember (all_incoming g v) as g'.
+    destruct (in_inv_dec g').
+    - subst. contradiction H; trivial.
+    - rewrite Heqg' in e.
+      destruct e.
+      destruct x.
+      assert (Hx := H0).
+      apply all_incoming_inv in H0.
+      subst.
+      apply has_incoming_def with (v':=v0).
+      apply all_incoming_from_prop in Hx.
+      assumption.
+Qed.
+
 Lemma all_incoming_in:
   forall v g,
   In v g ->

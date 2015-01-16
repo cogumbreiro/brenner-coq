@@ -288,12 +288,56 @@ Proof.
       assumption.
 Qed.
 
+Definition StartsWith (w:walk) (v:A) :=
+  exists e' w', w = e' :: w' /\ fst e' = v.
+
+Definition EndsWith w (v:A) :=
+  exists e, End w e /\ snd e = v.
+
 Inductive Cycle: walk -> Prop :=
   cycle_def:
     forall v1 v2 vn w,
     End ((v1,v2) :: w) (vn, v1) ->
     Walk ((v1,v2) :: w) ->
     Cycle ((v1,v2) :: w).
+
+Lemma cycle_inv:
+  forall w,
+  Cycle w
+  ->
+  exists v,
+  StartsWith w v /\ EndsWith w v.
+Proof.
+  intros.
+  inversion H.
+  exists v1.
+  unfold StartsWith.
+  unfold EndsWith.
+  simpl.
+  intuition.
+  - exists (v1, v2).
+    exists w0.
+    auto.
+  - exists (vn, v1).
+    auto.
+Qed.
+
+Lemma cycle_def2:
+  forall w v,
+  StartsWith w v ->
+  EndsWith w v ->
+  Walk w ->
+  Cycle w.
+Proof.
+  intros.
+  destruct H as (e, (w', (x, y))).
+  destruct e.
+  destruct H0 as (e', (e_end, H0)).
+  destruct e'.
+  simpl in *.
+  subst.
+  apply cycle_def with (vn:=a1); repeat auto.
+Qed.
 
 Lemma walk1_to_cycle:
   forall v,

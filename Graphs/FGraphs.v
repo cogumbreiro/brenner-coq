@@ -178,6 +178,21 @@ Proof.
   apply Core.subgraph_walk with (E:=Edge g) (E':=Edge g'); repeat auto.
 Qed.
 
+Lemma walk_is_subgraph:
+  forall g w,
+  Walk (Edge g) w ->
+  subgraph w g.
+Proof.
+  intros.
+  unfold subgraph.
+  unfold Core.subgraph.
+  intros.
+  apply in_edge with (e:=e) in H.
+  assumption.
+  unfold Edge in *.
+  assumption.
+Qed.
+
 Lemma subgraph_cycle:
   forall (g g':fgraph) w,
   subgraph g g' ->
@@ -515,19 +530,20 @@ Qed.
 
 Definition AllIncoming g : Prop := Forall (fun v => HasIncoming g v) g.
 
-Fixpoint all_incoming (g:fgraph) v :=
+(* Returns all incoming edges *)
+Fixpoint get_incoming (g:fgraph) v : list edge :=
   match g with
     | e :: g' =>
-      let res := all_incoming g' v in
+      let res := get_incoming g' v in
       if eq_dec (snd e) v
       then e :: res
       else res
     | nil => nil
   end.
 
-Lemma all_incoming_inv:
+Lemma get_incoming_inv:
   forall v1 v2 v g,
-  List.In (v1, v2) (all_incoming g v) ->
+  List.In (v1, v2) (get_incoming g v) ->
   v2 = v.
 Proof.
   intros.
@@ -548,7 +564,7 @@ Qed.
 Lemma all_incoming_prop:
   forall v v' g,
   Edge g (v', v) ->
-  List.In (v', v) (all_incoming g v).
+  List.In (v', v) (get_incoming g v).
 Proof.
   intros.
   induction g.
@@ -575,7 +591,7 @@ Qed.
 
 Lemma all_incoming_from_prop:
   forall e g v,
-  List.In e (all_incoming g v) ->
+  List.In e (get_incoming g v) ->
   Edge g e.
 Proof.
   intros.
@@ -599,9 +615,9 @@ Proof.
       assumption.
 Qed.
 
-Lemma subgraph_all_incoming:
+Lemma subgraph_get_incoming:
   forall g v,
-  subgraph (all_incoming g v) g.
+  subgraph (get_incoming g v) g.
 Proof.
   intros.
   unfold subgraph.
@@ -615,7 +631,7 @@ Qed.
 Lemma has_incoming_neq_nil:
   forall g v,
   HasIncoming g v <->
-  all_incoming g v <> nil.
+  get_incoming g v <> nil.
 Proof.
   intros.
   split.
@@ -623,20 +639,22 @@ Proof.
     inversion H.
     subst.
     apply all_incoming_prop in H0.
-    remember (all_incoming g v).
+    remember (get_incoming g v).
     destruct l.
     - inversion H0.
     - intuition.
       inversion H1.
   + intros.
-    remember (all_incoming g v) as g'.
-    destruct (in_inv_dec g').
-    - subst. contradiction H; trivial.
-    - rewrite Heqg' in e.
-      destruct e.
-      destruct x.
+    remember (get_incoming g v) as g'.
+    destruct g'.
+    - contradiction H; trivial.
+    - assert (List.In e (get_incoming g v)).
+      rewrite <- Heqg';
+      apply in_eq.
+      (* eoa *)
       assert (Hx := H0).
-      apply all_incoming_inv in H0.
+      destruct e.
+      apply get_incoming_inv in H0.
       subst.
       apply has_incoming_def with (v':=v0).
       apply all_incoming_from_prop in Hx.
@@ -865,6 +883,334 @@ Proof.
     intuition.
     apply pair_in_right.
 Qed.
+
+Definition prepend (w:list edge) (g:fgraph) : option edge :=
+  match w with
+    | e :: _ => 
+      match (get_incoming g (fst e)) with
+        | e :: _ => Some e
+        | nil => None
+      end
+    | nil => None
+  end.
+
+Lemma prepend_walk:
+  forall g w e,
+  Walk (Edge g) w ->
+  prepend w g = Some e ->
+  Linked e w.
+Proof.
+  intros.
+  destruct w.
+  - unfold Linked. auto.
+  - simpl in H0.
+    destruct p.
+    simpl in *.
+    remember (get_incoming g v).
+    destruct l.
+    inversion H0.
+    destruct e0.
+    assert (List.In (v1, v2) (get_incoming g v)).
+    rewrite <- Heql. apply in_eq.
+    apply get_incoming_inv in H1.
+    destruct e.
+    inversion H0.
+    subst.
+    unfold Linked.
+    auto.
+Qed.
+
+Lemma prepend_edge:
+  forall g w e,
+  prepend w g = Some e ->
+  Edge g e \/ Edge w e.
+Proof.
+  intros.
+  unfold Edge.
+  destruct w.
+  - simpl in *.
+    destruct g.
+    * inversion H.
+    * inversion H; intuition; apply List.in_eq.
+  - simpl in *.
+    destruct e0.
+    simpl in *.
+    remember (get_incoming g v).
+    destruct l.
+    + inversion H.
+    + inversion H; subst; clear H.
+      assert (Edge (get_incoming g v) e).
+      assert (List.In e (get_incoming g v)).
+      rewrite <- Heql.
+      apply in_eq.
+      unfold Edge. assumption.
+      assert (List.In e g).
+      assert (Edge g e).
+      apply subgraph_edge with (g:=(get_incoming g v)).
+      apply subgraph_get_incoming.
+      assumption.
+      unfold Edge in H0; assumption.
+      intuition.
+Qed.
+
+Fixpoint cut (v:V) (w:list edge) :=
+  match w with
+    | nil => nil
+    | e :: w' =>
+      if eq_dec v (snd e)
+      then e :: nil
+      else e :: (cut v w')
+  end.
+
+Lemma cut_end:
+  forall v w,
+  HasIncoming w v ->
+  exists e, End (cut v w) e /\ (snd e) = v.
+Proof.
+  intros.
+  induction w.
+  - inversion H. inversion H0.
+  - inversion H.
+    subst.
+    unfold Edge in H0.
+    apply in_inv in H0.
+    destruct H0.
+    + destruct a.
+      inversion H0; subst; clear H0.
+      exists (v', v).
+      intuition.
+      simpl.
+      destruct (eq_dec v v).
+      * apply end_nil.
+      * assert (v = v); auto.
+        apply f in H0; inversion H0.
+    + assert (Hedge: Edge w (v', v)). unfold Edge; assumption.
+      apply has_incoming_def in Hedge.
+      apply IHw in Hedge.
+      destruct Hedge.
+      destruct H1.
+      simpl.
+      destruct (eq_dec v (snd a)).
+      * destruct x; destruct a.
+        simpl in *; subst.
+        exists (v2, v3).
+        simpl.
+        intuition.
+        apply end_nil.
+      * exists x.
+        intuition.
+        apply end_cons.
+        assumption.
+Qed.
+
+Lemma cut_is_linked:
+  forall a v w,
+  Linked a w ->
+  Linked a (cut v w).
+Proof.
+  intros.
+  induction w.
+  - auto.
+  - simpl.
+    destruct (eq_dec v (snd a0)).
+    + inversion H.
+      auto.
+    + auto.
+Qed.
+
+Lemma cut_is_walk:
+  forall g w v,
+  Walk (Edge g) w ->
+  Walk (Edge g) (cut v w).
+Proof.
+  intros.
+  induction w.
+  - simpl. assumption.
+  - inversion H.
+    subst.
+    apply IHw in H2.
+    simpl.
+    destruct (eq_dec v (snd a)).
+    + apply edge_to_walk.
+      assumption.
+    + apply walk_cons.
+      assumption.
+      assumption.
+      apply cut_is_linked.
+      auto.
+Qed.
+
+Definition sublen (p:(list edge * fgraph)) :=
+  let (w, g) := p in
+  length w - length g.
+
+Definition IsWalk p :=
+  Walk (Edge (snd p)) (fst p).
+
+Definition WalkOf := { p: (list edge * fgraph) | IsWalk p }.
+
+Lemma walk_of_cons:
+  forall e w g,
+  IsWalk (w, g) ->
+  prepend w g = Some e ->
+  IsWalk (e :: w, g).
+Proof.
+  intros.
+  intros.
+  unfold IsWalk in *.
+  simpl in *.
+  assert (Hx := H0).
+  apply prepend_walk in H0.
+  apply walk_cons; repeat auto.
+  apply prepend_edge in Hx.
+  destruct Hx.
+  - assumption.
+  - apply subgraph_edge with (g:=w).
+    apply walk_is_subgraph.
+    assumption.
+    assumption.
+  - assumption.
+Qed.
+
+Lemma walk_nil_absurd:
+  forall e w, 
+  Walk (Edge nil) (e::w) ->
+  False.
+Proof.
+  intros.
+  inversion H.
+  subst.
+  inversion H3.
+Qed.
+
+Section FIND_CYCLE.
+
+Variable g:fgraph.
+
+Definition lendiff (w:list edge) :=
+  length w - length g.
+
+Function find_cycle (w:list edge)
+  {measure lendiff } : option (list edge) :=
+  match prepend w g with
+    | Some e =>
+      let v0 := fst e in
+      if has_incoming w v0
+      then Some (cut v0 (e :: w))
+      else find_cycle (e :: w)
+    | None => None
+  end.
+Proof.
+  intros.
+Admitted.
+
+Lemma prepend_edge2:
+  forall w g e,
+  prepend w g = Some e ->
+  Walk (Edge g) w ->
+  Edge g e.
+Proof.
+  intros.
+  apply prepend_edge in H.
+  destruct H.
+  assumption.
+  apply walk_is_subgraph in H0.
+  apply subgraph_edge with (g:=w).
+  assumption.
+  assumption.
+Qed.
+
+Lemma find_cycle_walk:
+  forall w w',
+  Walk (Edge g) w ->
+  find_cycle w = Some w' ->
+  Walk (Edge g) w'.
+Proof.
+  intros.
+  functional induction (find_cycle w).
+  - inversion H0.
+    destruct e.
+    simpl.
+    clear H2 H0.
+    assert (Edge g (v, v0)).
+    apply prepend_edge2 in e0; repeat auto.
+    (* eoa *)
+    destruct (eq_dec v v0).
+    + subst.
+      apply edge_to_walk.
+      assumption.
+    + apply walk_cons.
+      apply cut_is_walk.
+      assumption.
+      assumption.
+      apply cut_is_linked.
+      apply prepend_walk with (g:=g).
+      assumption.
+      assumption.
+  - apply IHo.
+    apply walk_cons.
+    assumption.
+    apply prepend_edge2 in e0.
+    assumption.
+    assumption.
+      apply prepend_walk with (g:=g).
+    assumption.
+    assumption.
+    assumption.
+  - inversion H0.
+Qed.
+
+Lemma find_cycle_not_nil:
+  forall w w',
+  Walk (Edge g) w ->
+  find_cycle w = Some w' ->
+  exists v, StartsWith v w' /\ EndsWith v w'.
+Proof.
+
+
+Lemma find_cycle_not_nil:
+  forall w w',
+  Walk (Edge g) w ->
+  find_cycle w = Some w' ->
+  exists e' w'', w' = e' :: w''.
+Proof.
+  intros.
+  functional induction (find_cycle w).
+  - inversion H0; clear H0.
+    destruct e.
+    simpl.
+    destruct (eq_dec v v0).
+    + exists (v, v0).
+      exists nil.
+      trivial.
+    + exists (v, v0).
+      exists (cut v w).
+      trivial.
+  - apply IHo.
+    apply walk_cons.
+    assumption.
+    apply prepend_edge2 in e0; repeat auto.
+    apply prepend_walk with (g:=g); repeat auto.
+    assumption.
+  - inversion H0.
+Qed.
+  
+
+Lemma find_cycle_spec:
+  forall w w',
+  Walk (Edge g) w ->
+  find_cycle w = Some w' ->
+  Cycle (Edge g) w'.
+Proof.
+  intros.
+  apply find_cycle_not_nil in H0.
+  destruct H0 as (e', (w'', w'_eq)).
+  subst.
+  destruct e'.
+  apply cycle_def.
+Qed.  
+
+End FIND_CYCLE.
 
 (** This is what we want to prove: *)
 Axiom all_io_imp_cycle:

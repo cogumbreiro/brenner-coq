@@ -1040,6 +1040,17 @@ Proof.
       auto.
 Qed.
 
+Lemma cut_ends_with:
+  forall v w,
+  HasIncoming w v ->
+  EndsWith (cut v w) v.
+Proof.
+  intros.
+  apply cut_end in H.
+  unfold EndsWith.
+  assumption.
+Qed.
+
 Definition sublen (p:(list edge * fgraph)) :=
   let (w, g) := p in
   length w - length g.
@@ -1160,41 +1171,50 @@ Proof.
   - inversion H0.
 Qed.
 
-Lemma find_cycle_not_nil:
+Lemma find_cycle_tips:
   forall w w',
   Walk (Edge g) w ->
   find_cycle w = Some w' ->
-  exists v, StartsWith v w' /\ EndsWith v w'.
-Proof.
-
-
-Lemma find_cycle_not_nil:
-  forall w w',
-  Walk (Edge g) w ->
-  find_cycle w = Some w' ->
-  exists e' w'', w' = e' :: w''.
+  exists (v:V), StartsWith w' v /\ EndsWith w' v.
 Proof.
   intros.
   functional induction (find_cycle w).
-  - inversion H0; clear H0.
-    destruct e.
-    simpl.
-    destruct (eq_dec v v0).
-    + exists (v, v0).
-      exists nil.
-      trivial.
-    + exists (v, v0).
-      exists (cut v w).
-      trivial.
-  - apply IHo.
-    apply walk_cons.
-    assumption.
-    apply prepend_edge2 in e0; repeat auto.
-    apply prepend_walk with (g:=g); repeat auto.
-    assumption.
   - inversion H0.
+    rewrite H2.
+    exists (fst e).
+    destruct e.
+    simpl in *.
+    destruct (eq_dec v v0).
+    + simpl in *. subst.
+      intuition.
+      * exists (v0, v0).
+        exists nil.
+        auto.
+      * unfold EndsWith.
+        exists (v0, v0).
+        intuition.
+        apply end_nil.
+    + intuition.
+      * unfold StartsWith.
+        exists (v, v0).
+        exists (cut v w).
+        auto.
+      * (* unfold EndsWith.*)
+        destruct w'.
+        inversion H2.
+        inversion H2.
+        apply has_incoming_prop in e1.
+        apply cut_ends_with in e1.
+        apply (ends_with_cons (Edge g)).
+        auto.
+   - apply IHo.
+     apply walk_cons.
+     assumption.
+     apply prepend_edge2 in e0; repeat auto.
+     apply prepend_walk with (g:=g); repeat auto.
+     assumption.
+   - inversion H0.
 Qed.
-  
 
 Lemma find_cycle_spec:
   forall w w',
@@ -1203,13 +1223,54 @@ Lemma find_cycle_spec:
   Cycle (Edge g) w'.
 Proof.
   intros.
-  apply find_cycle_not_nil in H0.
-  destruct H0 as (e', (w'', w'_eq)).
-  subst.
-  destruct e'.
-  apply cycle_def.
-Qed.  
+  assert (Hx:= H0).
+  apply find_cycle_walk in H0.
+  apply find_cycle_tips in Hx.
+  destruct Hx.
+  apply cycle_def2 with (v:=x).
+  intuition.
+  intuition.
+  intuition.
+  intuition.
+  intuition.
+Qed.
 
+Lemma find_cycle_total:
+  forall (w:list edge),
+  AllIncoming g ->
+  g <> nil ->
+  w <> nil ->
+  Walk (Edge g) w ->
+  exists w', find_cycle w = Some w'.
+Proof.
+  intros.
+  functional induction (find_cycle w).
+  - exists (cut (fst e) (e :: w)).
+    trivial.
+  - apply IHo. intuition. inversion H3.
+     apply walk_cons.
+     assumption.
+     apply prepend_edge2 in e0; repeat auto.
+     apply prepend_walk with (g:=g); repeat auto.
+  - destruct w.
+    contradiction H1; trivial.
+    simpl in e.
+    remember (get_incoming g (fst e0)).
+    inversion H2.
+    subst.
+    apply all_incoming_in with (v:=fst e0) in H.
+    rewrite has_incoming_neq_nil in H.
+    remember (get_incoming g (fst e0)).
+    destruct l. contradiction H; trivial.
+    inversion e.
+    unfold In.
+    unfold Core.In.
+    exists e0.
+    destruct e0.
+    intuition.
+    simpl.
+    apply pair_in_left.
+Qed.
 End FIND_CYCLE.
 
 (** This is what we want to prove: *)

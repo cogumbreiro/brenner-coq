@@ -294,6 +294,20 @@ Definition StartsWith (w:walk) (v:A) :=
 Definition EndsWith w (v:A) :=
   exists e, End w e /\ snd e = v.
 
+Lemma ends_with_cons:
+  forall w v e,
+  EndsWith w v ->
+  EndsWith (e :: w) v.
+Proof.
+  intros.
+  unfold EndsWith in *.
+  destruct H as (e', (H,H1)).
+  exists e'.
+  intuition.
+  apply end_cons.
+  assumption.
+Qed.
+
 Inductive Cycle: walk -> Prop :=
   cycle_def:
     forall v1 v2 vn w,
@@ -303,10 +317,9 @@ Inductive Cycle: walk -> Prop :=
 
 Lemma cycle_inv:
   forall w,
-  Cycle w
-  ->
+  Cycle w ->
   exists v,
-  StartsWith w v /\ EndsWith w v.
+  StartsWith w v /\ EndsWith w v /\ Walk w.
 Proof.
   intros.
   inversion H.
@@ -569,8 +582,9 @@ Implicit Arguments Connected.
 Implicit Arguments End.
 Implicit Arguments In.
 Implicit Arguments cycle_def.
-
-
+Implicit Arguments StartsWith.
+Implicit Arguments EndsWith.
+Implicit Arguments ends_with_cons.
 
 (** Subgraph relation *)
 

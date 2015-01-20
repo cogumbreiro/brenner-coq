@@ -1,3 +1,5 @@
+Set Implicit Arguments.
+
 Require Import Lists.ListSet.
 Require Import Lists.List.
 Require Import Coq.Sorting.Permutation.
@@ -14,6 +16,8 @@ Fixpoint as_set (l:list A) :=
       else x :: (as_set l')
     | nil => nil
   end.
+
+Definition set_length (l:list A) := length (as_set l).
 
 Lemma as_set_simpl:
   forall a l,
@@ -248,5 +252,44 @@ Proof.
   apply NoDup_Permutation; repeat auto.
   apply Permutation_length ; repeat auto.
 Qed.
+
+Lemma no_dup_set_length_le:
+  forall l1 l2,
+  NoDup l1 ->
+  NoDup l2 ->
+  incl l1 l2 ->
+  set_length l1 <= set_length l2. 
+Proof.
+  intros.
+  unfold set_length.
+  induction l1.
+  - auto with *.
+  - assert (length (as_set l1) <= length (as_set l2)).
+    apply IHl1.
+    inversion H; assumption.
+    apply incl_strengthten with (a:=a); assumption.
+Admitted.
+
+Lemma set_length_le:
+  forall l1 l2,
+  incl l1 l2 ->
+  set_length l1 <= set_length l2. 
+Proof.
+  intros.
+Admitted.
+
+Lemma set_length_succ:
+  forall a l,
+  ~ In a l ->
+  set_length (a :: l) = S (set_length l).
+Admitted.
+
+Lemma set_length_minus:
+  forall a l1 l2,
+  ~ In a l1 ->
+  incl l1 l2 ->
+  set_length l2 - set_length (a :: l1) <
+  set_length l2 - set_length l1.
+Admitted.
 
 End LISTS.

@@ -4,6 +4,12 @@ Require Import Graphs.Core.
 Require Import PairUtil.
 Require Import ListUtil.
 Require Import Bool.
+
+Notation "'Sig_no'" := (False_rec _ _) (at level 42).
+Notation "'Sig_yes' e" := (exist _ e _) (at level 42).
+Notation "'Sig_take' e" :=
+  (match e with Sig_yes ex => ex end) (at level 42).
+
 Section FGRAPHS.
 
 Variable V:Type.
@@ -122,16 +128,23 @@ Definition subgraph g g' := Core.subgraph (Edge g) (Edge g').
 
 Lemma subgraph_incl:
   forall g g',
-  incl g g' ->
+  incl g g' <->
   subgraph g g'.
 Proof.
-  intros.
-  unfold subgraph.
-  unfold Core.subgraph.
-  intros.
-  unfold Edge in *.
-  unfold incl in *.
-  apply H; auto.
+  split.
+  - intros.
+    unfold subgraph.
+    unfold Core.subgraph.
+    intros.
+    unfold Edge in *.
+    unfold incl in *.
+    apply H; auto.
+  - intros.
+    unfold subgraph in *.
+    unfold Core.subgraph in *.
+    unfold Edge in *.
+    unfold incl.
+    assumption.
 Qed.
 
 Lemma subgraph_filter:
@@ -301,6 +314,19 @@ Proof.
   assumption.
   - simpl. destruct (eq_dec v v). auto. contradiction n.
     trivial.
+Qed.
+
+Lemma has_incoming_in_snd:
+  forall e w,
+  List.In e w ->
+  HasIncoming w (snd e).
+Proof.
+  intros.
+  destruct e.
+  simpl.
+  apply has_incoming_def with (v':=v).
+  unfold Edge.
+  assumption.
 Qed.
 
 Let edge_eq_dec := pair_eq_dec eq_dec.
@@ -837,7 +863,7 @@ Qed.
 
 
 (*****************)
-
+(*
 Axiom walk_to_cycle:
   forall e w g,
   Walk (Edge g) w ->
@@ -845,7 +871,8 @@ Axiom walk_to_cycle:
   Edge g e ->
   In (fst e) w ->
   exists w', subgraph w' w /\ Cycle (Edge g) w'.
-
+*)
+(*
 Lemma fill_walk:
   forall e w g,
   AllIncoming g ->
@@ -883,7 +910,7 @@ Proof.
     intuition.
     apply pair_in_right.
 Qed.
-
+*)
 Definition prepend (w:list edge) (g:fgraph) : option edge :=
   match w with
     | e :: _ => 
@@ -894,6 +921,21 @@ Definition prepend (w:list edge) (g:fgraph) : option edge :=
     | nil => None
   end.
 
+Lemma prepend_not_in_self:
+  forall w g e,
+  prepend w g = Some e ->
+  ~ List.In e w.
+Proof.
+  intros.
+  destruct w.
+  - inversion H.
+  - simpl in H.
+    remember (get_incoming g (fst e0)).
+    destruct l.
+    + inversion H.
+    + inversion H.
+      subst.
+Admitted.
 Lemma prepend_walk:
   forall g w e,
   Walk (Edge g) w ->
@@ -962,10 +1004,54 @@ Fixpoint cut (v:V) (w:list edge) :=
       else e :: (cut v w')
   end.
 
-Lemma cut_end:
+Lemma starts_with_cons_inv:
+  forall e w (v:V),
+  StartsWith (e :: w) v ->
+  fst e = v.
+Proof.
+  intros.
+  destruct H.
+  destruct H as (w', (H1, H2)).
+  inversion H1.
+  auto.
+Qed.
+
+Lemma starts_with_cons:
+  forall e w (v:V),
+  fst e = v ->
+  StartsWith (e :: w) v.
+Proof.
+  intros.
+  unfold StartsWith.
+  exists e.
+  exists w.
+  intuition.
+Qed.
+
+Lemma cut_starts_with:
+  forall v v' w,
+  StartsWith w v ->
+  StartsWith (cut v' w) v.
+Proof.
+  intros.
+  destruct w.
+  - destruct H.
+    destruct H.
+    destruct H.
+    inversion H.
+  - simpl.
+    (*unfold StartsWith.*)
+    destruct (eq_dec v' (snd p)).
+    + apply starts_with_cons_inv in H.
+      apply starts_with_cons; repeat auto.
+    + apply starts_with_cons_inv in H.
+      apply starts_with_cons; repeat auto.
+Qed.
+
+Lemma cut_ends_with:
   forall v w,
   HasIncoming w v ->
-  exists e, End (cut v w) e /\ (snd e) = v.
+  EndsWith (cut v w) v.
 Proof.
   intros.
   induction w.
@@ -1040,79 +1126,28 @@ Proof.
       auto.
 Qed.
 
-Lemma cut_ends_with:
-  forall v w,
-  HasIncoming w v ->
-  EndsWith (cut v w) v.
-Proof.
-  intros.
-  apply cut_end in H.
-  unfold EndsWith.
-  assumption.
-Qed.
-
 Definition sublen (p:(list edge * fgraph)) :=
   let (w, g) := p in
   length w - length g.
-
-Definition IsWalk p :=
-  Walk (Edge (snd p)) (fst p).
-
-Definition WalkOf := { p: (list edge * fgraph) | IsWalk p }.
-
-Lemma walk_of_cons:
-  forall e w g,
-  IsWalk (w, g) ->
-  prepend w g = Some e ->
-  IsWalk (e :: w, g).
-Proof.
-  intros.
-  intros.
-  unfold IsWalk in *.
-  simpl in *.
-  assert (Hx := H0).
-  apply prepend_walk in H0.
-  apply walk_cons; repeat auto.
-  apply prepend_edge in Hx.
-  destruct Hx.
-  - assumption.
-  - apply subgraph_edge with (g:=w).
-    apply walk_is_subgraph.
-    assumption.
-    assumption.
-  - assumption.
-Qed.
-
-Lemma walk_nil_absurd:
-  forall e w, 
-  Walk (Edge nil) (e::w) ->
-  False.
-Proof.
-  intros.
-  inversion H.
-  subst.
-  inversion H3.
-Qed.
 
 Section FIND_CYCLE.
 
 Variable g:fgraph.
 
-Definition lendiff (w:list edge) :=
-  length w - length g.
+Require Import ListSetUtil.
 
-Function find_cycle (w:list edge)
-  {measure lendiff } : option (list edge) :=
-  match prepend w g with
-    | Some e =>
-      let v0 := fst e in
-      if has_incoming w v0
-      then Some (cut v0 (e :: w))
-      else find_cycle (e :: w)
-    | None => None
-  end.
+Set Implicit Arguments.
+
+Definition IsWalkOf w := Walk (Edge g) w /\ NoDup w.
+
+Definition WalkOf := { w : list edge | Walk (Edge g) w /\ NoDup w /\ w <> nil}.
+
+Lemma subgraph_cons_l:
+  forall e g g',
+  List.In e g' ->
+  subgraph g g' ->
+  subgraph (e::g) g'.
 Proof.
-  intros.
 Admitted.
 
 Lemma prepend_edge2:
@@ -1131,157 +1166,259 @@ Proof.
   assumption.
 Qed.
 
-Lemma find_cycle_walk:
-  forall w w',
-  Walk (Edge g) w ->
-  find_cycle w = Some w' ->
-  Walk (Edge g) w'.
+Lemma prepend_edge3:
+  forall w g e,
+  prepend w g = Some e ->
+  subgraph w g ->
+  List.In e g.
 Proof.
   intros.
-  functional induction (find_cycle w).
-  - inversion H0.
-    destruct e.
-    simpl.
-    clear H2 H0.
-    assert (Edge g (v, v0)).
-    apply prepend_edge2 in e0; repeat auto.
-    (* eoa *)
-    destruct (eq_dec v v0).
-    + subst.
-      apply edge_to_walk.
-      assumption.
-    + apply walk_cons.
-      apply cut_is_walk.
-      assumption.
-      assumption.
-      apply cut_is_linked.
-      apply prepend_walk with (g:=g).
-      assumption.
-      assumption.
-  - apply IHo.
-    apply walk_cons.
+  apply prepend_edge in H.
+  unfold Edge in *.
+  destruct H.
+  - assumption.
+  - unfold subgraph in *.
+    unfold Core.subgraph in *.
+    unfold Edge in *.
+    apply H0.
     assumption.
-    apply prepend_edge2 in e0.
-    assumption.
-    assumption.
-      apply prepend_walk with (g:=g).
-    assumption.
-    assumption.
-    assumption.
-  - inversion H0.
 Qed.
 
-Lemma find_cycle_tips:
-  forall w w',
-  Walk (Edge g) w ->
-  find_cycle w = Some w' ->
-  exists (v:V), StartsWith w' v /\ EndsWith w' v.
+Definition ConsOf (w:list edge) := {e: edge | Walk (Edge g) (e :: w) }.
+
+Definition CycleOf := { c:list edge | Cycle (Edge g) c}.
+
+Definition BuildCycle w := { v: V | HasIncoming w v /\ StartsWith w v }.
+
+Lemma choose_option:
+  forall {A} (o:option A),
+  sum {x | o = Some x} {_:option A | o = None} .
 Proof.
   intros.
-  functional induction (find_cycle w).
-  - inversion H0.
-    rewrite H2.
-    exists (fst e).
-    destruct e.
-    simpl in *.
-    destruct (eq_dec v v0).
-    + simpl in *. subst.
-      intuition.
-      * exists (v0, v0).
-        exists nil.
-        auto.
-      * unfold EndsWith.
-        exists (v0, v0).
-        intuition.
-        apply end_nil.
-    + intuition.
-      * unfold StartsWith.
-        exists (v, v0).
-        exists (cut v w).
-        auto.
-      * (* unfold EndsWith.*)
-        destruct w'.
-        inversion H2.
-        inversion H2.
-        apply has_incoming_prop in e1.
-        apply cut_ends_with in e1.
-        apply (ends_with_cons (Edge g)).
-        auto.
-   - apply IHo.
-     apply walk_cons.
-     assumption.
-     apply prepend_edge2 in e0; repeat auto.
-     apply prepend_walk with (g:=g); repeat auto.
-     assumption.
-   - inversion H0.
+  destruct o.
+  - refine (inl (Sig_yes a)).
+    auto.
+  - refine (inr (Sig_yes None)).
+    auto.
+Defined.
+
+Lemma choose_prepend:
+  forall w,
+  option {e | prepend w g = Some e}.
+Proof.
+  intros.
+  remember (prepend w g).
+  destruct o.
+  - refine (Some (Sig_yes e)).
+    auto.
+  - refine None.
+Defined.
+
+
+Lemma next_edge_ok:
+  forall (w:WalkOf) (e:{e | prepend (Sig_take w) g = Some e}),
+  ConsOf (Sig_take w).
+Proof.
+  intros.
+  destruct e as (e, H).
+  destruct w as (w, (H1, (H2, H3))).
+  refine (Sig_yes e).
+  apply walk_cons.
+  auto.
+  intuition.
+  apply prepend_edge2 with (w:=w).
+  auto.
+  intuition.
+  apply prepend_walk with (g:=g).
+  intuition.
+  auto.
+Defined.
+
+Definition next_edge (w:WalkOf) : option (ConsOf (Sig_take w)) :=
+  match choose_option (prepend (Sig_take w) g) with
+    | inl e => Some (next_edge_ok w e)
+    | inr _ => None
+  end.
+
+Lemma next_edge_nil_inv:
+  forall w,
+  next_edge w = None ->
+  prepend (Sig_take w) g = None.
+Proof.
+  intros.
+  destruct w.
+  unfold next_edge in H.
+  remember (choose_option (prepend x g)).
+  destruct s.
+  + inversion H.
+  + destruct s.
+    assumption.
 Qed.
 
-Lemma find_cycle_spec:
-  forall w w',
-  Walk (Edge g) w ->
-  find_cycle w = Some w' ->
-  Cycle (Edge g) w'.
+Lemma starts_with_linked:
+  forall (e:edge) w,
+  w <> nil ->
+  Linked e w ->
+  StartsWith w (snd e).
 Proof.
   intros.
-  assert (Hx:= H0).
-  apply find_cycle_walk in H0.
-  apply find_cycle_tips in Hx.
-  destruct Hx.
-  apply cycle_def2 with (v:=x).
-  intuition.
-  intuition.
-  intuition.
-  intuition.
-  intuition.
+  destruct e.
+  compute in H.
+  destruct w.
+  destruct H. trivial.
+  destruct p.
+  compute in H0.
+  simpl.
+  subst.
+  apply starts_with_cons.
+  auto.
 Qed.
+
+Definition try_prepend: forall (w:WalkOf) (e:ConsOf (Sig_take w)),
+ sum WalkOf (BuildCycle (Sig_take w)).
+Proof.
+  intros.
+  destruct e as (e, H).
+  destruct w as (w, (H1, (H2,H3))).
+  destruct (in_dec edge_eq_dec e w).
+  - refine (inr (Sig_yes (snd e))).
+    split.
+    + apply has_incoming_in_snd.
+      assumption.
+    + inversion H; subst.
+      destruct e.
+      destruct w.
+      inversion i.
+      apply starts_with_linked.
+      * intuition.
+      * assumption.
+  - refine (inl (Sig_yes (e :: w))).
+    intuition.
+    apply NoDup_cons; repeat auto.
+    inversion H0.
+Defined.
+
+Definition lendiff (w:WalkOf) :=
+  set_length edge_eq_dec g - set_length edge_eq_dec (Sig_take w).
+
+Definition build_cycle: forall (w:WalkOf) (v:BuildCycle (Sig_take w)), CycleOf.
+Proof.
+  intros.
+  destruct w as (w, (H1, H2)).
+  destruct v as (v, (H3, H4)). 
+  refine (Sig_yes (cut v w)).
+  apply cycle_def2 with (v:=v).
+  apply cut_starts_with; assumption.
+  apply cut_ends_with; assumption.
+  apply cut_is_walk; repeat auto.
+Defined.
+
+Function find_cycle (w:WalkOf)
+  {measure lendiff } : option CycleOf :=
+  match next_edge w with
+    | Some e =>
+      match try_prepend w e with
+        | inr v => Some (build_cycle w v)
+        | inl w' => find_cycle w'
+      end
+    | None => None
+  end.
+Proof.
+  intros.
+  simpl in *.
+  destruct e.
+  destruct w.
+  destruct x.
+  simpl in *.
+  destruct a.
+  destruct (in_dec edge_eq_dec (v, v0)).
+  + destruct a; inversion teq0. (* absurd *)
+  + destruct a; inversion teq0.
+    destruct w'.
+    inversion H0.
+    unfold lendiff.
+    destruct a.
+    apply set_length_minus; repeat auto.
+    assert (subgraph x g).
+    apply walk_is_subgraph; auto.
+    apply subgraph_incl.
+    subst.
+    rewrite <- subgraph_incl in *.
+    unfold incl in *.
+    intros.
+    apply H.
+    apply List.in_cons.
+    assumption.
+Defined.
 
 Lemma find_cycle_total:
-  forall (w:list edge),
+  forall (w:WalkOf),
   AllIncoming g ->
   g <> nil ->
-  w <> nil ->
-  Walk (Edge g) w ->
   exists w', find_cycle w = Some w'.
 Proof.
   intros.
   functional induction (find_cycle w).
-  - exists (cut (fst e) (e :: w)).
-    trivial.
-  - apply IHo. intuition. inversion H3.
-     apply walk_cons.
-     assumption.
-     apply prepend_edge2 in e0; repeat auto.
-     apply prepend_walk with (g:=g); repeat auto.
-  - destruct w.
-    contradiction H1; trivial.
+  - destruct w as (w, (Hw1, (Hw2, Hw3))).
+    destruct v as (v, (Hb1, Hb2)).
+    eauto.
+  - apply IHo.
+  - apply next_edge_nil_inv in e.
+    destruct w as (w, (Hw1, (Hw2, Hw3))).
+    destruct w.
+    contradiction Hw3; trivial. (* absurd *)
     simpl in e.
     remember (get_incoming g (fst e0)).
-    inversion H2.
-    subst.
+    destruct l.
+    + 
     apply all_incoming_in with (v:=fst e0) in H.
     rewrite has_incoming_neq_nil in H.
-    remember (get_incoming g (fst e0)).
-    destruct l. contradiction H; trivial.
-    inversion e.
+    contradiction H; auto.
     unfold In.
     unfold Core.In.
     exists e0.
     destruct e0.
     intuition.
-    simpl.
-    apply pair_in_left.
+    * inversion Hw1.
+      subst.
+      auto.
+    * apply pair_in_left.
+  + inversion e.
 Qed.
+
 End FIND_CYCLE.
 
-(** This is what we want to prove: *)
-Axiom all_io_imp_cycle:
-  forall g,
-  g <> nil ->
+Theorem all_incoming_imp_cycle:
+  forall g (w:list edge),
   AllIncoming g ->
-  AllOutgoing g ->
+  g <> nil ->
   exists w, Cycle (Edge g) w.
+Proof.
+  intros.
+  destruct g.
+  contradiction H0; trivial.
+  assert (Walk (Edge (e::g)) (e::nil)).
+  assert (Edge (e::g) e).
+  apply edge_eq.
+  apply edge_to_walk.
+  assumption.
+  assert (w':WalkOf (e::g)).
+  refine (Sig_yes (e::nil)).
+  intuition.
+  apply NoDup_cons.
+  auto.
+  apply NoDup_nil.
+  inversion H2.
+  (* eoa *)
+  assert (exists c, find_cycle w' = Some c).
+  apply find_cycle_total; repeat auto.
+  destruct H2.
+  destruct x.
+  exists x.
+  assumption.
+Qed.
 
-Corollary all_pos_odegree_impl_cycle:
+Theorem all_pos_odegree_impl_cycle:
   forall g,
   g <> nil ->
   AllOutgoing g ->
@@ -1290,11 +1427,10 @@ Proof.
   intros.
   destruct (exists_has_incoming _ H0 H) as
   (g', (H1, (H2, (H3, H4)))).
-  assert (cycle: exists w, Cycle (Edge g') w).
-  apply all_io_imp_cycle; repeat auto. (* eoa *)
-  destruct cycle.
+  apply all_incoming_imp_cycle in H3; repeat auto.
+  destruct H3.
   exists x.
-  apply subgraph_cycle with (g:=g'); repeat auto.
+  apply subgraph_cycle with (g':=g) in H3; repeat auto.
 Qed.
 
 End FGRAPHS.
@@ -1304,4 +1440,3 @@ Implicit Arguments In.
 Implicit Arguments subgraph.
 Implicit Arguments HasIncoming.
 Implicit Arguments HasOutgoing.
-

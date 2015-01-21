@@ -1306,7 +1306,7 @@ Qed.
 
 End FIND_CYCLE.
 
-Theorem all_incoming_imp_cycle:
+Theorem all_pos_idegree_impl_cycle:
   forall g (w:list edge),
   AllIncoming g ->
   g <> nil ->
@@ -1345,7 +1345,7 @@ Proof.
   intros.
   destruct (exists_has_incoming _ H0 H) as
   (g', (H1, (H2, (H3, H4)))).
-  apply all_incoming_imp_cycle in H3; repeat auto.
+  apply all_pos_idegree_impl_cycle in H3; repeat auto.
   destruct H3.
   exists x.
   apply subgraph_cycle with (g':=g) in H3; repeat auto.

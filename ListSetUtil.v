@@ -126,6 +126,27 @@ Proof.
       assumption.
 Qed.
 
+Lemma as_set_no_dup_simpl:
+  forall l,
+  NoDup l ->
+  as_set l = l.
+Proof.
+  intros.
+  induction l.
+  - auto.
+  - simpl.
+    inversion H; subst.
+    remember (set_mem eq_dec a l).
+    destruct b.
+    + symmetry in Heqb.
+      apply (set_mem_complete2 eq_dec)  in H2.
+      rewrite H2 in Heqb.
+      inversion Heqb.
+    + apply IHl in H3.
+      rewrite H3.
+      auto.
+Qed.
+      
 Let incl_nil_nil:
   @incl A nil nil.
 Proof.
@@ -253,22 +274,132 @@ Proof.
   apply Permutation_length ; repeat auto.
 Qed.
 
-Lemma no_dup_set_length_le:
-  forall l1 l2,
+Lemma NoDup_remove_3:
+  forall (A : Type) (l l' : list A) (a : A),
+  NoDup (l ++ a :: l') -> ~ In a l.
+Proof.
+  intros.
+  induction l.
+  - intuition.
+  - simpl in *.
+    intuition.
+    subst.
+    + inversion H.
+      subst.
+      rewrite in_app_iff in H2.
+      intuition.
+    + apply IHl.
+      * inversion H.
+        assumption.
+      * assumption.
+Qed.
+
+Lemma NoDup_app:
+  forall (A : Type) (l l' : list A),
+  NoDup (l ++ l') ->
+  NoDup l /\ NoDup l'.
+Proof.
+  intros.
+  induction l.
+  - simpl in H.
+    intuition.
+    apply NoDup_nil.
+  - simpl in *.
+    inversion H.
+    subst.
+    apply IHl in H3.
+    clear IHl.
+    destruct H3.
+    intuition.
+    apply NoDup_cons.
+    + intuition.
+    + assumption.
+Qed.
+
+Lemma NoDup_rewrite:
+  forall (A : Type) (l l' : list A) (a : A),
+  NoDup (l ++ a :: l') -> 
+  NoDup (a :: (l ++ l')).
+Proof.
+  intros.
+  assert (Hx := H).
+  apply NoDup_remove_1 in H.
+  apply NoDup_remove_2 in Hx.
+  apply NoDup_cons; repeat auto.
+Qed.  
+
+Lemma incl_remove_1:
+  forall l1 ll (a:A) lr,
+  incl l1 (ll ++ a :: lr) ->
+  ~ In a l1 ->
+  incl l1 (ll ++ lr).
+Proof.
+  intros.
+  unfold incl.
+  intros.
+  destruct (eq_dec a0 a).
+  - subst; contradiction H0.
+  - unfold incl in H.
+    apply H in H1.
+    rewrite in_app_iff in *.
+    destruct H1.
+    * auto.
+    * inversion H1.
+      intuition.
+      symmetry in H2; apply n in H2; inversion H2. (* absurd *)
+      auto.
+Qed.
+
+Lemma length_app:
+  forall l (a:A) r,
+  length (l ++ a :: r) = length (a :: (l ++ r)).
+Proof.
+  intros.
+  induction l.
+  - auto.
+  - simpl in *.
+    rewrite IHl.
+    auto.
+Qed.
+
+Lemma no_dup_length_le:
+  forall (l1:list A) l2,
   NoDup l1 ->
   NoDup l2 ->
   incl l1 l2 ->
-  set_length l1 <= set_length l2. 
+  length l1 <= length l2.
 Proof.
   intros.
-  unfold set_length.
+  generalize H0; clear H0.
+  generalize H1; clear H1.
+  generalize l2.
   induction l1.
-  - auto with *.
-  - assert (length (as_set l1) <= length (as_set l2)).
+  - intros. auto with *.
+  - intros.
+    assert (In a l0).
+    unfold incl in H1.
+    apply H1.
+    apply in_eq.
+    apply in_split in H2.
+    destruct H2 as (ll, (lr, Heq)).
+    rewrite Heq.
+    assert (length l1 <= length (ll ++ lr)).
     apply IHl1.
-    inversion H; assumption.
-    apply incl_strengthten with (a:=a); assumption.
-Admitted.
+    + inversion H.
+      assumption.
+    + subst.
+      apply incl_strengthten in H1.
+      apply incl_remove_1 in H1; repeat auto.
+      inversion H.
+      assumption.
+    + subst.
+      apply NoDup_remove_1 with (a:=a);
+      assumption.
+    + rewrite length_app.
+      simpl.
+      apply Le.le_n_S.
+      assumption.
+Qed.
 
 Lemma set_length_le:
   forall l1 l2,
@@ -276,20 +407,99 @@ Lemma set_length_le:
   set_length l1 <= set_length l2. 
 Proof.
   intros.
-Admitted.
+  assert (NoDup (as_set l1)).
+  apply as_set_no_dup.
+  assert (NoDup (as_set l2)).
+  apply as_set_no_dup.
+  unfold set_length.
+  remember (as_set l1) as l1'.
+  remember (as_set l2) as l2'.
+  apply no_dup_length_le.
+  auto.
+  auto.
+  subst.
+  assert (incl (as_set l1) l1).
+  apply as_set_def2.
+  assert (incl l2 (as_set l2)).
+  apply as_set_def1.
+  assert (incl (as_set l1) l2).
+  apply incl_tran with (m:=l1); repeat auto.
+  apply incl_tran with (m:=l2); repeat auto.
+Qed.
 
 Lemma set_length_succ:
   forall a l,
   ~ In a l ->
   set_length (a :: l) = S (set_length l).
-Admitted.
+Proof.
+  intros.
+  unfold set_length.
+  simpl.
+  remember (set_mem eq_dec a l).
+  destruct b.
+  - symmetry in Heqb.
+    apply set_mem_correct1 in Heqb.
+    contradiction Heqb.
+  - auto.
+Qed.
+
+Lemma minus_lt_0:
+  forall n m,
+  n < m ->
+  n - m = 0.
+Proof.
+  induction n.
+  - auto.
+  - intros.
+    destruct m.
+    + inversion H.
+    + apply IHn.
+      apply Lt.lt_S_n.
+      assumption.
+Qed.
+
+Lemma lt_lt_minus:
+  forall n m,
+  (S n) < m ->
+  m - (S n) < m.
+Proof.
+  intros.
+  destruct n, m.
+  + inversion H.
+  + auto with *.
+  + auto with *.
+  + auto with *.
+Qed.
+
+Lemma minus_lt_compat:
+  forall n m : nat,
+  (S m) <= n ->
+  n - (S m) < n - m.
+Proof.
+  induction n, m.
+  - intros.
+    inversion H.
+  - intros. inversion H.
+  - intros.
+    rewrite <- Minus.minus_n_O. (* simpl *)
+    auto with *.
+  - intros.
+    apply IHn.
+    apply Le.le_S_n in H.
+    assumption.
+Qed.
 
 Lemma set_length_minus:
   forall a l1 l2,
   ~ In a l1 ->
-  incl l1 l2 ->
+  incl (a :: l1) l2 ->
   set_length l2 - set_length (a :: l1) <
   set_length l2 - set_length l1.
-Admitted.
+Proof.
+  intros.
+  apply set_length_le in H0.
+  rewrite set_length_succ in *; repeat auto.
+  apply minus_lt_compat; repeat assumption.
+Qed.
 
 End LISTS.

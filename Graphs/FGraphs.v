@@ -4,11 +4,7 @@ Require Import Graphs.Core.
 Require Import PairUtil.
 Require Import ListUtil.
 Require Import Bool.
-
-Notation "'Sig_no'" := (False_rec _ _) (at level 42).
-Notation "'Sig_yes' e" := (exist _ e _) (at level 42).
-Notation "'Sig_take' e" :=
-  (match e with Sig_yes ex => ex end) (at level 42).
+Require Import SigUtil.
 
 Section FGRAPHS.
 
@@ -861,56 +857,6 @@ Proof.
     apply rm_sources_nonempty; repeat auto.
 Qed.
 
-
-(*****************)
-(*
-Axiom walk_to_cycle:
-  forall e w g,
-  Walk (Edge g) w ->
-  Connected (e :: w) ->
-  Edge g e ->
-  In (fst e) w ->
-  exists w', subgraph w' w /\ Cycle (Edge g) w'.
-*)
-(*
-Lemma fill_walk:
-  forall e w g,
-  AllIncoming g ->
-  Walk (Edge g) w ->
-  Edge g e ->
-  Connected (e :: w) ->
-  subgraph w g ->
-  subgraph g (e :: w) ->
-  exists w',
-  Cycle (Edge g) w'.
-Proof.
-  intros.
-  assert (e_in_g:= H1).
-  destruct e as (vi, vo); simpl.
-  (* part 1 *)
-  assert (vi_in_g : In vi g).
-  apply in_left in H1. assumption.
-  (* eoa *)
-  assert (vi_in : HasIncoming g vi).
-  apply all_incoming_in; repeat assumption.
-  (* eoa*)
-  inversion vi_in; subst.
-  apply subgraph_edge with (g':=((vi, vo) :: w)) in H5; repeat auto.
-  inversion H5.
-  + inversion H6; subst; clear H6.
-    exists ((v',v')::nil).
-    apply edge1_to_cycle.
-    assumption.
-  + apply walk_to_cycle with (e:=(vi,vo)) in H0; repeat auto.
-    destruct H0 as (w', (_, cyc)).
-    exists w'; assumption.
-    simpl.
-    unfold In.
-    exists (v', vi).
-    intuition.
-    apply pair_in_right.
-Qed.
-*)
 Definition prepend (w:list edge) (g:fgraph) : option edge :=
   match w with
     | e :: _ => 
@@ -921,21 +867,6 @@ Definition prepend (w:list edge) (g:fgraph) : option edge :=
     | nil => None
   end.
 
-Lemma prepend_not_in_self:
-  forall w g e,
-  prepend w g = Some e ->
-  ~ List.In e w.
-Proof.
-  intros.
-  destruct w.
-  - inversion H.
-  - simpl in H.
-    remember (get_incoming g (fst e0)).
-    destruct l.
-    + inversion H.
-    + inversion H.
-      subst.
-Admitted.
 Lemma prepend_walk:
   forall g w e,
   Walk (Edge g) w ->
@@ -1142,14 +1073,6 @@ Definition IsWalkOf w := Walk (Edge g) w /\ NoDup w.
 
 Definition WalkOf := { w : list edge | Walk (Edge g) w /\ NoDup w /\ w <> nil}.
 
-Lemma subgraph_cons_l:
-  forall e g g',
-  List.In e g' ->
-  subgraph g g' ->
-  subgraph (e::g) g'.
-Proof.
-Admitted.
-
 Lemma prepend_edge2:
   forall w g e,
   prepend w g = Some e ->
@@ -1338,17 +1261,12 @@ Proof.
     inversion H0.
     unfold lendiff.
     destruct a.
-    apply set_length_minus; repeat auto.
-    assert (subgraph x g).
-    apply walk_is_subgraph; auto.
-    apply subgraph_incl.
-    subst.
-    rewrite <- subgraph_incl in *.
-    unfold incl in *.
-    intros.
-    apply H.
-    apply List.in_cons.
-    assumption.
+    apply set_length_minus.
+    - assumption.
+    - assert (Hx:= w0).
+      apply walk_is_subgraph in Hx.
+      apply subgraph_incl.
+      assumption.
 Defined.
 
 Lemma find_cycle_total:

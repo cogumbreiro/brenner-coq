@@ -5,6 +5,9 @@ Require Import PairUtil.
 Require Import ListUtil.
 Require Import Bool.
 Require Import SigUtil.
+Require Import ListSetUtil.
+
+Set Implicit Arguments.
 
 Section FGRAPHS.
 
@@ -354,7 +357,7 @@ Lemma rm_sources_in:
   In v g.
 Proof.
   intros.
-  apply (subgraph_in (rm_sources g)).
+  apply (subgraph_in (g:=rm_sources g)).
   apply rm_sources_subgraph.
   assumption.
 Qed.
@@ -1065,10 +1068,6 @@ Section FIND_CYCLE.
 
 Variable g:fgraph.
 
-Require Import ListSetUtil.
-
-Set Implicit Arguments.
-
 Definition IsWalkOf w := Walk (Edge g) w /\ NoDup w.
 
 Definition WalkOf := { w : list edge | Walk (Edge g) w /\ NoDup w /\ w <> nil}.
@@ -1343,7 +1342,7 @@ Theorem all_pos_odegree_impl_cycle:
   exists w, Cycle (Edge g) w.
 Proof.
   intros.
-  destruct (exists_has_incoming _ H0 H) as
+  destruct (exists_has_incoming H0 H) as
   (g', (H1, (H2, (H3, H4)))).
   apply all_pos_idegree_impl_cycle in H3; repeat auto.
   destruct H3.

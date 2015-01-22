@@ -110,19 +110,22 @@ Definition I_of (i:impedes) :=
 Definition Deps_of (d:dependencies) :=
   W_of (get_waits d) /\ I_of (get_impedes d).
 
-Lemma deps_of_total:
+Axiom deps_of_total:
   exists d, Deps_of d.
-Admitted.
 
 End StateProps.
 
-Definition TotallyDeadlocked (s:state) :=
+Definition AllTasksBlocked s :=
+  forall t, (Map_TID.In t (get_tasks s) -> exists r, Blocked s t r).
+
+Definition AllBlockedRegistered s :=
   forall t r,
-  (Map_TID.In t (get_tasks s) <-> Blocked s t r) /\
   Blocked s t r ->
   exists t',
-  Map_TID.In t' (get_tasks s) /\
-  (exists r', Registered s t' r' /\ prec r' r).
+  Map_TID.In t' (get_tasks s) /\ (exists r', Registered s t' r' /\ prec r' r).
+
+Definition TotallyDeadlocked (s:state) :=
+  AllTasksBlocked s /\ AllBlockedRegistered s.
 
 Definition Deadlocked (s:state) :=
   exists tm tm',
@@ -161,6 +164,24 @@ Notation TEdge d := (G.Edge (WFG d)).
 Notation RCycle d := (G.Cycle (SG d)).
 Notation t_walk := (list t_edge).
 
+Lemma tedge_spec:
+  forall d (t1 t2:tid),
+  TEdge d (t1, t2) <->
+  exists r, Impedes d t1 r /\ WaitsFor d r t2.
+Proof.
+  split.
+  + intros.
+    simpl in H.
+    inversion H.
+    subst.
+    exists b.
+    intuition.
+  + intros.
+    destruct H as (r, (H1, H2)).
+    simpl.
+    apply Core.aa with (b:=r); repeat auto.
+Qed.
+
 Section Dependencies.
 
 Variable d:dependencies.
@@ -186,3 +207,93 @@ Proof.
 Qed.
 
 End Dependencies.
+
+Set Implicit Arguments.
+
+Section Basic.
+  Variable d:dependencies.
+  Variable s:state.
+  Variable d_of_s: Deps_of s d.
+
+Lemma waits_for_to_blocked:
+  forall r t,
+  WaitsFor d r t ->
+  Blocked s t r.
+Proof.
+  intros.
+  unfold WaitsFor in H.
+  assert (H':= d_of_s).
+  destruct H' as (H', _).
+  apply H' in H.
+  assumption.
+Qed.
+
+Lemma blocked_to_waits_for:
+  forall r t,
+  Blocked s t r ->
+  WaitsFor d r t .
+Proof.
+  intros.
+  unfold WaitsFor in *.
+  assert (H':= d_of_s).
+  destruct H' as (H', _).
+  apply H' in H.
+  assumption.
+Qed.
+
+Lemma blocked_eq_waits_for:
+  forall r t,
+  Blocked s t r <->
+  WaitsFor d r t .
+Proof.
+  intros.
+  split.
+  apply blocked_to_waits_for.
+  apply waits_for_to_blocked.
+Qed.
+
+Lemma impedes_to_registered:
+  forall t r,
+  Impedes d t r ->
+  exists r', Registered s t r' /\ prec r' r.
+Proof.
+  intros.
+  unfold Impedes in H.
+  assert (H':= d_of_s).
+  destruct H' as (_, H').
+  apply H' in H.
+  destruct H as (r', H).
+  exists r'.
+  intuition.
+Qed.
+
+Lemma registered_to_impedes :
+  forall t r' r,
+  Registered s t r' ->
+  prec r' r ->
+  Impedes d t r.
+Proof.
+  intros.
+  unfold Impedes.
+  assert (H':= d_of_s).
+  destruct H' as (_, H').
+  apply H'.
+  exists r'.
+  intuition.
+  inversion H.
+  destruct H1 as (_, (_, H1)).
+  assumption.
+Qed.
+
+Lemma impedes_eq_registered:
+  forall t r,
+  Impedes d t r <->
+  exists r', Registered s t r' /\ prec r' r.
+Proof.
+  intros.
+  intuition.
+  - apply_auto impedes_to_registered.
+  - destruct H as (r', (H1, H2)).
+    apply registered_to_impedes with (r':=r'); r_auto.
+Qed.
+End Basic.

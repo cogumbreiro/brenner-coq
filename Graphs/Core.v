@@ -524,6 +524,36 @@ Inductive VertexIn : A -> walk -> Prop :=
     pair_In v e ->
     VertexIn v w.
 
+Lemma pred_in_cycle2:
+  forall v w,
+  Cycle w ->
+  VertexIn v w ->
+  exists v', Edge (v', v).
+Proof.
+  intros.
+  inversion H0.
+  subst.
+  destruct e as (v1, v2).
+  inversion H2.
+  - subst. simpl in *.
+    assert (Hin := H1).
+    apply in_edge in H1.
+    assert (Hwalk := H).
+    apply pred_in_cycle with (v1:=v1) (v2:=v2) in H.
+    destruct H as (v3, H).
+    exists v3.
+    apply in_edge with (w:=w).
+    inversion Hwalk; assumption.
+    assumption.
+    assumption.
+    inversion H; assumption.
+  - subst; simpl in *.
+    exists v1.
+    apply in_edge with (w:=w).
+    inversion H; assumption.
+    assumption.
+Qed.
+
 Section Mem.
   Variable vertex_eq: forall (v v' : A), {v = v'} + {v <> v'}.
   Definition mem_edge (v:A) (e:edge) :=

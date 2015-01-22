@@ -11,88 +11,6 @@ Section Basic.
   Variable s:state.
   Variable d_of_s: Deps_of s d.
 
-Lemma waits_for_to_blocked:
-  forall r t,
-  WaitsFor d r t ->
-  Blocked s t r.
-Proof.
-  intros.
-  unfold WaitsFor in H.
-  assert (H':= d_of_s).
-  destruct H' as (H', _).
-  apply H' in H.
-  assumption.
-Qed.
-
-Lemma blocked_to_waits_for:
-  forall r t,
-  Blocked s t r ->
-  WaitsFor d r t .
-Proof.
-  intros.
-  unfold WaitsFor in *.
-  assert (H':= d_of_s).
-  destruct H' as (H', _).
-  apply H' in H.
-  assumption.
-Qed.
-
-Lemma blocked_eq_waits_for:
-  forall r t,
-  Blocked s t r <->
-  WaitsFor d r t .
-Proof.
-  intros.
-  split.
-  apply blocked_to_waits_for.
-  apply waits_for_to_blocked.
-Qed.
-
-Lemma impedes_to_registered:
-  forall t r,
-  Impedes d t r ->
-  exists r', Registered s t r' /\ prec r' r.
-Proof.
-  intros.
-  unfold Impedes in H.
-  assert (H':= d_of_s).
-  destruct H' as (_, H').
-  apply H' in H.
-  destruct H as (r', H).
-  exists r'.
-  intuition.
-Qed.
-
-Lemma registered_to_impedes :
-  forall t r' r,
-  Registered s t r' ->
-  prec r' r ->
-  Impedes d t r.
-Proof.
-  intros.
-  unfold Impedes.
-  assert (H':= d_of_s).
-  destruct H' as (_, H').
-  apply H'.
-  exists r'.
-  intuition.
-  inversion H.
-  destruct H1 as (_, (_, H1)).
-  assumption.
-Qed.
-
-Lemma impedes_eq_registered:
-  forall t r,
-  Impedes d t r <->
-  exists r', Registered s t r' /\ prec r' r.
-Proof.
-  intros.
-  intuition.
-  - apply_auto impedes_to_registered.
-  - destruct H as (r', (H1, H2)).
-    apply registered_to_impedes with (r':=r'); r_auto.
-Qed.
-
 Lemma tedge_inv:
   forall w t t',
   TWalk d w ->
@@ -138,19 +56,21 @@ Proof.
   - subst. simpl in *.
     apply tedge_inv in H1.
     + destruct H1 as (r, (H1, H2)).
-      apply impedes_to_registered in H1.
+      apply impedes_to_registered with (s:=s) in H1.
       destruct H1 as (r', (H3, H4)).
       apply registered_to_blocked in H3.
       destruct H3 as (r'', H5).
       apply blocked_in_tasks in H5; r_auto.
+      assumption.
     + auto.
   - subst; simpl in *.
     apply tedge_inv in H1.
     + destruct H1 as (r, (_, H1)).
-      apply waits_for_to_blocked in H1.
+      apply waits_for_to_blocked with (s:=s) in H1.
       unfold Blocked in H1.
       destruct H1 as (p', (Hf, _)).
       apply mapsto_to_in in Hf.
+      assumption.
       assumption.
     + auto.
 Qed.
@@ -208,14 +128,15 @@ Proof.
   simpl in *.
   apply tedge_inv in H.
   destruct H as (r, (H1, H2)).
-  apply impedes_to_registered in H1.
+  apply impedes_to_registered with (s:=s) in H1.
   destruct H1 as (r', (H1, H3)).
   apply registered_to_blocked in H1.
   destruct H1 as (r'', H1).
   apply blocked_in_tasks in H1.
   assumption.
+  assumption.
   apply Hwalk.
-Qed.  
+Qed.
 
 Lemma soundness_totally:
   TotallyDeadlocked s.
@@ -223,25 +144,37 @@ Proof.
   intros.
   unfold TotallyDeadlocked.
   intros.
-  destruct H as (H, H0).
-  assert (Hblk := H0).
-  (* Task t is connected to another task, get t': *)
-  apply blocked_in_walk in H0.
-  destruct H0 as (t', H0).
-  exists t'. (* we've found t' *)
-  intuition.
-  + (* show that t' in dom T *)
-    apply in_inv_left in H0;
+  split.
+  - unfold AllTasksBlocked; intros.
+    assert (VertexIn tid t w).
+    apply vertex_in_tasks; assumption.
+    assert (exists t2, TEdge d (t2, t)).
+    apply pred_in_cycle2 with (w:=w); repeat auto.
+    destruct H1 as (t2, H1).
+    apply tedge_spec in H1.
+    destruct H1 as (r', (Himp1, Hwf1)).
+    apply waits_for_to_blocked with (s:=s) in Hwf1.
+    exists r'; assumption.
+    assumption.
+  - unfold AllBlockedRegistered; intros.
+    assert (Hblocked := H).
+    apply blocked_in_walk in H.
+    destruct H as (t', H).
+    exists t'. (* we've found t' *)
     intuition.
-  + apply tedge_inv in H0.
-    *  destruct H0 as (r', (Hi, Hw)).
-       rewrite <- blocked_eq_waits_for in Hw.
-       assert (Heq : r = r').
-         apply blocked_fun with (s:=s) (t:=t); r_auto.
-       (* end assert *)
-       subst.
-       rewrite <- impedes_eq_registered; r_auto.
-    * inversion is_cycle; r_auto.
+    + (* show that t' in dom T *)
+      apply in_inv_left in H;
+      intuition.
+    + apply tedge_inv in H.
+      * destruct H as (r', (Hi, Hw)).
+        rewrite <- (blocked_eq_waits_for (s:=s)) in Hw.
+        assert (Heq : r = r').
+        apply blocked_fun with (s:=s) (t:=t); r_auto.
+        (* end assert *)
+        subst.
+        rewrite <- (impedes_eq_registered (d:=d) (s:=s)); r_auto.
+        assumption.
+      * inversion is_cycle; r_auto.
 Qed.
 End TotallyDeadlocked.
 End Basic.

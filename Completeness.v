@@ -37,7 +37,8 @@ Proof.
   destruct s.
   simpl in *.
   rename t0 into tasks.
-  destruct (H t) as (Hblocked, _).
+  destruct H as (Hblocked, _).
+  unfold AllTasksBlocked in *.
   apply Hblocked; assumption.
 Qed.
 
@@ -51,9 +52,8 @@ Lemma totally_deadlocked_inv1:
 Proof.
   intros.
   unfold TotallyDeadlocked in *.
-  assert (Hx := H t).
-  destruct Hx as (_, Hx).
-  destruct (Hx _ H0) as (t', (Ht'blk, (r', (Hreg, Hprec)))); clear Hx.
+  destruct H as (_, H).
+  destruct (H _ _ H0) as (t', (Ht'blk, (r', (Hreg, Hprec)))).
   exists t'.
   split.
   - apply registered_to_impedes with (s:=s) (r':=r'); repeat auto.
@@ -183,8 +183,6 @@ Proof.
   apply wfg_of_total.
   destruct H as (wfg', Hwfg).
   exists wfg'.
-  intuition.
-  - 
 Qed.
 
 Corollary deadlocked_has_cycle:

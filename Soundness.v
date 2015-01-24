@@ -22,7 +22,6 @@ Lemma tedge_inv:
 Proof.
   intros.
   apply in_edge with (Edge:=G.Edge (WFG d)) in H0.
-  simpl in H0.
   inversion H0.
   simpl in *.
   subst.
@@ -78,10 +77,6 @@ Qed.
 Section TotallyDeadlocked.
 Variable w:t_walk.
 Variable is_cycle: TCycle d w.
-Variable all_in_walk:
-  forall t,
-  Map_TID.In t (get_waits d) ->
-  F.In t w.
 Variable vertex_in_tasks:
   forall t, F.In t w <-> Map_TID.In t (get_tasks s).
 
@@ -135,7 +130,7 @@ Proof.
   intros.
   unfold TotallyDeadlocked.
   intros.
-  split.
+  intuition.
   - unfold AllTasksBlocked; intros.
     assert (F.In t w).
     apply vertex_in_tasks; assumption.
@@ -167,6 +162,11 @@ Proof.
         rewrite <- (impedes_eq_registered (d:=d) (s:=s)); r_auto.
         assumption.
       * inversion is_cycle; r_auto.
+  - inversion is_cycle.
+    exists v1.
+    apply in_inv_left with (t':=v2).
+    subst.
+    apply List.in_eq.
 Qed.
 End TotallyDeadlocked.
 End Basic.
@@ -198,12 +198,12 @@ Notation s := (orig_state DS).
 Notation ds := (deadlocked_state DS).
 Variable is_cycle: TCycle d w.
 Variable in_w_is_deadlocked:
-  forall t, In (F.Edge w) t <-> is_deadlocked DS t.
+  forall t, F.In t w <-> is_deadlocked DS t.
 Let Hpart := partition_holds DS.
 
 Let tid_in_walk:
   forall t,
-  In (F.Edge w) t ->
+  F.In t w ->
   exists p,
   Map_TID.MapsTo t p (get_tasks (orig_state DS)) /\
   Map_TID.MapsTo t p (deadlocked_tasks DS).
@@ -223,7 +223,7 @@ Qed.
 
 Let blocked_conv:
   forall t r,
-  In (F.Edge w) t ->
+  F.In t w ->
   Blocked s t r ->
   Blocked ds t r.
 Proof.
@@ -317,7 +317,7 @@ Proof.
 Qed.
 
 Let vertex_in_tasks:
-  forall t, In (F.Edge w) t <-> Map_TID.In t (get_tasks ds).
+  forall t, F.In t w <-> Map_TID.In t (get_tasks ds).
 Proof.
   intros.
   rewrite in_w_is_deadlocked.

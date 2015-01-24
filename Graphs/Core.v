@@ -60,7 +60,7 @@ Proof.
     apply_auto connected_cons.
 Qed.
 
-Lemma walk_forall:
+Lemma walk_def:
   forall w,
   Forall Edge w ->
   Connected w ->
@@ -76,7 +76,7 @@ Proof.
     apply connected_inv.
     assumption.
     inversion H0; assumption.
-Qed.      
+Qed.
 
 Lemma walk_to_forall:
   forall w,
@@ -94,6 +94,18 @@ Proof.
       subst.
       apply IHw.
       assumption.
+Qed.
+
+Lemma walk_inv:
+  forall w,
+  Walk w ->
+  Forall Edge w /\
+  Connected w.
+Proof.
+  intros.
+  split.
+  apply walk_to_forall; assumption.
+  apply walk_to_connected; assumption.
 Qed.
 
 Lemma walk_cons2:
@@ -517,92 +529,6 @@ Proof.
   apply pair_in_right.
 Qed.
 
-Inductive VertexIn : A -> walk -> Prop :=
-  vertex_in_def:
-    forall e v w,
-    List.In e w ->
-    pair_In v e ->
-    VertexIn v w.
-
-Lemma pred_in_cycle2:
-  forall v w,
-  Cycle w ->
-  VertexIn v w ->
-  exists v', Edge (v', v).
-Proof.
-  intros.
-  inversion H0.
-  subst.
-  destruct e as (v1, v2).
-  inversion H2.
-  - subst. simpl in *.
-    assert (Hin := H1).
-    apply in_edge in H1.
-    assert (Hwalk := H).
-    apply pred_in_cycle with (v1:=v1) (v2:=v2) in H.
-    destruct H as (v3, H).
-    exists v3.
-    apply in_edge with (w:=w).
-    inversion Hwalk; assumption.
-    assumption.
-    assumption.
-    inversion H; assumption.
-  - subst; simpl in *.
-    exists v1.
-    apply in_edge with (w:=w).
-    inversion H; assumption.
-    assumption.
-Qed.
-
-Section Mem.
-  Variable vertex_eq: forall (v v' : A), {v = v'} + {v <> v'}.
-  Definition mem_edge (v:A) (e:edge) :=
-    let (v1, v2) := e in
-    if vertex_eq v1 v then true
-    else if vertex_eq v2 v then true
-    else false.
-  Lemma mem_edge_eq_in:
-    forall v e,
-    mem_edge v e = true <-> pair_In v e.
-  Proof.
-    intros.
-    unfold pair_In.
-    intuition.
-    - unfold mem_edge in H.
-      destruct vertex_eq.
-      + auto.
-      + destruct vertex_eq.
-        * auto.
-        * inversion H.
-    - unfold mem_edge.
-      find_if_inside; repeat auto.
-    - subst. compute.
-      find_if_inside; repeat auto.
-      find_if_inside; repeat auto.
-  Qed.        
-  
-  Definition mem_walk (v:A) (w:walk) :=
-    existsb (mem_edge v) w.
-
-  Lemma mem_walk_eq_in:
-    forall v w,
-    mem_walk v w = true <-> VertexIn v w.
-  Proof.
-    intros.
-    unfold mem_walk.
-    rewrite existsb_exists.
-    split.
-    - intros.
-      destruct H as (x, (H1, H2)).
-      rewrite mem_edge_eq_in in H2.
-      apply vertex_in_def with (e:=x); r_auto.
-    - intros.
-      expand H.
-      rewrite <- mem_edge_eq_in in H1.
-      exists e.
-      auto.
-  Qed.
-End Mem.
 End Walk.
 
 Implicit Arguments Cycle.
@@ -669,7 +595,7 @@ Proof.
   assumption.
   apply forall_w.
   assumption.
-  apply walk_forall.
+  apply walk_def.
   assumption.
   apply walk_to_connected with (Edge:=E); assumption.
 Qed.

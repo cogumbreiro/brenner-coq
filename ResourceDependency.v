@@ -125,7 +125,8 @@ Definition AllBlockedRegistered s :=
   Map_TID.In t' (get_tasks s) /\ (exists r', Registered s t' r' /\ prec r' r).
 
 Definition TotallyDeadlocked (s:state) :=
-  AllTasksBlocked s /\ AllBlockedRegistered s.
+  AllTasksBlocked s /\ AllBlockedRegistered s /\
+  exists t, Map_TID.In t (get_tasks s). (* nonempty *)
 
 Definition Deadlocked (s:state) :=
   exists tm tm',

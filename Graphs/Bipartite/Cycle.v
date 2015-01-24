@@ -401,7 +401,7 @@ Proof.
     (* Fun begins *)
     rename bw0 into bw.
     assert (Hre: exists r rn, End ((b1, b2) :: bw) (r, rn) ).
-      assert (H':= end_total _ (b1, b2) bw).
+      assert (H':= end_total (b1, b2) bw).
       destruct H' as ((rn,b1'), H').
       exists rn; exists b1'.
       assumption.

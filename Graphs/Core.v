@@ -4,6 +4,8 @@ Require Import
 Require Import TacticsUtil.
 Require Import PairUtil.
 
+Set Implicit Arguments.
+
 Section Walk.
 Variable Implicit A:Type.
 Notation edge := (A*A)%type.
@@ -276,7 +278,7 @@ Lemma end_cons_eq:
   e = e''.
 Proof.
   intros.
-  assert (H1 := end_cons _ e' _ H).
+  assert (H1 := end_cons e' H).
   apply end_det with (w:=(e'::w)).
   assumption.
   assumption.
@@ -575,7 +577,7 @@ Proof.
   intros.
   inversion H0.
   destruct H1.
-  apply (subgraph_edge E E') in H1; repeat auto.
+  apply subgraph_edge with (e:=x) (E':=E') in H1; repeat auto.
   apply in_def with (e:=x); repeat auto.
 Qed.
 
@@ -652,7 +654,7 @@ Proof.
   unfold Forall in *.
   intros.
   apply H0.
-  apply (subgraph_in E); repeat auto.
+  apply subgraph_in with (E:=E); repeat auto.
 Qed.
 
 Lemma forall_incl:

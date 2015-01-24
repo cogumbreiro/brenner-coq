@@ -635,7 +635,7 @@ Proof.
     (* Fun begins *)
     rename bw0 into bw.
     assert (Hre: exists r rn, End ((b1, b2) :: bw) (r, rn) ).
-      assert (H':= end_total _ (b1, b2) bw).
+      assert (H':= end_total (b1, b2) bw).
       destruct H' as ((rn,b1'), H').
       exists rn; exists b1'.
       assumption.
@@ -886,7 +886,7 @@ Proof.
         :: ((bi_b_vertex b, bi_a_vertex a2) :: cw)%list)%list as w.
     (* Hend := BiEnd w e *)
     assert (Hend: exists e, End w e).
-      assert (H':= end_total _ (bi_a_vertex a1, bi_b_vertex b) ((bi_b_vertex b, bi_a_vertex a2) :: cw)).
+      assert (H':= end_total (bi_a_vertex a1, bi_b_vertex b) ((bi_b_vertex b, bi_a_vertex a2) :: cw) % list).
       subst.
       assumption.
     (* Hend *)

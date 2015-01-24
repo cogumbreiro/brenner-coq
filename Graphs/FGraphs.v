@@ -92,6 +92,30 @@ Proof.
   apply in_def with (e := x); repeat auto.
 Qed.
 
+Lemma pred_in_cycle:
+  forall v w E,
+  Cycle E w ->
+  In v w ->
+  exists v', E (v', v) /\ Edge w (v', v).
+Proof.
+  intros.
+  destruct H0 as ((v1, v2), (Hin, Hpin)).
+  assert (Hw : Walk E w).
+  inversion H; auto.
+  inversion Hpin.
+  - subst; simpl in *.
+    apply Core.pred_in_cycle with (v1:=v1) (v2:=v2) in H.
+    destruct H as (v3, H).
+    exists v3.
+    intuition.
+    + apply in_edge with (w:=w); repeat auto.
+    + auto.
+  - subst; simpl in *.
+    exists v1.
+    intuition.
+    apply in_edge with (w:=w); repeat auto.
+Qed.
+
 Definition mem (v:V) (g:fgraph) : bool :=
   existsb (fun e => pair_mem eq_dec v e) g.
 

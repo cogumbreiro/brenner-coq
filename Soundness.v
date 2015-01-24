@@ -1,5 +1,7 @@
 Require Import ResourceDependency.
 Require Import Semantics.
+Require Graphs.FGraphs.
+Module F := Graphs.FGraphs.
 Require Import Graphs.Core.
 Require Import Vars.
 Require Import Syntax.
@@ -14,7 +16,7 @@ Section Basic.
 Lemma tedge_inv:
   forall w t t',
   TWalk d w ->
-  List.In (t, t') w ->
+  F.Edge w (t, t') ->
   exists r,
   Impedes d t r /\ WaitsFor d r t'.
 Proof.
@@ -44,31 +46,29 @@ Qed.
 Lemma vertex_in_tasks:
   forall t w,
   TWalk d w ->
-  VertexIn tid t w ->
+  F.In t w ->
   Map_TID.In t (get_tasks s).
 Proof.
   intros.
   simpl in *.
-  inversion H0.
-  subst.
-  destruct e as (t1, t2).
-  destruct H2 as [H2|H2].
+  inversion H0 as ((t1, t2), (Hin, Hpin)).
+  destruct Hpin as [H2|H2].
   - subst. simpl in *.
-    apply tedge_inv in H1.
-    + destruct H1 as (r, (H1, H2)).
-      apply impedes_to_registered with (s:=s) in H1.
-      destruct H1 as (r', (H3, H4)).
-      apply registered_to_blocked in H3.
-      destruct H3 as (r'', H5).
-      apply blocked_in_tasks in H5; r_auto.
+    apply tedge_inv in Hin.
+    + destruct Hin as (r, (Himp, _)).
+      apply impedes_to_registered with (s:=s) in Himp.
+      destruct Himp as (r', (Hreg, _)).
+      apply registered_to_blocked in Hreg.
+      destruct Hreg as (r'', Hblock).
+      apply blocked_in_tasks in Hblock; r_auto.
       assumption.
     + auto.
   - subst; simpl in *.
-    apply tedge_inv in H1.
-    + destruct H1 as (r, (_, H1)).
-      apply waits_for_to_blocked with (s:=s) in H1.
-      unfold Blocked in H1.
-      destruct H1 as (p', (Hf, _)).
+    apply tedge_inv in Hin.
+    + destruct Hin as (r, (_, Hwf)).
+      apply waits_for_to_blocked with (s:=s) in Hwf.
+      unfold Blocked in Hwf.
+      destruct Hwf as (p', (Hf, _)).
       apply mapsto_to_in in Hf.
       assumption.
       assumption.
@@ -81,9 +81,9 @@ Variable is_cycle: TCycle d w.
 Variable all_in_walk:
   forall t,
   Map_TID.In t (get_waits d) ->
-  VertexIn tid t w.
+  F.In t w.
 Variable vertex_in_tasks:
-  forall t, VertexIn tid t w <-> Map_TID.In t (get_tasks s).
+  forall t, F.In t w <-> Map_TID.In t (get_tasks s).
 
 Let Hwalk: TWalk d w.
 Proof.
@@ -91,32 +91,23 @@ Proof.
   inversion is_cycle.
   assumption.
 Qed.
-
+  
 Lemma blocked_in_walk:
   forall t r,
   Blocked s t r ->
-  exists t' : nat, List.In (t', t) w.
+  exists t', F.Edge w (t', t).
 Proof.
   intros.
   unfold Blocked in *.
-  destruct H as (p, (H1, H2)).
-  apply mapsto_to_in in H1.
-  rewrite <- vertex_in_tasks in H1.
-  inversion H1.
-  subst.
-  destruct e as (t1, t2).
-  destruct H0.
-  - simpl in *.
-    subst.
-    apply pred_in_cycle with (Edge:=TEdge d) in H.
-    destruct H as (t', H).
-    exists t'.
-    assumption.
-    assumption.
-  - subst.
-    simpl in *.
-    exists t1.
-    assumption.
+  destruct H as (p, (Hin, _)).
+  apply mapsto_to_in in Hin.
+  rewrite <- vertex_in_tasks in Hin.
+  assert (H := Hin).
+  apply F.pred_in_cycle with (v:=t) in is_cycle.
+  destruct is_cycle as (t', (He, He')).
+  exists t'.
+  auto.
+  auto.
 Qed.
 
 Lemma in_inv_left:
@@ -146,10 +137,11 @@ Proof.
   intros.
   split.
   - unfold AllTasksBlocked; intros.
-    assert (VertexIn tid t w).
+    assert (F.In t w).
     apply vertex_in_tasks; assumption.
     assert (exists t2, TEdge d (t2, t)).
-    apply pred_in_cycle2 with (w:=w); repeat auto.
+    apply F.pred_in_cycle with (E:=TEdge d) in H0; repeat auto.
+    destruct H0 as (t2, (Hc, _)); exists t2; auto.
     destruct H1 as (t2, H1).
     apply tedge_spec in H1.
     destruct H1 as (r', (Himp1, Hwf1)).
@@ -206,19 +198,17 @@ Notation s := (orig_state DS).
 Notation ds := (deadlocked_state DS).
 Variable is_cycle: TCycle d w.
 Variable in_w_is_deadlocked:
-  forall t, VertexIn tid t w <-> is_deadlocked DS t.
+  forall t, In (F.Edge w) t <-> is_deadlocked DS t.
 Let Hpart := partition_holds DS.
 
 Let tid_in_walk:
-  forall t e,
-  pair_In t e ->
-  List.In e w ->
+  forall t,
+  In (F.Edge w) t ->
   exists p,
   Map_TID.MapsTo t p (get_tasks (orig_state DS)) /\
   Map_TID.MapsTo t p (deadlocked_tasks DS).
 Proof.
   intros.
-  apply vertex_in_def with (w:=w) in H.
   rewrite in_w_is_deadlocked in H.
   rewrite lhs_is_deadlocked in H.
   apply in_to_mapsto in H.
@@ -229,19 +219,17 @@ Proof.
     destruct Hpart as (Hdj, Hrw).
     rewrite Hrw.
     auto.
-  - assumption.
 Qed.
 
 Let blocked_conv:
-  forall t r e,
-  pair_In t e ->
-  List.In e w ->
+  forall t r,
+  In (F.Edge w) t ->
   Blocked s t r ->
   Blocked ds t r.
 Proof.
   intros.
   unfold Blocked in *.
-  destruct H1 as (p, (H1, H2)).
+  destruct H0 as (p, (H1, H2)).
   exists p.
   intuition.
   apply tid_in_walk in H.
@@ -249,24 +237,21 @@ Proof.
   apply Map_TID_Facts.MapsTo_fun with (e:=p') in H1; r_auto.
   subst.
   assumption.
-  assumption.
 Qed.
 
 Let registered_conv:
-  forall t r e,
-  pair_In t e ->
-  List.In e w ->
+  forall t r,
+  In (F.Edge w) t ->
   Registered s t r ->
   Registered ds t r.
 Proof.
   intros.
   unfold Registered in *.
-  destruct H1 as (ph, H1); exists ph.
+  destruct H0 as (ph, H1); exists ph.
   intuition.
-  destruct H4 as (r', H4).
-  apply blocked_conv with (e:=e) in H4.
+  destruct H3 as (r', H4).
+  apply blocked_conv in H4.
   exists r'.
-  assumption.
   assumption.
   assumption.
 Qed.
@@ -284,16 +269,18 @@ Proof.
   simpl in *.
   inversion H0; clear H0; subst.
   apply waits_for_to_blocked with (s:=s) in H2.
-  apply blocked_conv with (e:=(a1,a2)) in H2.
+  apply blocked_conv in H2.
   apply impedes_to_registered with (s:=s) in H1.
   destruct H1 as (r, (H1, H3)).
-  apply registered_conv with (e:=(a1,a2)) in H1.
+  apply registered_conv in H1.
   apply Core.aa with (b:=b).
   apply registered_to_impedes with (s:=ds) (r':=r); r_auto.
   apply blocked_to_waits_for with (s:=ds); r_auto.
+  apply in_def with (e:=(a1, a2)).
   apply pair_in_left.
   assumption.
   assumption.
+  apply in_def with (e:=(a1, a2)).
   apply pair_in_right.
   assumption.
   assumption.
@@ -316,7 +303,7 @@ Proof.
   inversion is_cycle. subst.
   apply walk_to_connected in H0.
   remember ((v1, v2) :: w0)%list as w.
-  apply_auto walk_forall.
+  apply_auto walk_def.
 Qed.
 
 Let cycle_conv:
@@ -330,7 +317,7 @@ Proof.
 Qed.
 
 Let vertex_in_tasks:
-  forall t, VertexIn tid t w <-> Map_TID.In t (get_tasks ds).
+  forall t, In (F.Edge w) t <-> Map_TID.In t (get_tasks ds).
 Proof.
   intros.
   rewrite in_w_is_deadlocked.
@@ -357,7 +344,7 @@ Variable w:t_walk.
 Variable deps_of: Deps_of s d.
 Variable w_cycle: TCycle d w.
 
-Let split := (fun t (p:prog) => mem_walk tid TID.eq_dec t w).
+Let split : tid -> prog -> bool := (fun t (p:prog) => F.mem TID.eq_dec t w).
 
 Let deadlocked := Map_TID_Props.partition split (get_tasks s).
 
@@ -369,27 +356,27 @@ Proof.
   auto.
 Qed.
 
-Let c_is_deadlocked t := VertexIn tid t w.
+Let c_is_deadlocked t := In (F.Edge w) t.
 
 Let split_to_vertex:
   forall t e,
   split t e = true ->
-  VertexIn tid t w.
+  In (F.Edge w) t.
 Proof.
   intros.
   unfold split in *.
-  rewrite (mem_walk_eq_in tid (TEdge d) TID.eq_dec) in H.
+  apply F.mem_prop in H.
   assumption.
 Qed.
 
 
 Let vertex_to_split:
   forall t p,
-  VertexIn tid t w ->
+  In (F.Edge w) t ->
   split t p = true.
 Proof.
   intros.
-  rewrite <- (mem_walk_eq_in tid (TEdge d) TID.eq_dec) in H.
+  apply F.mem_from_prop with (eq_dec:=TID.eq_dec) in H.
   unfold split in *.
   assumption.
 Qed.

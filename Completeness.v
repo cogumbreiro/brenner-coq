@@ -25,6 +25,17 @@ Variable deps_of: Deps_of s d.
 Variable wfg: list t_edge.
 Variable wfg_spec: WFG_of wfg d.
 
+Lemma totally_deadlocked_edge:
+  forall e,
+  Edge wfg e ->
+  TEdge d e.
+Proof.
+  intros.
+  unfold Edge in *.
+  apply wfg_spec.
+  assumption.
+Qed.
+
 Lemma totally_deadlocked_in_tasks_blocked:
   forall t,
   TotallyDeadlocked s ->
@@ -52,7 +63,7 @@ Lemma totally_deadlocked_inv1:
 Proof.
   intros.
   unfold TotallyDeadlocked in *.
-  destruct H as (_, H).
+  destruct H as (_, (H, _)).
   destruct (H _ _ H0) as (t', (Ht'blk, (r', (Hreg, Hprec)))).
   exists t'.
   split.
@@ -78,6 +89,33 @@ Proof.
   apply blocked_to_waits_for with (s:=s).
   auto.
   auto.
+Qed.
+
+Let totally_deadlocked_has_idegree:
+  TotallyDeadlocked s ->
+  exists t, 
+  HasIncoming wfg t.
+Proof.
+  intros.
+  assert (Hx :=H).
+  destruct H as (H1, (H2, (t, H3))).
+  exists t.
+  destruct (H1 _ H3) as (r, H).
+  apply totally_deadlocked_blocked_idgree with (r:=r); repeat auto.
+Qed.
+
+Lemma totally_deadlocked_nonempty:
+  TotallyDeadlocked s ->
+  wfg <> nil.
+Proof.
+  intros.
+  destruct (totally_deadlocked_has_idegree H) as (t, H1).
+  inversion H1.
+  subst.
+  unfold Edge in H0.
+  intuition.
+  subst.
+  inversion H0.
 Qed.
 
 Lemma impedes_to_blocked:
@@ -150,7 +188,72 @@ Qed.
 
 End TOTALLY_COMPLETE.
 
-Check totally_deadlock_has_cycle.
+Section Totally.
+
+Variable s : state.
+Variable d : dependencies.
+Variable orig_deps_of : Deps_of s d.
+
+Variable deadlocked_tasks : Map_TID.t prog.
+Variable other_tasks: Map_TID.t prog.
+Variable partition_holds: Map_TID_Props.Partition (get_tasks s) deadlocked_tasks other_tasks.
+
+Let ds :=  (get_phasers s, deadlocked_tasks).
+Variable dd : dependencies.
+Variable deadlocked_deps_of: Deps_of ds dd.
+
+Let blocked_conv:
+  forall t r,
+  Blocked ds t r ->
+  Blocked s t r.
+Proof.
+  intros.
+  unfold Blocked in *.
+  destruct H as (p, (H1, H2)).
+  exists p.
+  intuition.
+  unfold Map_TID_Props.Partition in *.
+  destruct partition_holds as (_, H).
+  rewrite H.
+  intuition.
+Qed.
+
+Let registered_conv:
+  forall t r,
+  Registered ds t r ->
+  Registered s t r.
+Proof.
+  intros.
+  unfold Registered in *.
+  destruct H as (ph, H1); exists ph.
+  intuition.
+  destruct H2 as (r', H4).
+  apply blocked_conv in H4.
+  exists r'.
+  assumption.
+Qed.
+
+Lemma tedge_conv: 
+  forall e,
+  TEdge dd e ->
+  TEdge d e.
+Proof.
+  intros.
+  simpl in *.
+  inversion H; clear H; subst.
+  apply waits_for_to_blocked with (s:=ds) in H1.
+  apply B.B.aa with (b:=b).
+  - apply impedes_to_registered with (s:=ds) in H0.
+    destruct H0 as (r, (H0, H3)).
+    apply registered_to_impedes with (s:=s) (r':=r); r_auto.
+    apply deadlocked_deps_of.
+  - apply blocked_to_waits_for with (s:=s).
+    apply orig_deps_of.
+    apply blocked_conv.
+    assumption.
+  - apply deadlocked_deps_of.
+Qed.
+End Totally.
 
 Section COMPLETE.
 Variable d:dependencies.
@@ -183,6 +286,16 @@ Proof.
   apply wfg_of_total.
   destruct H as (wfg', Hwfg).
   exists wfg'.
+  intuition.
+  - apply totally_deadlocked_nonempty with (d:=d') (wfg:=wfg') in Hd; repeat auto.
+  - unfold subgraph.
+    unfold Core.subgraph.
+    intros.
+    unfold Edge in *.
+    rewrite wfg_spec in *.
+    apply totally_deadlocked_edge with (d:=d') in H.
+    apply tedge_conv with (s:=s) (deadlocked_tasks:=tm) (other_tasks:=tm') (dd:=d'); repeat auto.
+    assumption.
 Qed.
 
 Corollary deadlocked_has_cycle:

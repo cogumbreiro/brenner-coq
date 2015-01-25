@@ -124,7 +124,6 @@ Lemma impedes_to_blocked:
   exists r', Blocked s t r'.
 Proof.
   intros.
-  (*unfold Deps_of in *.*)
   destruct deps_of as (_, Hi).
   unfold I_of in *.
   destruct (Hi t r) as (Ha, _); clear Hi.
@@ -261,9 +260,7 @@ Variable s:state.
 Variable w:t_walk.
 Variable deps_of: Deps_of s d.
 Variable wfg: list t_edge.
-Variable wfg_spec:
-  forall e,
-  List.In e wfg <-> TEdge d e.
+Variable wfg_spec: WFG_of wfg d.
 Variable is_deadlocked : Deadlocked s.
 
 Lemma deadlocked_inv:
@@ -292,23 +289,65 @@ Proof.
     unfold Core.subgraph.
     intros.
     unfold Edge in *.
+    unfold WFG_of in *.
     rewrite wfg_spec in *.
     apply totally_deadlocked_edge with (d:=d') in H.
     apply tedge_conv with (s:=s) (deadlocked_tasks:=tm) (other_tasks:=tm') (dd:=d'); repeat auto.
     assumption.
 Qed.
 
-Corollary deadlocked_has_cycle:
-  Deadlocked s ->
-  wfg <> nil ->
+Theorem deadlocked_has_cycle':
   exists c, Core.Cycle (Edge wfg) c.
 Proof.
   intros.
   destruct deadlocked_inv as (s', (d', (wfg', (Hdd, (Hd, (Hnil, (Hwfg, Hsg))))))).
   assert (exists c, Core.Cycle (Edge wfg') c).
   apply totally_deadlock_has_cycle with (d:=d') (s:=s'); repeat auto.
-  destruct H1 as (c, Hc).
+  destruct H as (c, Hc).
   exists c.
   apply subgraph_cycle with (g:=wfg'); repeat auto.
 Qed.
-  
+
+Lemma wfg_cycle_to_tcycle:
+  forall c,
+  Core.Cycle (Edge wfg) c ->
+  TCycle d c.
+Proof.
+  intros.
+  apply Core.cycle_inv in H.
+  destruct H as (t, (Hsw, (Hew, Hw))).
+  apply Core.cycle_def2 with (v:=t); repeat auto.
+  apply Core.walk_def.
+  - apply List.Forall_forall.
+    intros.
+    rename x into e.
+    unfold WFG_of in *.
+    apply Core.in_edge with (Edge:=Edge wfg) in H.
+    apply wfg_spec.
+    unfold Edge in *.
+    assumption.
+    assumption.
+  - apply Core.walk_to_connected in Hw.
+    assumption.
+Qed.
+
+End COMPLETE.
+
+Corollary deadlocked_has_cycle:
+  forall (s : state),
+  Deadlocked s ->
+  exists d,
+  Deps_of s d /\
+  exists c, TCycle d c.
+Proof.
+  intros.
+  destruct (deps_of_total s) as (d, Hd).
+  exists d.
+  intuition.
+  destruct (wfg_of_total d) as (wfg, Hwfg).
+  destruct (deadlocked_has_cycle' _ _ Hd _ Hwfg H) as (c, Hc).
+  exists c.
+  apply wfg_cycle_to_tcycle with (wfg:=wfg).
+  assumption.
+  assumption.
+Qed.

@@ -266,7 +266,7 @@ Variable wfg_spec:
   List.In e wfg <-> TEdge d e.
 Variable is_deadlocked : Deadlocked s.
 
-Theorem deadlocked_inv:
+Lemma deadlocked_inv:
   exists s' d' wfg',
   TotallyDeadlocked s' /\
   Deps_of s' d' /\
@@ -304,7 +304,7 @@ Corollary deadlocked_has_cycle:
   exists c, Core.Cycle (Edge wfg) c.
 Proof.
   intros.
-  destruct (deadlocked_inv H) as (s', (d', (wfg', (Hdd, (Hd, (Hnil, (Hwfg, Hsg))))))).
+  destruct deadlocked_inv as (s', (d', (wfg', (Hdd, (Hd, (Hnil, (Hwfg, Hsg))))))).
   assert (exists c, Core.Cycle (Edge wfg') c).
   apply totally_deadlock_has_cycle with (d:=d') (s:=s'); repeat auto.
   destruct H1 as (c, Hc).

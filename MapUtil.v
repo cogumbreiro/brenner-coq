@@ -1,5 +1,6 @@
 Require Coq.FSets.FMapFacts.
 Require Coq.FSets.FMapInterface.
+Require Import Coq.Lists.SetoidList.
 
 Module MapUtil (Import M:FMapInterface.WS).
   Module F := FMapFacts.Facts M.
@@ -145,4 +146,63 @@ Module MapUtil (Import M:FMapInterface.WS).
     - rewrite <- Hf in Heq.
       inversion Heq.
   Qed.
+
+
+  Lemma in_elements_impl_maps_to:
+    forall {elt:Type} k (e:elt) m,
+    List.In (k, e) (elements (elt:=elt) m) ->
+    MapsTo k e m.
+  Proof.
+    intros.
+    apply elements_2.
+    apply In_InA.
+    + unfold eq_key_elt.
+        intuition.
+        * unfold Symmetric.
+          intros.
+          destruct x, y, H0.
+          simpl in *.
+          auto.
+        * unfold Transitive.
+          intros.
+          destruct x, y, z, H0, H1.
+          simpl in *.
+          subst.
+          intuition.
+          apply E.eq_trans with (y:=k1); repeat assumption.
+      + assumption.
+  Qed.
+
+  Lemma maps_to_impl_in_elements:
+    forall {elt:Type} k (e:elt) m,
+    MapsTo k e m ->
+    exists k', E.eq k k' /\ List.In (k', e) (elements (elt:=elt) m).
+  Proof.
+    intros.
+    apply elements_1 in H.
+    apply InA_alt in H.
+    destruct H as ((k', e'), (Heq, Hin)).
+    inversion Heq.
+    simpl in *.
+    subst.
+    exists k'.
+    intuition.
+  Qed.
+
+  Lemma maps_to_iff_in_elements:
+    forall {elt:Type} k (e:elt) m,
+    (forall k k', E.eq k k' -> k = k') ->
+    (MapsTo k e m <->
+    List.In (k, e) (elements (elt:=elt) m)).
+  Proof.
+    intros.
+    split.
+    - intros. apply maps_to_impl_in_elements in H0.
+      destruct H0 as (k', (Heq, Hin)).
+      apply H in Heq.
+      subst.
+      assumption.
+    - apply in_elements_impl_maps_to.
+  Qed.
+
 End MapUtil.

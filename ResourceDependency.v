@@ -4,7 +4,7 @@ Require Import
   Coq.Arith.Compare_dec.
 
 Require Import
-  Semantics TaskMap PhaserMap Vars Syntax.
+  Semantics TaskMap PhaserMap Vars Syntax SetUtil MapUtil.
 
 Require Graphs.Main.
 Require Import Graphs.Core.
@@ -19,7 +19,9 @@ Ltac apply_auto H := apply H; r_auto.
 
 Module RES := PairOrderedType PHID Nat_as_OT.
 Module Set_RES := FSetAVL.Make RES.
+Module Set_RES_Extra := SetUtil Set_RES.
 Module Map_RES := FMapAVL.Make RES.
+Module Map_RES_Extra := MapUtil Map_RES.
 Definition resource := RES.t.
 Definition set_resource := Set_RES.t.
 Definition res (p:phid) (n:nat) : resource := (p, n).

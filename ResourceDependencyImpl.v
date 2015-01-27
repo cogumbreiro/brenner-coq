@@ -6,6 +6,56 @@ Require Import PhaserMap.
 Require Import TaskMap.
 Require Import Phaser.
 Require Import Coq.Arith.Compare_dec.
+Require Import Coq.Lists.SetoidList.
+
+
+Definition proj_i_edges (e:(Map_RES.key * set_tid)): list (resource * tid) :=
+  let (r, ts) := e in
+  List.map (fun t=> (r, t)) (Set_TID.elements ts).
+
+Definition impedes_edges (i:impedes) : list (resource * tid) :=
+  List.flat_map proj_i_edges (Map_RES.elements i).
+
+Lemma impedes_edges_spec:
+  forall r t i,
+  List.In (r,t) (impedes_edges i) <-> 
+  (exists (ts:Set_TID.t), Map_RES.MapsTo r ts i  /\ Set_TID.In t ts).
+Proof.
+  intros.
+  split.
+  - intros.
+    unfold impedes_edges in *.
+    rewrite List.in_flat_map in *.
+    unfold proj_i_edges in *.
+    destruct H as ((r', ts), (H1, H2)).
+    rewrite List.in_map_iff in H2.
+    destruct H2 as (t'', (H2, H3)).
+    inversion H2; subst; clear H2.
+    exists ts.
+    apply Map_RES_Extra.in_elements_impl_maps_to in H1.
+    intuition.
+    apply Set_TID.elements_2.
+    auto.
+  - intros.
+    destruct H as (ts, (Hmt, Hin)).
+    unfold impedes_edges.
+    rewrite in_flat_map.
+    unfold proj_i_edges.
+    exists (r, ts).
+    intuition.
+    + rewrite <- Map_RES_Extra.maps_to_iff_in_elements.
+      assumption.
+      intros.
+      destruct k, k', H.
+      auto.
+    + rewrite in_map_iff.
+      exists t.
+      intuition.
+      rewrite <- Set_TID_Extra.in_iff_in_elements.
+      assumption.
+      auto.
+Qed.
+  
 
 Definition impedes_empty : impedes := @Map_RES.empty set_tid.
 Definition waits_empty : waits := @Map_TID.empty set_resource.

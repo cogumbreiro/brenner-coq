@@ -7,14 +7,64 @@ Require Import TaskMap.
 Require Import Phaser.
 Require Import Coq.Arith.Compare_dec.
 Require Import Coq.Lists.SetoidList.
+Require Import MapUtil SetUtil.
+Module Project (M:FMapInterface.WS) (S:FSetInterface.WS).
 
+Module M_Extra := MapUtil M.
+Module S_Extra := SetUtil S.
 
-Definition proj_i_edges (e:(Map_RES.key * set_tid)): list (resource * tid) :=
-  let (r, ts) := e in
-  List.map (fun t=> (r, t)) (Set_TID.elements ts).
+Definition proj_edges (e:(M.E.t * S.t)) :=
+  let (k, s) := e in
+  List.map (fun e'=> (k, e')) (S.elements s).
 
-Definition impedes_edges (i:impedes) : list (resource * tid) :=
-  List.flat_map proj_i_edges (Map_RES.elements i).
+Definition edges m : list (M.E.t * S.E.t) :=
+  List.flat_map proj_edges (M.elements m).
+
+Lemma edges_spec:
+  forall k e m,
+  (forall k1 k2, M.E.eq k1 k2 -> k1 = k2) ->
+  (forall e1 e2, S.E.eq e1 e2 -> e1 = e2) ->
+  (List.In (k,e) (edges m) <-> (exists (s:S.t), M.MapsTo k s m  /\ S.In e s)).
+Proof.
+  intros k e m Heq1 Heq2.
+  split.
+  - intros.
+    unfold edges in *.
+    rewrite List.in_flat_map in *.
+    unfold proj_edges in *.
+    destruct H as ((r', ts), (H1, H2)).
+    rewrite List.in_map_iff in H2.
+    destruct H2 as (t'', (H2, H3)).
+    inversion H2; subst; clear H2.
+    apply M_Extra.in_elements_impl_maps_to in H1.
+    apply S_Extra.in_iff_in_elements in H3.
+    exists ts.
+    intuition.
+    assumption.
+  - intros.
+    destruct H as (s, (Hmt, Hin)).
+    unfold edges.
+    rewrite in_flat_map.
+    unfold proj_edges.
+    exists (k, s).
+    intuition.
+    + rewrite <- M_Extra.maps_to_iff_in_elements.
+      assumption.
+      assumption.
+    + rewrite in_map_iff.
+      exists e.
+      intuition.
+      rewrite <- S_Extra.in_iff_in_elements.
+      assumption.
+      assumption.
+Qed.
+
+End Project.
+
+Module I_Proj := Project Map_RES Set_TID.
+
+Definition impedes_edges : impedes -> list (resource * tid) :=
+  I_Proj.edges.
 
 Lemma impedes_edges_spec:
   forall r t i,
@@ -22,40 +72,44 @@ Lemma impedes_edges_spec:
   (exists (ts:Set_TID.t), Map_RES.MapsTo r ts i  /\ Set_TID.In t ts).
 Proof.
   intros.
-  split.
-  - intros.
-    unfold impedes_edges in *.
-    rewrite List.in_flat_map in *.
-    unfold proj_i_edges in *.
-    destruct H as ((r', ts), (H1, H2)).
-    rewrite List.in_map_iff in H2.
-    destruct H2 as (t'', (H2, H3)).
-    inversion H2; subst; clear H2.
-    exists ts.
-    apply Map_RES_Extra.in_elements_impl_maps_to in H1.
-    intuition.
-    apply Set_TID.elements_2.
+  unfold impedes_edges.
+  apply I_Proj.edges_spec.
+  - intros. destruct H, k1, k2.
     auto.
-  - intros.
-    destruct H as (ts, (Hmt, Hin)).
-    unfold impedes_edges.
-    rewrite in_flat_map.
-    unfold proj_i_edges.
-    exists (r, ts).
-    intuition.
-    + rewrite <- Map_RES_Extra.maps_to_iff_in_elements.
-      assumption.
-      intros.
-      destruct k, k', H.
-      auto.
-    + rewrite in_map_iff.
-      exists t.
-      intuition.
-      rewrite <- Set_TID_Extra.in_iff_in_elements.
-      assumption.
-      auto.
+  - auto.
 Qed.
-  
+
+Module W_Proj := Project Map_TID Set_RES.
+
+Definition waits_edges : waits -> list (tid * resource) :=
+  W_Proj.edges.
+
+Lemma waits_edges_spec:
+  forall t r w,
+  List.In (t,r) (waits_edges w) <-> 
+  (exists (rs:Set_RES.t), Map_TID.MapsTo t rs w  /\ Set_RES.In r rs).
+Proof.
+  intros.
+  unfold waits_edges.
+  apply W_Proj.edges_spec.
+  - auto.
+  - intros. destruct H, e1, e2.
+    auto.
+Qed.
+
+Definition starts_from (r:resource) (e:(resource*tid)) :=
+  let (r', t) := e in if RES.eq_dec r' r then true else false.
+
+Definition impedes_from d r := 
+  filter (fun e:(resource*tid)=> let (r', t) := e in if RES.eq_dec r' r then true else false)
+  (impedes_edges (get_impedes d)).
+
+Definition build_edges (d:dependencies) (e:(tid*resource)) : list (tid*tid) :=
+  let (t, r) := e in
+  map (fun e':(resource*tid)=> (t, snd e')) (impedes_from d r).
+
+Definition build_wfg (d:dependencies) : list (tid*tid) :=
+  flat_map (build_edges d) (waits_edges (get_waits d)).
 
 Definition impedes_empty : impedes := @Map_RES.empty set_tid.
 Definition waits_empty : waits := @Map_TID.empty set_resource.

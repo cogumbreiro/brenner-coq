@@ -58,8 +58,8 @@ Lemma totally_deadlocked_inv1:
   TotallyDeadlocked s ->
   Blocked s t r ->
   exists t',
-  Impedes d t' r /\
-  exists r', WaitsFor d r' t.
+  Impedes d r t' /\
+  exists r', WaitsFor d t r'.
 Proof.
   intros.
   unfold TotallyDeadlocked in *.
@@ -72,15 +72,15 @@ Proof.
     apply blocked_to_waits_for with (s:=s); repeat auto.
 Qed.
 
-Lemma totally_deadlocked_blocked_idgree:
+Lemma totally_deadlocked_blocked_odgree:
   forall t r,
   TotallyDeadlocked s ->
   Blocked s t r ->
-  HasIncoming wfg t.
+  HasOutgoing wfg t.
 Proof.
   intros.
   destruct (totally_deadlocked_inv1 _ _ H H0) as (t', (H1, (r', H2))).
-  apply has_incoming_def with (v':=t').
+  apply has_outgoing_def with (v':=t').
   unfold Edge.
   apply wfg_spec.
   rewrite tedge_spec.
@@ -91,17 +91,17 @@ Proof.
   auto.
 Qed.
 
-Let totally_deadlocked_has_idegree:
+Let totally_deadlocked_has_odegree:
   TotallyDeadlocked s ->
   exists t, 
-  HasIncoming wfg t.
+  HasOutgoing wfg t.
 Proof.
   intros.
   assert (Hx :=H).
   destruct H as (H1, (H2, (t, H3))).
   exists t.
   destruct (H1 _ H3) as (r, H).
-  apply totally_deadlocked_blocked_idgree with (r:=r); repeat auto.
+  apply totally_deadlocked_blocked_odgree with (r:=r); repeat auto.
 Qed.
 
 Lemma totally_deadlocked_nonempty:
@@ -109,7 +109,7 @@ Lemma totally_deadlocked_nonempty:
   wfg <> nil.
 Proof.
   intros.
-  destruct (totally_deadlocked_has_idegree H) as (t, H1).
+  destruct (totally_deadlocked_has_odegree H) as (t, H1).
   inversion H1.
   subst.
   unfold Edge in H0.
@@ -120,7 +120,7 @@ Qed.
 
 Lemma impedes_to_blocked:
   forall t r,
-  Impedes d t r ->
+  Impedes d r t ->
   exists r', Blocked s t r'.
 Proof.
   intros.
@@ -146,29 +146,29 @@ Proof.
   rewrite wfg_spec in *.
   destruct e as (t1, t2).
   rewrite tedge_spec in He.
-  destruct He as (r, (Himp, Hwf)).
+  destruct He as (r, (Hwf, Himp)).
   inversion Hin.
-  - subst; simpl in *.
-    apply impedes_to_blocked in Himp.
-    auto.
   - subst; simpl in *.
     apply waits_for_to_blocked with (s:=s) in Hwf.
     exists r; assumption.
     assumption.
+  - subst; simpl in *.
+    apply impedes_to_blocked in Himp.
+    auto.
 Qed.
 
 Theorem totally_deadlocked_all_incoming:
   TotallyDeadlocked s ->
-  AllIncoming wfg.
+  AllOutgoing wfg.
 Proof.
   intros.
-  unfold AllIncoming.
+  unfold AllOutgoing.
   unfold Forall.
   unfold Core.Forall.
   intros.
   apply totally_deadlocked_vertex_blocked in H0; repeat auto.
   destruct H0 as (r, Hb).
-  apply totally_deadlocked_blocked_idgree with (r:=r); repeat auto.
+  apply totally_deadlocked_blocked_odgree with (r:=r); repeat auto.
 Qed.
 
 Theorem totally_deadlock_has_cycle:
@@ -177,12 +177,11 @@ Theorem totally_deadlock_has_cycle:
   exists c, Core.Cycle (Edge wfg) c.
 Proof.
   intros.
-  apply all_pos_idegree_impl_cycle.
+  apply all_pos_odegree_impl_cycle.
   - apply TID.eq_dec.
   - auto.
   - apply totally_deadlocked_all_incoming.
     assumption.
-  - assumption.
 Qed.
 
 End TOTALLY_COMPLETE.
@@ -240,16 +239,16 @@ Proof.
   intros.
   simpl in *.
   inversion H; clear H; subst.
-  apply waits_for_to_blocked with (s:=ds) in H1.
+  apply waits_for_to_blocked with (s:=ds) in H0.
   apply B.B.aa with (b:=b).
-  - apply impedes_to_registered with (s:=ds) in H0.
-    destruct H0 as (r, (H0, H3)).
-    apply registered_to_impedes with (s:=s) (r':=r); r_auto.
-    apply deadlocked_deps_of.
   - apply blocked_to_waits_for with (s:=s).
     apply orig_deps_of.
     apply blocked_conv.
     assumption.
+  - apply impedes_to_registered with (s:=ds) in H1.
+    destruct H1 as (r, (H1, H3)).
+    apply registered_to_impedes with (s:=s) (r':=r); r_auto.
+    apply deadlocked_deps_of.
   - apply deadlocked_deps_of.
 Qed.
 End Totally.

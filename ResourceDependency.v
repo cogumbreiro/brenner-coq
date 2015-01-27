@@ -149,14 +149,13 @@ Module Map_R := FMapAVL.Make R.
 Definition r_edge := R.t.
 Definition set_r_edge := Set_R.t.
 
-Definition WaitsFor (d:dependencies) (r:resource) (t:tid) :=
+Definition WaitsFor (d:dependencies) (t:tid) (r:resource) :=
   exists rs, Map_TID.MapsTo t rs (get_waits d) /\ Set_RES.In r rs.
 
-Definition Impedes (d:dependencies) (t:tid) (r:resource) :=
+Definition Impedes (d:dependencies) (r:resource) (t:tid) :=
   exists ts, Map_RES.MapsTo r ts (get_impedes d) /\ Set_TID.In t ts.
 
-
-Definition GRG(d:dependencies) := B.mk_bipartite tid resource (Impedes d) (WaitsFor d).
+Definition GRG(d:dependencies) := B.mk_bipartite _ _ (WaitsFor d) (Impedes d).
 
 Notation WFG d := (B.contract_a (GRG d)).
 Notation SG d := (B.contract_b (GRG d)).
@@ -170,7 +169,8 @@ Notation t_walk := (list t_edge).
 Lemma tedge_spec:
   forall d (t1 t2:tid),
   TEdge d (t1, t2) <->
-  exists r, Impedes d t1 r /\ WaitsFor d r t2.
+  exists r,
+  WaitsFor d t1 r /\ Impedes d r t2.
 Proof.
   split.
   + intros.
@@ -220,7 +220,7 @@ Section Basic.
 
 Lemma waits_for_to_blocked:
   forall r t,
-  WaitsFor d r t ->
+  WaitsFor d t r ->
   Blocked s t r.
 Proof.
   intros.
@@ -234,7 +234,7 @@ Qed.
 Lemma blocked_to_waits_for:
   forall r t,
   Blocked s t r ->
-  WaitsFor d r t .
+  WaitsFor d t r.
 Proof.
   intros.
   unfold WaitsFor in *.
@@ -246,8 +246,7 @@ Qed.
 
 Lemma blocked_eq_waits_for:
   forall r t,
-  Blocked s t r <->
-  WaitsFor d r t .
+  Blocked s t r <-> WaitsFor d t r.
 Proof.
   intros.
   split.
@@ -257,7 +256,7 @@ Qed.
 
 Lemma impedes_to_registered:
   forall t r,
-  Impedes d t r ->
+  Impedes d r t ->
   exists r', Registered s t r' /\ prec r' r.
 Proof.
   intros.
@@ -274,7 +273,7 @@ Lemma registered_to_impedes :
   forall t r' r,
   Registered s t r' ->
   prec r' r ->
-  Impedes d t r.
+  Impedes d r t.
 Proof.
   intros.
   unfold Impedes.
@@ -290,8 +289,8 @@ Qed.
 
 Lemma impedes_eq_registered:
   forall t r,
-  Impedes d t r <->
-  exists r', Registered s t r' /\ prec r' r.
+  Impedes d r t <->
+  (exists r', Registered s t r' /\ prec r' r).
 Proof.
   intros.
   intuition.

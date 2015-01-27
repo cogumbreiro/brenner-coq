@@ -18,7 +18,7 @@ Lemma tedge_inv:
   TWalk d w ->
   F.Edge w (t, t') ->
   exists r,
-  Impedes d t r /\ WaitsFor d r t'.
+  WaitsFor d t r /\ Impedes d r t'.
 Proof.
   intros.
   apply in_edge with (Edge:=G.Edge (WFG d)) in H0.
@@ -52,24 +52,24 @@ Proof.
   simpl in *.
   inversion H0 as ((t1, t2), (Hin, Hpin)).
   destruct Hpin as [H2|H2].
-  - subst. simpl in *.
-    apply tedge_inv in Hin.
-    + destruct Hin as (r, (Himp, _)).
-      apply impedes_to_registered with (s:=s) in Himp.
-      destruct Himp as (r', (Hreg, _)).
-      apply registered_to_blocked in Hreg.
-      destruct Hreg as (r'', Hblock).
-      apply blocked_in_tasks in Hblock; r_auto.
-      assumption.
-    + auto.
   - subst; simpl in *.
     apply tedge_inv in Hin.
-    + destruct Hin as (r, (_, Hwf)).
+    + destruct Hin as (r, (Hwf, _)).
       apply waits_for_to_blocked with (s:=s) in Hwf.
       unfold Blocked in Hwf.
       destruct Hwf as (p', (Hf, _)).
       apply mapsto_to_in in Hf.
       assumption.
+      assumption.
+    + auto.
+  - subst. simpl in *.
+    apply tedge_inv in Hin.
+    + destruct Hin as (r, (_, Himp)).
+      apply impedes_to_registered with (s:=s) in Himp.
+      destruct Himp as (r', (Hreg, _)).
+      apply registered_to_blocked in Hreg.
+      destruct Hreg as (r'', Hblock).
+      apply blocked_in_tasks in Hblock; r_auto.
       assumption.
     + auto.
 Qed.
@@ -112,16 +112,80 @@ Lemma in_inv_left:
 Proof.
   intros.
   simpl in *.
-  apply tedge_inv in H.
-  destruct H as (r, (H1, H2)).
-  apply impedes_to_registered with (s:=s) in H1.
-  destruct H1 as (r', (H1, H3)).
-  apply registered_to_blocked in H1.
-  destruct H1 as (r'', H1).
-  apply blocked_in_tasks in H1.
+  apply vertex_in_tasks.
+  unfold F.In.
+  unfold In.
+  exists (t, t').
+  unfold F.Edge.
+  intuition.
+  apply pair_in_left.
+Qed.
+
+Lemma as_blocked_registered:
+  forall (t:tid) (r r':resource),
+  WaitsFor d t r' ->
+  Impedes d r t ->
+  exists t' : Map_TID.key,
+  Map_TID.In (elt:=prog) t' (get_tasks s) /\
+  (exists r' : resource, Registered s t' r' /\ prec r' r).
+Proof.
+  intros.
+  exists t.
+  split.
+  - apply waits_for_to_blocked with (s:=s) in H.
+    apply blocked_in_tasks with (r:=r').
+    assumption.
+    assumption.
+  - rewrite <- (impedes_eq_registered (d:=d) (s:=s)).
+    assumption.
+    assumption.
+Qed.
+
+Lemma vertex_to_blocked:
+  forall t,
+  F.In t w ->
+  exists r, Blocked s t r.
+Proof.
+  intros.
+  apply F.succ_in_cycle with (E:=TEdge d) in H; repeat auto.
+  destruct H as (t', (He, Hi)).
+  apply tedge_inv in Hi.
+  destruct Hi as (r, (Hw, Hi')).
+  exists r.
+  apply waits_for_to_blocked with (d:=d).
   assumption.
   assumption.
-  apply Hwalk.
+  assumption.
+Qed.
+
+Lemma blocked_to_impedes:
+  forall t r,
+  Blocked s t r ->
+  exists t', Impedes d r t' /\ exists r', Blocked s t' r'.
+Proof.
+  intros.
+  assert (Hblocked := H).
+  apply blocked_in_tasks in H.
+  apply vertex_in_tasks in H.
+  apply F.succ_in_cycle with (E:=TEdge d) in H; repeat auto.
+  destruct H as (t', (He, Hin)).
+  assert (Hx := Hin).
+  apply tedge_inv in Hin.
+  destruct Hin as (r', (Hw, Hi)).
+  exists t'.
+  assert (r' = r).
+  apply waits_for_to_blocked with (s:=s) in Hw.
+  apply blocked_fun with (r:=r) in Hw; r_auto.
+  auto.
+  subst.
+  intuition.
+  assert (F.In t' w).
+  apply in_def with (e:=(t, t')).
+  apply pair_in_right.
+  assumption.
+  apply vertex_to_blocked.
+  assumption.
+  assumption.
 Qed.
 
 Lemma soundness_totally:
@@ -134,34 +198,22 @@ Proof.
   - unfold AllTasksBlocked; intros.
     assert (F.In t w).
     apply vertex_in_tasks; assumption.
-    assert (exists t2, TEdge d (t2, t)).
-    apply F.pred_in_cycle with (E:=TEdge d) in H0; repeat auto.
+    assert (exists t2, TEdge d (t, t2)).
+    apply F.succ_in_cycle with (E:=TEdge d) in H0; repeat auto.
     destruct H0 as (t2, (Hc, _)); exists t2; auto.
     destruct H1 as (t2, H1).
     apply tedge_spec in H1.
-    destruct H1 as (r', (Himp1, Hwf1)).
+    destruct H1 as (r', (Hwf1, Himp1)).
     apply waits_for_to_blocked with (s:=s) in Hwf1.
     exists r'; assumption.
     assumption.
   - unfold AllBlockedRegistered; intros.
     assert (Hblocked := H).
-    apply blocked_in_walk in H.
-    destruct H as (t', H).
-    exists t'. (* we've found t' *)
-    intuition.
-    + (* show that t' in dom T *)
-      apply in_inv_left in H;
-      intuition.
-    + apply tedge_inv in H.
-      * destruct H as (r', (Hi, Hw)).
-        rewrite <- (blocked_eq_waits_for (s:=s)) in Hw.
-        assert (Heq : r = r').
-        apply blocked_fun with (s:=s) (t:=t); r_auto.
-        (* end assert *)
-        subst.
-        rewrite <- (impedes_eq_registered (d:=d) (s:=s)); r_auto.
-        assumption.
-      * inversion is_cycle; r_auto.
+    apply blocked_to_impedes in H.
+    destruct H as (t', (Him, (r', Hv))).
+    apply as_blocked_registered with (t:=t') (r':=r').
+    + apply blocked_to_waits_for with (s:=s); r_auto.
+    + assumption.
   - inversion is_cycle.
     exists v1.
     apply in_inv_left with (t':=v2).
@@ -268,20 +320,20 @@ Proof.
   intros.
   simpl in *.
   inversion H0; clear H0; subst.
-  apply waits_for_to_blocked with (s:=s) in H2.
-  apply blocked_conv in H2.
-  apply impedes_to_registered with (s:=s) in H1.
-  destruct H1 as (r, (H1, H3)).
-  apply registered_conv in H1.
+  apply waits_for_to_blocked with (s:=s) in H1.
+  apply blocked_conv in H1.
+  apply impedes_to_registered with (s:=s) in H2.
+  destruct H2 as (r, (H2, H3)).
+  apply registered_conv in H2.
   apply Core.aa with (b:=b).
-  apply registered_to_impedes with (s:=ds) (r':=r); r_auto.
   apply blocked_to_waits_for with (s:=ds); r_auto.
-  apply in_def with (e:=(a1, a2)).
-  apply pair_in_left.
-  assumption.
-  assumption.
+  apply registered_to_impedes with (s:=ds) (r':=r); r_auto.
   apply in_def with (e:=(a1, a2)).
   apply pair_in_right.
+  assumption.
+  assumption.
+  apply in_def with (e:=(a1, a2)).
+  apply pair_in_left.
   assumption.
   assumption.
 Qed.

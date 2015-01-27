@@ -459,6 +459,40 @@ Proof.
   - inversion H0.
 Qed.
 
+
+Lemma succ_in_walk:
+  forall w v1 v2,
+  Walk w ->
+  List.In (v1, v2) w ->
+  (End w (v1, v2) \/ exists v3, List.In (v2, v3) w).
+Proof.
+  intros.
+  induction H.
+  - assert (Hin := H0).
+    apply in_inv in H0.
+    destruct H0.
+    + subst.
+      destruct w.
+      * left; auto.
+        apply end_nil.
+      * right.
+        compute in H2.
+        destruct p as (v2', v3).
+        rewrite <- H2 in *.
+        exists v3.
+        apply in_cons.
+        apply in_eq.
+    + apply IHWalk in H0; clear IHWalk.
+      destruct H0.
+      * left; apply end_cons; assumption.
+      * destruct H0 as (v3, Hx).
+        right.
+        exists v3.
+        apply in_cons.
+        assumption.
+  - inversion H0.
+Qed.
+
 Lemma in_inv_nil:
   forall A e e',
   @In A e (e' :: nil) ->
@@ -493,6 +527,35 @@ Proof.
         exists vn.
         assumption.
       * assumption.
+    + assumption.
+Qed.
+
+
+Lemma succ_in_cycle:
+  forall w v1 v2,
+  Cycle w ->
+  List.In (v1, v2) w ->
+  exists v3, List.In (v2, v3) w.
+Proof.
+  intros.
+  inversion H.
+  subst.
+  destruct w0.
+  - apply end_inv in H1.
+    inversion H1; subst; clear H1.
+    apply in_inv_nil in H0.
+    inversion H0; subst; clear H0.
+    exists vn.
+    apply in_eq.
+  - apply succ_in_walk with (v1:=v1) (v2:=v2) in H2.
+    + destruct H2 as [H2|(v4, H2)].
+      * apply end_det with (e:=(v1,v2)) in H1.
+        inversion H1; subst; clear H1.
+        exists v3.
+        apply in_eq.
+        assumption.
+      * exists v4.
+        assumption.
     + assumption.
 Qed.
 

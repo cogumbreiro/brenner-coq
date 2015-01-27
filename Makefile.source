@@ -20,6 +20,7 @@ Vars.v
 Soundness.v
 OptionUtil.v
 MapUtil.v
+SetUtil.v
 PairUtil.v
 ListUtil.v
 ListSetUtil.v

@@ -4,18 +4,178 @@ Require Import Semantics.
 Require Import Vars.
 Require Import Syntax.
 Require Import Graphs.FGraphs.
+Require Import Coq.Lists.SetoidList.
+Require Import MapUtil SetUtil.
+
+
+Module Project (M:FMapInterface.WS) (S:FSetInterface.WS).
+
+Module M_Extra := MapUtil M.
+Module S_Extra := SetUtil S.
+
+Definition proj_edges (e:(M.E.t * S.t)) :=
+  let (k, s) := e in
+  List.map (fun v=> (k, v)) (S.elements s).
+
+Definition edges m : list (M.E.t * S.E.t) :=
+  List.flat_map proj_edges (M.elements m).
+
+Lemma edges_spec:
+  forall k e m,
+  (forall k1 k2, M.E.eq k1 k2 -> k1 = k2) ->
+  (forall e1 e2, S.E.eq e1 e2 -> e1 = e2) ->
+  (List.In (k,e) (edges m) <-> (exists (s:S.t), M.MapsTo k s m  /\ S.In e s)).
+Proof.
+  intros k e m Heq1 Heq2.
+  split.
+  - intros.
+    unfold edges in *.
+    rewrite List.in_flat_map in *.
+    unfold proj_edges in *.
+    destruct H as ((r', ts), (H1, H2)).
+    rewrite List.in_map_iff in H2.
+    destruct H2 as (t'', (H2, H3)).
+    inversion H2; subst; clear H2.
+    apply M_Extra.in_elements_impl_maps_to in H1.
+    apply S_Extra.in_iff_in_elements in H3.
+    exists ts.
+    intuition.
+    assumption.
+  - intros.
+    destruct H as (s, (Hmt, Hin)).
+    unfold edges.
+    rewrite in_flat_map.
+    unfold proj_edges.
+    exists (k, s).
+    intuition.
+    + rewrite <- M_Extra.maps_to_iff_in_elements.
+      assumption.
+      assumption.
+    + rewrite in_map_iff.
+      exists e.
+      intuition.
+      rewrite <- S_Extra.in_iff_in_elements.
+      assumption.
+      assumption.
+Qed.
+
+End Project.
+
+Module I_Proj := Project Map_RES Set_TID.
+
+Definition impedes_edges : impedes -> list (resource * tid) :=
+  I_Proj.edges.
+
+Lemma impedes_edges_spec:
+  forall r t d,
+  List.In (r,t) (impedes_edges (get_impedes d)) <-> Impedes d r t.
+Proof.
+  intros.
+  unfold Impedes.
+  unfold impedes_edges.
+  apply I_Proj.edges_spec.
+  - intros. destruct H, k1, k2.
+    auto.
+  - auto.
+Qed.
+
+Module W_Proj := Project Map_TID Set_RES.
+
+Definition waits_edges : waits -> list (tid * resource) :=
+  W_Proj.edges.
+
+Lemma waits_edges_spec:
+  forall t r d,
+  List.In (t,r) (waits_edges (get_waits d)) <-> WaitsFor d t r.
+Proof.
+  intros.
+  unfold waits_edges.
+  unfold WaitsFor.
+  apply W_Proj.edges_spec.
+  - auto.
+  - intros. destruct H, e1, e2.
+    auto.
+Qed.
+
+Definition starts_from (r:resource) (e:(resource*tid)) :=
+  let (r', t) := e in if RES.eq_dec r' r then true else false.
+
+Definition impedes_from d r := 
+  filter (fun e:(resource*tid)=> let (r', t) := e in if RES.eq_dec r' r then true else false)
+  (impedes_edges (get_impedes d)).
+
+Definition build_edges (d:dependencies) (e:(tid*resource)) : list (tid*tid) :=
+  let (t, r) := e in
+  map (fun e':(resource*tid)=> (t, snd e')) (impedes_from d r).
+
+Definition build_wfg (d:dependencies) : list (tid*tid) :=
+  flat_map (build_edges d) (waits_edges (get_waits d)).
+
+Theorem build_wfg_spec:
+  forall d t t',
+  List.In (t,t') (build_wfg d) <-> 
+  (exists (r:resource), WaitsFor d t r /\ Impedes d r t').
+Proof.
+  intros.
+  unfold build_wfg.
+  rewrite in_flat_map.
+  unfold build_edges in *.
+  split.
+  - intros.
+    destruct H as ((t1, r), (Hinw, Hinb)).
+    rewrite waits_edges_spec in Hinw.
+    exists r.
+    rewrite in_map_iff in *.
+    destruct Hinb as ((r', t''), (Heq, Hini)).
+    simpl in *.
+    inversion Heq; subst; clear Heq.
+    unfold impedes_from in *.
+    rewrite filter_In in *.
+    destruct Hini as (Hini, Hcnd).
+    remember (Map_RES_Extra.P.F.eq_dec r' r) as b.
+    destruct b.
+    assert (r' = r).
+    destruct a, r', r.
+    auto.
+    subst.
+    clear a Heqb.
+    rewrite impedes_edges_spec in *.
+    intuition.
+    inversion Hcnd.
+  - intros.
+    destruct H as (r, (Hwf, Him)).
+    exists (t, r).
+    rewrite waits_edges_spec.
+    intuition.
+    rewrite in_map_iff.
+    exists (r, t').
+    simpl.
+    intuition.
+    unfold impedes_from.
+    rewrite filter_In.
+    split.
+    * rewrite impedes_edges_spec.
+      assumption.
+    * destruct (Map_RES_Extra.P.F.eq_dec r r).
+      auto.
+      contradiction n.
+      auto.
+Qed.
 
 Definition WFG_of wfg d := 
   forall (e:t_edge), List.In e wfg <-> TEdge d e.
 
-
-Section WFG_OF.
-Variable d:dependencies.
-Variable s:state.
-Variable w:t_walk.
-Variable deps_of: Deps_of s d.
-Axiom wfg_of_total: exists wfg, WFG_of wfg d.
-End WFG_OF.
+Corollary wfg_of_total:
+  forall d:dependencies, exists wfg, WFG_of wfg d.
+Proof.
+  intros.
+  unfold WFG_of.
+  exists (build_wfg d).
+  destruct e as (t, t').
+  rewrite build_wfg_spec.
+  rewrite tedge_spec.
+  intuition.
+Qed.
 
 Section TOTALLY_COMPLETE.
 Variable d:dependencies.
@@ -163,7 +323,7 @@ Theorem totally_deadlocked_all_incoming:
 Proof.
   intros.
   unfold AllOutgoing.
-  unfold Forall.
+  unfold FGraphs.Forall.
   unfold Core.Forall.
   intros.
   apply totally_deadlocked_vertex_blocked in H0; repeat auto.

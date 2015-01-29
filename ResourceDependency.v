@@ -105,9 +105,7 @@ Definition I_of (i:impedes) :=
   forall t r,
   (exists ts, Map_RES.MapsTo r ts i /\ Set_TID.In t ts)
   <->
-  (exists r',
-  Registered t r' /\
-  prec r' r /\ (exists r'', Blocked t r'')).
+  (exists r', Registered t r' /\ prec r' r).
 
 Definition Deps_of (d:dependencies) :=
   W_of (get_waits d) /\ I_of (get_impedes d).
@@ -282,9 +280,6 @@ Proof.
   apply H'.
   exists r'.
   intuition.
-  inversion H.
-  destruct H1 as (_, (_, H1)).
-  assumption.
 Qed.
 
 Lemma impedes_eq_registered:

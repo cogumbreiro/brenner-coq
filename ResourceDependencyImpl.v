@@ -174,7 +174,7 @@ Proof.
   + auto.
 Qed.
 
-Definition gen_blocked s : list (tid*resource) :=
+Definition gen_wedges s : list (tid*resource) :=
   flat_map
   (fun (e:(tid*prog))  =>
     match (blocked s e) with
@@ -183,12 +183,12 @@ Definition gen_blocked s : list (tid*resource) :=
     end)
   (get_blocked s).
 
-Lemma gen_blocked_spec:
+Lemma gen_wedges_spec:
   forall r t s,
-  In (t, r) (gen_blocked s) <-> Blocked s t r.
+  In (t, r) (gen_wedges s) <-> Blocked s t r.
 Proof.
   intros.
-  unfold gen_blocked.
+  unfold gen_wedges.
   rewrite in_flat_map.
   split.
   - intros.
@@ -226,6 +226,22 @@ Proof.
       apply blocked_inv_2 in Heqo.
       contradiction Heqo.
 Qed.
+
+Definition match_tid (t:tid) (p:tid*resource) :=
+  let (t', _) := p in
+  if TID.eq_dec t t' then true else false.
+
+Require Import Bool.
+
+
+Lemma waits_total:
+  forall (s:state),
+  exists (w:waits), W_of s w.
+Proof.
+  intros.
+  Print Map_TID_Props.
+  Print Map_TID_Props.of_list.
+  exists (Map_TID_Props.of_list (gen_waits s)).
 
 Definition is_blocked (s:state) (t:tid) : bool :=
   match Map_TID.find t (get_tasks s) with

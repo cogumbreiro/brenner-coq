@@ -6,10 +6,11 @@ Require Import Syntax.
 Require Import Graphs.FGraphs.
 Require Import Coq.Lists.SetoidList.
 Require Import MapUtil SetUtil.
+Require Import Bool.
 
 
 Module Project (M:FMapInterface.WS) (S:FSetInterface.WS).
-
+Module S_Props := FSetProperties.Properties S.
 Module M_Extra := MapUtil M.
 Module S_Extra := SetUtil S.
 
@@ -58,7 +59,87 @@ Proof.
       assumption.
       assumption.
 Qed.
+(*
+Notation edge := (M.E.t * S.E.t)%type.
 
+Definition match_key (k:M.E.t) (p:edge) :=
+  let (k', _) := p in
+  if M.E.eq_dec k k' then true else false.
+
+Require Import Recdef. (* Required by Function *)
+Require Import Coq.Arith.Wf_nat. (* Required implicitly by measure obligations *)
+
+Lemma partition_length:
+  forall {A} (l:list A) f,
+  length (snd (partition f l)) <= length l.
+Proof.
+  intros.
+  induction l.
+  auto.
+  simpl.
+  remember (partition f l) as p.
+  symmetry in Heqp.
+  destruct p as (pl, pr).
+  simpl in *.
+  remember (f a) as fa.
+  destruct fa.
+  - simpl.
+    auto.
+  - simpl.
+    auto with *.
+Qed.
+
+Function unproj (l:list edge) {measure length l} : list (M.E.t * S.t) :=
+  match l with
+    | e :: l' =>
+      let (k, v) := e in
+      let (matched, mismatched) := partition (match_key k) l' in
+      let (_, vs) := split matched in
+      let new_vs := v :: vs in
+      (k, S_Props.of_list new_vs)::(unproj mismatched)
+    | nil => nil
+  end.
+Proof.
+  intros.
+  subst.
+  assert (mismatched = (snd (partition (match_key k) l'))).
+  rewrite teq1; auto.
+  rewrite H.
+  simpl.
+  apply Lt.le_lt_n_Sm.
+  apply partition_length.
+Defined.
+Import ListUtil.
+Lemma unproj_spec:
+  forall k v l,
+  List.In (k, v) l <-> exists s, List.In (k, s) (unproj l) /\ S.In v s.
+Proof.
+  intros.
+  functional induction (unproj l).
+  - split.
+    + intros.
+      inversion H.
+      * inversion H0; subst; clear H0 H.
+        exists (S_Props.of_list (v :: vs)).
+        intuition.
+        rewrite S_Props.of_list_1.
+        auto.
+      * assert ({In (k,v) matched} + {In (k,v) mismatched}).
+        assert (matched = fst (partition (match_key k0) l')).
+        rewrite e2; auto.
+        assert (mismatched = snd (partition (match_key k0) l')).
+        rewrite e2; auto.
+        rewrite H1; rewrite H2.
+        apply partition_in.
+        assumption.
+        (* eoa *)
+        
+        
+         
+        
+  - intros.
+    
+*)
 End Project.
 
 Module I_Proj := Project Map_RES Set_TID.
@@ -289,7 +370,9 @@ Proof.
   destruct (Hi t r) as (Ha, _); clear Hi.
   unfold Impedes in *.
   apply Ha in H; clear Ha.
-  destruct H as (_, (_, (_, H))).
+  destruct H as (r', (Hr, _)).
+  unfold Registered in Hr.
+  destruct Hr as (_, (_, (_, Hb))).
   auto.
 Qed.
 

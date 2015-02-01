@@ -2,6 +2,24 @@ Require Coq.FSets.FMapFacts.
 Require Coq.FSets.FMapInterface.
 Require Import Coq.Lists.SetoidList.
 
+Lemma ina_to_in:
+  forall {A:Type} (x:A) l,
+  (InA eq x l <-> In x l).
+Proof.
+  intros.
+  split.
+  - intros.
+    rewrite InA_altdef in H.
+    rewrite Exists_exists in H.
+    destruct H as (x', (Hin, Heq)).
+    subst; assumption.
+  - intros.
+    rewrite InA_altdef.
+    rewrite Exists_exists.
+    exists x.
+    intuition.
+Qed.
+
 Module MapUtil (Import M:FMapInterface.WS).
   Module F := FMapFacts.Facts M.
   Module P := FMapFacts.Properties M.
@@ -205,4 +223,36 @@ Module MapUtil (Import M:FMapInterface.WS).
     - apply in_elements_impl_maps_to.
   Qed.
 
+  Lemma in_to_ina_eq_key_elt (k_eq: forall k k', E.eq k k' <-> k = k'):
+    forall {elt:Type} k v (l: list (key * elt)),
+    List.In (k,v) l -> InA (eq_key_elt (elt:=elt)) (k,v) l.
+  Proof.
+    intros.
+    rewrite InA_altdef.
+    rewrite Exists_exists.
+    exists (k, v).
+    intuition.
+    unfold eq_key_elt.
+    simpl.
+    rewrite k_eq.
+    intuition.
+  Qed.
+    
+  Lemma to_list_of_list
+    {elt:Type}
+    (k_eq: forall k k', E.eq k k' <-> k = k'):
+    forall (k:E.t) (v:elt) (l:list (E.t * elt)), 
+    NoDupA (eq_key (elt:=elt)) l ->
+    List.In (k, v) l ->
+    List.In (k, v) (to_list (of_list l)).
+  Proof.
+    intros.
+    apply (in_to_ina_eq_key_elt k_eq) in H0.
+    apply (of_list_1 (l:=l) k v H) in H0.
+    unfold to_list.
+    apply maps_to_impl_in_elements in H0.
+    destruct H0 as (k', (Heq, Hin)).
+    apply k_eq in Heq; subst.
+    assumption.
+  Qed.
 End MapUtil.

@@ -1,7 +1,6 @@
 Require Import Lists.ListSet.
 Require Import Lists.List.
 Require Import Bool.
-
 Require Import Recdef. (* Required by Function *)
 Require Import Coq.Arith.Wf_nat. (* Required implicitly by measure obligations *)
 
@@ -10,6 +9,19 @@ Section LISTS.
 Variable A:Type.
 Variable eq_dec : forall (v1 v2:A), {v1 = v2} + {v1 <> v2}.
 Variable f : A -> bool.
+
+Lemma in_cons_neq:
+  forall {A:Type} (x y:A) l,
+  In x (y :: l) ->
+  x <> y ->
+  In x l.
+Proof.
+  intros.
+  inversion H.
+  contradiction H0.
+  auto.
+  assumption.
+Qed.
 
 Lemma filter_length:
   forall l,
@@ -340,8 +352,209 @@ Proof.
   unfold incl in Hx.
   apply Hx; assumption.
 Qed.
-
 End FEEDBACK.
+
+Section PARTITION.
+Variable A : Type.
+Variable f : A -> bool.
+
+Lemma partition_iff_1 :
+  forall x l,
+  (In x (fst (partition f l)) <-> In x l /\ f x = true).
+Proof.
+  intros.
+  split.
+  - intros.
+    induction l.
+    simpl in *.
+    inversion H.
+    simpl in H.
+    remember (f a) as fa.
+    symmetry in Heqfa.
+    remember (partition f l) as pf.
+    symmetry in Heqpf.
+    destruct pf as (pfl, pfr).
+    destruct fa.
+    + simpl in *.
+      destruct H.
+      * subst.
+        intuition.
+      * apply IHl in H; clear IHl.
+        destruct H.
+        intuition.
+    + simpl in *.
+      apply IHl in H; clear IHl.
+      destruct H.
+      intuition.
+ - intros.
+   destruct H.
+   induction l.
+   auto.
+   simpl in *.
+   remember (f a).
+   destruct H, b.
+   + subst.
+     remember (partition f l).
+     destruct p.
+     simpl.
+     auto.
+   + subst.
+     rewrite H0 in Heqb.
+     inversion Heqb.
+   + remember (partition f l).
+     destruct p.
+     simpl in *.
+     apply IHl in H.
+     intuition.
+   + apply IHl in H.
+     remember (partition f l).
+     destruct p.
+     auto.
+Qed.
+
+Lemma partition_iff_2 :
+  forall x l,
+  (In x (snd (partition f l)) <-> In x l /\ f x = false).
+Proof.
+  intros.
+  split.
+  - intros.
+    induction l.
+    simpl in *.
+    inversion H.
+    simpl in H.
+    remember (f a) as fa.
+    symmetry in Heqfa.
+    remember (partition f l) as pf.
+    symmetry in Heqpf.
+    destruct pf as (pfl, pfr).
+    destruct fa.
+    + simpl in *.
+      apply IHl in H; clear IHl.
+      destruct H.
+      intuition.
+    + simpl in *.
+      destruct H.
+      * subst.
+        intuition.
+      * apply IHl in H; clear IHl.
+        destruct H.
+        intuition.
+ - intros.
+   destruct H.
+   induction l.
+   auto.
+   simpl in *.
+   remember (f a).
+   destruct H, b.
+   + subst.
+     rewrite H0 in Heqb.
+     inversion Heqb.
+   + subst.
+     remember (partition f l).
+     destruct p.
+     simpl.
+     auto.
+   + remember (partition f l).
+     destruct p.
+     simpl in *.
+     apply IHl in H.
+     intuition.
+   + apply IHl in H.
+     remember (partition f l).
+     destruct p.
+     simpl in *.
+     auto with *.
+Qed.
+
+Lemma partition_in :
+  forall x l,
+  In x l ->
+  {In x (fst (partition f l)) /\ f x = true} +
+  {In x (snd (partition f l)) /\ f x = false}.
+Proof.
+  intros.
+  remember (f x).
+  symmetry in Heqb.
+  destruct b.
+  - left.
+    intuition.
+    apply partition_iff_1.
+    auto.
+  - right.
+    intuition.
+    apply partition_iff_2.
+    auto.
+Qed.
+
+Lemma partition_length:
+  forall l,
+  length (snd (partition f l)) <= length l.
+Proof.
+  intros.
+  induction l.
+  auto.
+  simpl.
+  remember (partition f l) as p.
+  symmetry in Heqp.
+  destruct p as (pl, pr).
+  simpl in *.
+  remember (f a) as fa.
+  destruct fa.
+  - simpl.
+    auto.
+  - simpl.
+    auto with *.
+Qed.
+
+End PARTITION.
+
+Lemma split_in_r:
+  forall {L R:Type} (r:R) (lst:list (L * R)),
+  In r (snd (split lst)) ->
+  exists (l:L), In (l, r) lst.
+Proof.
+  intros.
+  induction lst.
+  inversion H.
+  destruct a.
+  simpl in *.
+  remember (split lst).
+  destruct p as (ll, lr).
+  simpl in *.
+  destruct H.
+  - subst.
+    exists l.
+    intuition.
+  - apply IHlst in H.
+    destruct H as (l', Hin).
+    exists l'.
+    intuition.
+Qed.
+
+Lemma split_in_l:
+  forall {L R:Type} (l:L) (lst:list (L * R)),
+  In l (fst (split lst)) ->
+  exists (r:R), In (l, r) lst.
+Proof.
+  intros.
+  induction lst.
+  inversion H.
+  destruct a.
+  simpl in *.
+  remember (split lst).
+  destruct p as (ll, lr).
+  simpl in *.
+  destruct H.
+  - subst.
+    exists r.
+    intuition.
+  - apply IHlst in H.
+    destruct H as (r', Hin).
+    exists r'.
+    intuition.
+Qed.
+
 Implicit Arguments filter_incl.
 Implicit Arguments feedback_filter.
 Implicit Arguments feedback_filter_equation.

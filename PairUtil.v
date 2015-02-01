@@ -92,6 +92,27 @@ Qed.
 
 End PAIRS.
 
+Lemma pair_eq_dec_2
+  {A B:Type}
+  (a_eq_dec:(forall (a a':A), {a = a'} + {a <> a'}))
+  (b_eq_dec:(forall (b b':B), {b = b'} + {b <> b'})):
+
+  forall (p p': A * B),
+  {p = p'} + {p <> p'}.
+Proof.
+  intros.
+  destruct p as (a, b).
+  destruct p' as (a', b').
+  destruct (a_eq_dec a a'), (b_eq_dec b b').
+  - subst; left; auto.
+  - subst; right; intuition;
+    inversion H; subst; contradiction n; trivial.
+  - subst; right; intuition;
+    inversion H; subst; contradiction n; trivial.
+  - subst; right; intuition;
+    inversion H; subst; contradiction n; trivial.
+Qed.
+
 Implicit Arguments pair_In.
 Implicit Arguments pair_mem.
 Implicit Arguments pair_eq_dec.

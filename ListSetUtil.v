@@ -247,7 +247,16 @@ Proof.
   split; auto.
 Qed.
 
-Lemma exists_no_dup:
+Lemma set_eq_spec:
+  forall l1 l2,
+  set_eq l1 l2 ->
+  (forall x, In x l1 <-> In x l2).
+Proof.
+  unfold set_eq.
+  auto.
+Qed.
+
+Theorem exists_no_dup:
   forall l, exists l', set_eq l l' /\ NoDup l'.
 Proof.
   intros.

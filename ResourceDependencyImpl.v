@@ -3,6 +3,7 @@ Require Import Vars.
 Require Import Syntax.
 Require Import PhaserMap.
 Require Import Coq.Arith.Bool_nat.
+Require Import Project.
 (*
 Require Import Semantics.
 Require Import TaskMap.
@@ -69,6 +70,19 @@ Proof.
   + inversion H.
   + apply Map_PHID_Facts.not_find_in_iff in Heqo.
     assumption.
+Qed.
+
+Lemma blocked_inv_3:
+  forall s t r prg r',
+  blocked s (t, pcons (Await (get_phaser r) (get_phase r)) prg) =
+       Some r' ->
+  r = r'.
+Proof.
+  destruct r as (p, n).
+  intros.
+  apply blocked_inv_1 in H.
+  simpl in *.
+  auto.
 Qed.
 
 Lemma blocked_spec:
@@ -227,21 +241,54 @@ Proof.
       contradiction Heqo.
 Qed.
 
-Definition match_tid (t:tid) (p:tid*resource) :=
-  let (t', _) := p in
-  if TID.eq_dec t t' then true else false.
+Module W := Project Map_TID Set_RES.
 
-Require Import Bool.
+Lemma tid_eq_subst:
+  forall (e1 e2:tid), Map_TID.E.eq e1 e2 <-> e1 = e2.
+Proof.
+  intros.
+  unfold Map_TID.E.eq.
+  split; auto.
+Qed.
 
+Lemma res_eq_subst:
+  forall (r1 r2:resource), Map_RES.E.eq r1 r2 <-> r1 = r2.
+Proof.
+  intros.
+  destruct r1 as (t1, n1).
+  destruct r2 as (t2, n2).
+  unfold Map_RES.E.eq.
+  simpl.
+  split.
+  - intros.
+    intuition.
+  - intros.
+    inversion H;
+    intuition.
+Qed.
+
+Definition to_waits s := W.unproject tid_eq_subst (gen_wedges s).
 
 Lemma waits_total:
   forall (s:state),
   exists (w:waits), W_of s w.
 Proof.
   intros.
-  Print Map_TID_Props.
-  Print Map_TID_Props.of_list.
-  exists (Map_TID_Props.of_list (gen_waits s)).
+  exists (to_waits s).
+  unfold W_of.
+  intros.
+  split.
+  - intros.
+    apply W.unproject_spec in H.
+    apply gen_wedges_spec in H.
+    assumption.
+    apply res_eq_subst.
+  - intros.
+    apply gen_wedges_spec in H.
+    apply W.unproject_spec.
+    apply res_eq_subst.
+    assumption.
+Qed.
 
 Definition is_blocked (s:state) (t:tid) : bool :=
   match Map_TID.find t (get_tasks s) with
@@ -313,7 +360,7 @@ Definition impeding (s:state) (r:resource) : list tid :=
     | _ => nil
   end.
 
-Lemma is_impeding_spec:
+Lemma impeding_spec:
   forall (s:state) (r:resource) (t:tid),
   In t (impeding s r) <-> (exists r', Registered s t r' /\ prec r' r).
 Proof.
@@ -386,12 +433,166 @@ Proof.
     apply Map_PHID_Extra.mapsto_to_in in Hph.
     contradiction Heqof.
 Qed.
-      
-Definition impedes := (exists r',
-  Registered t r' /\
-  prec r' r /\ (exists r'', Blocked t r''))
 
-Axiom deps_of_spec:
-  forall s,
-  exists d, Deps_of s d.
+Definition gen_tedges s : list (resource*tid) :=
+  flat_map
+  (fun (e:(tid*prog))  =>
+    match (blocked s e) with
+      | Some r => map (fun t => (r, t)) (impeding s r)
+      | None => nil
+    end)
+  (get_blocked s).
+
+
+Lemma in_gen_tedges_to_impedes:
+  forall r t s,
+  In (r, t) (gen_tedges s) -> (exists r', Registered s t r' /\ prec r' r).
+Proof.
+  intros.
+  unfold gen_tedges in *.
+  apply in_flat_map in H.
+  destruct H as ((t', prg), (Hinb, Hinr)).
+  remember (blocked s (t', prg)).
+  symmetry in Heqo.
+  destruct o.
+  + apply in_map_iff in Hinr.
+    destruct Hinr as (t'', (Heq, Himp)).
+    inversion Heq.
+    subst.
+    clear Heq.
+    apply impeding_spec.
+    assumption.
+  + inversion Hinr.
+Qed.
+
+Lemma blocked_from_prop:
+  forall s t r,
+  Blocked s t r ->
+  exists prg, In (t, prg) (get_blocked s) /\
+  blocked s (t, prg) = Some r.
+Proof.
+  intros.
+  unfold Blocked in *.
+  destruct H as (prg, (Hmt, Hph)).
+  remember (pcons (Await (get_phaser r) (get_phase r)) prg) as prg'.
+  assert (Hn : blocked s (t, prg') = Some r).
+  apply blocked_spec.
+  intuition.
+  exists prg.
+  assumption.
+  exists prg'.
+  intuition.
+  apply get_blocked_spec_2 with (r:=r).
+  assumption.
+  assumption.
+Qed.
+
+Lemma impedes_to_in_gen_tedges:
+  forall r t' r' s,
+  Registered s t' r' ->
+  prec r' r ->
+  In (r, t') (gen_tedges s).
+Proof.
+  intros.
+  unfold gen_tedges.
+  apply in_flat_map.
+  assert (Hx := H).
+  apply registered_to_blocked in Hx.
+  destruct Hx as (r'', Hb).
+  apply blocked_from_prop in Hb.
+  destruct Hb as (prg, (Hgb, Hb)).
+  exists (t', prg).
+  intuition.
+  remember (blocked s (t', prg)) as o.
+  destruct o.
+  (*
+  destruct Hx as (r'', Hb).
+  apply blocked_from_prop in H.
+  destruct H as (prg, (Hgb, Hb)).
+  exists (t, prg).
+  intuition.
+  remember (blocked s (t, prg)) as o.
+  destruct o.*)
+  + apply in_map_iff.
+    inversion Hb; subst; clear Hb.
+    exists t'.
+    intuition.
+    apply impeding_spec.
+    exists r'.
+    intuition.
+  + inversion Hb.
+Qed.  
+
+Lemma impedes_to_in_gen_tedges:
+  forall t r t' r' s,
+  Blocked s t r ->
+  Registered s t' r' ->
+  prec r' r ->
+  In (r, t') (gen_tedges s).
+Proof.
+  intros.
+  unfold gen_tedges.
+  apply in_flat_map.
+  apply blocked_from_prop in H.
+  destruct H as (prg, (Hgb, Hb)).
+  exists (t, prg).
+  intuition.
+  remember (blocked s (t, prg)) as o.
+  destruct o.
+  + apply in_map_iff.
+    inversion Hb; subst; clear Hb.
+    exists t'.
+    intuition.
+    apply impeding_spec.
+    exists r'.
+    intuition.
+  + inversion Hb.
+Qed.
+
+Lemma gen_tedges_spec:
+  forall r t s,
+  In (r, t) (gen_tedges s) <-> (exists r', Registered s t r' /\ prec r' r).
+Proof.
+  intros.
+  split.
+  - apply in_gen_tedges_to_impedes.
+  - intuition.
+    destruct H as (r', (Hreg, Hprec)).
+    apply impedes_to_in_gen_tedges.
+Qed.
+
+Module I := Project Map_RES Set_TID.
+
+Definition to_impedes s := I.unproject res_eq_subst (gen_tedges s).
+
+Lemma impedes_total:
+  forall (s:state),
+  exists (i:impedes), I_of s i.
+Proof.
+  intros.
+  exists (to_impedes s).
+  unfold I_of.
+  intros.
+  split.
+  - intros.
+    apply W.unproject_spec in H.
+    apply gen_wedges_spec in H.
+    assumption.
+    apply res_eq_subst.
+  - intros.
+    apply gen_wedges_spec in H.
+    apply W.unproject_spec.
+    apply res_eq_subst.
+    assumption.
+Qed.
+(*
+Lemma gen_wedges_spec:
+  forall r t s,
+  In (t, r) (gen_wedges s) <-> Blocked s t r.
+Proof.
+
+Module I := Project Map_RES Set_TID.
+
+Definition to_impedes s := I.unproject res_eq_subst (gen_tedges s).
+*)
 

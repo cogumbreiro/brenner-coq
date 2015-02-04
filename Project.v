@@ -53,7 +53,7 @@ Proof.
     contradiction f.
 Qed.
 
-Let match_key_eq:
+Let match_key_refl:
   forall k v,
   match_key k (k,v) = true.
 Proof.
@@ -159,6 +159,7 @@ Proof.
   assumption.
 Qed.
 
+
 Require Import Recdef. (* Required by Function *)
 Require Import Coq.Arith.Wf_nat. (* Required implicitly by measure obligations *)
 
@@ -238,6 +239,118 @@ Proof.
     intros.
     destruct H as (s, (Hin, _)).
     inversion Hin.
+Qed.
+
+Let in_unproj_to_in:
+  forall k v l l',
+  List.In (k, l') (unproj l) ->
+  In v l' ->
+  List.In (k, v) l.
+Proof.
+  intros.
+  assert (exists l', List.In (k, l') (unproj l) /\ In v l').
+  exists l'.
+  intuition.
+  apply unproj_spec.
+  assumption.
+Qed.
+
+Definition eq_key {A:Type} (p p':K*A) := (fst p) = (fst p').
+
+Definition NotInA {A:Type} f (k:K) l := forall (v:A), ~ InA f (k, v) l.
+
+Let ina_to_in:
+  forall {A:Type} k (v:A) l,
+  InA eq_key (k, v) l ->
+  exists v', In (k, v') l.
+Proof.
+  intros.
+  rewrite InA_altdef in H.
+  rewrite Exists_exists in H.
+  destruct H as ((k',v'), (Hin, Heq)).
+  unfold eq_key in Heq.
+  simpl in Heq; subst.
+  exists v'.
+  auto.
+Qed.
+
+Let in_to_ina:
+  forall {A:Type} k (v:A) l,
+  In (k, v) l ->
+  InA eq_key (k, v) l.
+Proof.
+  intros.
+  rewrite InA_altdef.
+  rewrite Exists_exists.
+  exists (k, v).
+  intuition.
+Qed.
+
+Lemma unproj_absurd:
+  forall k l,
+  In (k, nil) (unproj l) -> False.
+Proof.
+  intros.
+  functional induction (unproj l).
+  - inversion H.
+    + inversion H0.
+    + apply IHl0.
+      assumption.
+  - inversion H.
+Qed.
+
+Let partition_match_key_spec_4:
+  forall v k l,
+  In (k, v) (snd (partition (match_key k) l)) -> False.
+Proof.
+  intros.
+  rewrite partition_iff_2 in H.
+  destruct H as (_, H).
+  assert (Hm:= match_key_refl k v).
+  rewrite Hm in H.
+  inversion H.
+Qed.
+
+Let partition_match_key_spec_5:
+  forall k l,
+  NotInA eq_key k (snd (partition (match_key k) l)).
+Proof.
+  intros.
+  unfold NotInA.
+  intros.
+  intuition.
+  apply ina_to_in in H.
+  destruct H as (v', Hin).
+  apply partition_match_key_spec_4 in Hin.
+  assumption.
+Qed.
+
+Theorem nodupa_unproj:
+  forall l,
+  NoDupA eq_key (unproj l).
+Proof.
+  intros.
+  functional induction (unproj l).
+  - apply NoDupA_cons.
+    + intuition.
+      apply ina_to_in in H.
+      destruct H as (vs', Hin).
+      assert (Hx := partition_match_key_spec_5 (k:=k) l').
+      assert (Heq : mismatched = snd (partition (match_key k) l')).
+      rewrite e2; simpl; auto.
+      rewrite <- Heq in Hx.
+      destruct vs'.
+      * apply unproj_absurd in Hin. inversion Hin.
+      * assert (Hinv : In v0 (v0 :: vs')).
+        apply in_eq.
+        apply in_unproj_to_in with (v:=v0) in Hin.
+        unfold NotInA in Hx.
+        apply in_to_ina in Hin.
+        apply (Hx v0) in Hin.
+        inversion Hin.
+        assumption.
+    + assumption.
+  - auto.
 Qed.
 
 End MATCH.
@@ -329,31 +442,73 @@ Proof.
 Qed.
 
 Definition unproj_0
-  (k_eq_dec:(forall e1 e2, M.E.eq e1 e2 <-> e1 = e2))
-  (l:list edge) : list (M.E.t * (list S.E.t)) := unproj (key_eq_dec k_eq_dec) l.
+  (k_eq_subst:(forall e1 e2, M.E.eq e1 e2 <-> e1 = e2))
+  (l:list edge) : list (M.E.t * (list S.E.t)) := unproj (key_eq_dec k_eq_subst) l.
 
-Let unproj_0_spec (v_eq_dec : forall e1 e2 : S.E.t, S.E.eq e1 e2 <-> e1 = e2) :
-  forall k v l k_eq_dec,
-  (List.In (k, v) l <-> exists l', List.In (k, l') (unproj_0 k_eq_dec l) /\ In v l').
+Let unproj_0_spec
+  (k_eq_subst: forall e1 e2, M.E.eq e1 e2 <-> e1 = e2)
+  (v_eq_subst: forall e1 e2, S.E.eq e1 e2 <-> e1 = e2) :
+  forall k v l,
+  (List.In (k, v) l <-> exists l', List.In (k, l') (unproj_0 k_eq_subst l) /\ In v l').
 Proof.
   intros.
   split.
   - intros.
-    rewrite unproj_spec with (key_eq_dec:=key_eq_dec k_eq_dec) in H.
+    rewrite unproj_spec with (key_eq_dec:=key_eq_dec k_eq_subst) in H.
     auto.
     apply value_eq_dec.
-    apply v_eq_dec.
+    apply v_eq_subst.
   - intros.
-    rewrite unproj_spec with (key_eq_dec:=key_eq_dec k_eq_dec).
+    rewrite unproj_spec with (key_eq_dec:=key_eq_dec k_eq_subst).
     destruct H as (l', (Hkv, Hin)).
     exists l'.
     intuition.
-    apply value_eq_dec; apply v_eq_dec.
+    apply value_eq_dec; apply v_eq_subst.
+Qed.
+
+Lemma nodupa_conv (k_eq_subst:(forall e1 e2, M.E.eq e1 e2 <-> e1 = e2)):
+  forall {A:Type} l,
+  NoDupA (eq_key (A:= A)) l ->
+  NoDupA (M.eq_key (elt:=A)) l.
+Proof.
+  intros.
+  induction l.
+  - auto.
+  - inversion H.
+    subst.
+    apply NoDupA_cons.
+    + intuition.
+      rewrite InA_altdef in *.
+      rewrite Exists_exists in *.
+      destruct H0 as (s, (Hin, Heq)).
+      apply H2.
+      exists s.
+      intuition.
+      unfold M.eq_key in *.
+      unfold eq_key.
+      apply k_eq_subst.
+      assumption.
+    + apply IHl.
+      assumption.
+Qed.
+
+Lemma unproj_0_nodupa
+  (k_eq_subst: forall e1 e2, M.E.eq e1 e2 <-> e1 = e2)
+  (v_eq_subst: forall e1 e2, S.E.eq e1 e2 <-> e1 = e2):
+  forall l,
+  NoDupA (M.eq_key (elt:=list S.E.t)) (unproj_0 k_eq_subst l).
+Proof.
+  intros.
+  assert (Hx := nodupa_unproj (key_eq_dec k_eq_subst) (value_eq_dec v_eq_subst) l).
+  unfold unproj_0.
+  apply nodupa_conv.
+  auto.
+  auto.
 Qed.
 
 Definition unproj_1
-  (k_eq_dec:(forall e1 e2, M.E.eq e1 e2 <-> e1 = e2))
-  (l:list edge) : list (M.E.t * S.t) := map (fun p => (fst p, S_Props.of_list (snd p))) (unproj_0 k_eq_dec l).
+  (k_eq_subst:(forall e1 e2, M.E.eq e1 e2 <-> e1 = e2))
+  (l:list edge) : list (M.E.t * S.t) := map (fun p => (fst p, S_Props.of_list (snd p))) (unproj_0 k_eq_subst l).
 
 Let s_ina_to_in:
   forall v vs,
@@ -375,27 +530,29 @@ Proof.
     intuition.
 Qed.
 
-Let unproj_1_spec (v_eq_dec : forall e1 e2 : S.E.t, S.E.eq e1 e2 <-> e1 = e2) :
-  forall k v l k_eq_dec,
-  (List.In (k, v) l <-> exists s, List.In (k, s) (unproj_1 k_eq_dec l) /\ S.In v s).
+Let unproj_1_spec
+  (k_eq_subst: forall e1 e2, M.E.eq e1 e2 <-> e1 = e2)
+  (v_eq_subst: forall e1 e2, S.E.eq e1 e2 <-> e1 = e2):
+  forall k v l,
+  (List.In (k, v) l <-> exists s, List.In (k, s) (unproj_1 k_eq_subst l) /\ S.In v s).
 Proof.
   intros.
   unfold unproj_1.
   split.
   - intros.
-    rewrite unproj_0_spec with (k_eq_dec:=k_eq_dec) in H.
+    rewrite unproj_0_spec with (k_eq_subst:=k_eq_subst) in H.
     destruct H as (l', (Hkv, Hin)).
     assert (S.In v (S_Props.of_list l')).
     apply S_Props.of_list_1.
     apply s_ina_to_in.
-    apply v_eq_dec.
+    apply v_eq_subst.
     assumption.
     exists (S_Props.of_list l').
     intuition.
     apply in_map_iff.
     exists (k, l').
     intuition.
-    apply v_eq_dec.
+    apply v_eq_subst.
   - intros.
     destruct H as (s, (Hkv, Hin)).
     apply in_map_iff in Hkv.
@@ -406,125 +563,176 @@ Proof.
     clear Heq.
     apply S_Props.of_list_1 in Hin.
     rewrite s_ina_to_in in Hin.
-    rewrite unproj_0_spec with (k_eq_dec:=k_eq_dec).
+    rewrite unproj_0_spec with (k_eq_subst:=k_eq_subst).
     exists l'.
     intuition.
     auto.
-    apply v_eq_dec.
+    apply v_eq_subst.
+Qed.
+
+Let in_unproj_1_to_in
+  (k_eq_subst: forall e1 e2, M.E.eq e1 e2 <-> e1 = e2)
+  (v_eq_subst: forall e1 e2, S.E.eq e1 e2 <-> e1 = e2):
+  forall v s k l,
+  S.In v s ->
+  List.In (k, s) (unproj_1 k_eq_subst l) ->
+  List.In (k, v) l.
+Proof.
+  intros.
+  assert (exists s, List.In (k, s) (unproj_1 k_eq_subst l) /\ S.In v s).
+  exists s.
+  intuition.
+  apply unproj_1_spec in H1.
+  auto.
+  auto.
+Qed.
+
+Lemma ina_map:
+  forall {A:Type} {B:Type} f a l,
+  (forall a1 a2, M.eq_key (f a1) (f a2) -> M.eq_key a1 a2) ->
+  InA (M.eq_key (elt:=A)) (f a) (map f l) ->
+  InA (M.eq_key (elt:=B)) a l.
+Proof.
+  intros.
+  intuition.
+  induction l.
+  - simpl.
+    inversion H0.
+  - simpl.
+    inversion H0.
+    + subst.
+      rewrite InA_altdef.
+      rewrite Exists_exists.
+      exists a0.
+      intuition.
+    + subst.
+      apply InA_cons.
+      right.
+      apply IHl.
+      assumption.
+Qed.
+
+Lemma nodupa_map:
+  forall {A:Type} {B:Type} (f:(M.E.t * A) -> (M.E.t * B)) l,
+  (forall a1 a2, M.eq_key (f a1) (f a2) -> M.eq_key a1 a2) ->
+  NoDupA (M.eq_key (elt:=A)) l ->
+  NoDupA (M.eq_key (elt:=B)) (map f l).
+Proof.
+  intros.
+  induction l.
+  - simpl. auto.
+  - simpl.
+    inversion H0.
+    subst.
+    apply NoDupA_cons.
+    intuition.
+    apply ina_map in H1.
+    apply H3.
+    assumption.
+    assumption.
+    apply IHl.
+    assumption.
+Qed.
+
+Lemma unproj_1_nodupa
+  (k_eq_subst: forall e1 e2, M.E.eq e1 e2 <-> e1 = e2)
+  (v_eq_subst: forall e1 e2, S.E.eq e1 e2 <-> e1 = e2):
+  forall l,
+  NoDupA (M.eq_key (elt:=S.t)) (unproj_1 k_eq_subst l).
+Proof.
+  intros.
+  unfold unproj_1.
+  assert (Hx:= unproj_0_nodupa k_eq_subst v_eq_subst l).
+  remember (unproj_0 k_eq_subst l).
+  apply nodupa_map.
+  intros.
+  destruct a1, a2.
+  simpl in H.
+  unfold M.eq_key in *.
+  simpl in *.
+  assumption.
+  assumption.
 Qed.
 
 Definition unproject
-  (k_eq_dec:(forall e1 e2, M.E.eq e1 e2 <-> e1 = e2)) (l:list edge) : M.t S.t
-  := M_Props.of_list (unproj_1 k_eq_dec l).
+  (k_eq_subst:(forall e1 e2, M.E.eq e1 e2 <-> e1 = e2))
+  (l:list edge) : M.t S.t
+  := M_Props.of_list (unproj_1 k_eq_subst l).
 
-Theorem unproject_spec (v_eq_dec : forall e1 e2 : S.E.t, S.E.eq e1 e2 <-> e1 = e2) :
-  forall k v l k_eq_dec,
-  (List.In (k, v) l <-> exists s, M.MapsTo k s (unproject k_eq_dec l) /\ S.In v s).
+Let ina_to_in
+  (k_eq_subst : forall e1 e2, M.E.eq e1 e2 <-> e1 = e2)
+  :
+  forall {elt:Type} k v l,
+  InA (M.eq_key (elt:=elt)) (k, v) l ->
+  exists v', In (k, v') l.
+Proof.
+  intros.
+  rewrite InA_altdef in H.
+  rewrite Exists_exists in H.
+  destruct H as ((k',v'), (Hin, Heq)).
+  unfold eq_key in Heq.
+  simpl in Heq; subst.
+  exists v'.
+  unfold M.eq_key in Heq.
+  simpl in Heq.
+  apply k_eq_subst in Heq.
+  subst.
+  auto.
+Qed.
+
+Let in_to_ina
+  (k_eq_subst : forall e1 e2, M.E.eq e1 e2 <-> e1 = e2)
+  :
+  forall {elt:Type} k v l,
+  In (k, v) l ->
+  InA (M.eq_key (elt:=elt)) (k, v) l.
+Proof.
+  intros.
+  rewrite InA_altdef.
+  rewrite Exists_exists.
+  exists (k, v).
+  intuition.
+  unfold M.eq_key.
+  simpl.
+  apply k_eq_subst.
+  trivial.
+Qed.
+
+Theorem unproject_spec
+  (k_eq_subst : forall e1 e2, M.E.eq e1 e2 <-> e1 = e2)
+  (v_eq_subst : forall e1 e2, S.E.eq e1 e2 <-> e1 = e2)
+  :
+  forall k v l,
+  (List.In (k, v) l <-> exists s, M.MapsTo k s (unproject k_eq_subst l) /\ S.In v s).
 Proof.
   intros.
   unfold unproject.
   split.
   - intros.
-    rewrite unproj_1_spec with (k_eq_dec:=k_eq_dec) in H.
+    rewrite (unproj_1_spec k_eq_subst v_eq_subst) in H.
     destruct H as (s, (Hkv, Hin)).
     exists s.
     intuition.
     apply M_Extra.in_elements_impl_maps_to.
-    apply M_Props.of_list_1 in Hin
-    
-
-(*
-Lemma key_eq_dec:
-  (forall e1 e2, S.E.eq e1 e2 <-> e1 = e2) ->
-  forall (e1 e2:S.E.t),
-  {e1 = e2} + {e1 <> e2}.
-Proof.
-  intros.
-  destruct (S.E.eq_dec e1 e2).
-  + left.
-    apply H.
-    assumption.
-  + right.
-    intuition.
-    apply H in H0.
-    contradiction n.
-Qed.
-*)
-
-Lemma unproject_spec:
-  forall k v l v_eq_dec,
-  (List.In (k, v) l <-> exists s, M.MapsTo k s (unproject v_eq_dec l) /\ S.In v s).
-Proof.
-  intros.
-  unfold unproject.
-  unfold unproj_0.
-  split.
+    apply M_Extra.to_list_of_list.
+    auto.
+    apply unproj_1_nodupa.
+    auto.
+    auto.
   - intros.
-    rewrite unproj_spec with (key_eq_dec:=value_eq_dec v_eq_dec) in H.
-    destruct H as (l', (Hun, Hin)).
-    
-    rewrite M_Props.of_list_1.
-  intros key_eq.
-  assert (key_eq_dec := key_eq_dec key_eq).
-  intros.
-  functional induction (unproj l).
-  - split.
-    + intros.
-      inversion H.
-      * inversion H0; subst; clear H0 H.
-        exists (S_Props.of_list (v :: vs)).
-        intuition.
-        rewrite S_Props.of_list_1.
-        auto.
-      * assert ({In (k,v) matched /\ k0 = k} + {In (k,v) mismatched /\ k0 <> k}).
-        assert (Hx:= partition_in' (V:=M.E.t) key_eq_dec _ _ _ _ e2).
-        apply partition_in' with (key_eq_dec := key_eq_dec) (k:=k0) (k':=k) (l:=l') (matched:=matched) (mismatched:=mismatched) (v:=v).
-        apply key_eq.
-        auto.
-        auto.
-        (* eoa *)
-        destruct H1 as [(H1, H2)|(H1, H2)].
-        subst.
-        exists (S_Props.of_list (v0 :: vs)).
-        intuition.
-        rewrite S_Props.of_list_1.
-        rewrite s_ina_to_in; apply in_cons.
-        apply in_split_r_2 with (lst:=matched) (lst_l:=_x) (l:=k); repeat auto.
-        (* eoa *)
-        apply IHl0 in H1.
-        destruct H1 as (s, (Hin, Hin')).
-        exists s.
-        intuition.
-     + intros.
-       destruct H as (s, (Hin, Hin')).
-       destruct Hin.
-       * inversion H; subst; clear H.
-         destruct (S.E.eq_dec v v0).
-         apply key_eq_2 in e; subst; apply in_eq. (* end of eq *)
-         apply in_cons.
-         clear IHl0.
-         apply S.add_3 in Hin'.
-         apply S_Props.of_list_1 in Hin'.
-         rewrite s_ina_to_in in Hin'.
-         apply in_matched with (k:=k) (ks:=_x) (l:=l') (matched:=matched) (mismatched:=mismatched) in Hin'.
-         apply partition_iff_1 in Hin'.
-         intuition.
-         auto.
-         auto.
-         auto.
-       * assert (exists s', In (k, s') (unproj mismatched) /\ S.In v s').
-         exists s; auto.
-         apply IHl0 in H0. clear IHl0.
-         apply in_cons.
-         assert (In (k, v) (snd (partition (match_key k0) l'))).
-         rewrite e2; auto. (* eoa *)
-         apply partition_iff_2 in H1.
-         intuition.
-  - split.
-    intros. inversion H.
-    intros.
-    destruct H as (s, (Hin, _)).
-    inversion Hin.
+    destruct H as (s, (Hmt, Hin)).
+    apply M_Props.of_list_1 in Hmt.
+    apply in_unproj_1_to_in with (k_eq_subst:=k_eq_subst) (s:=s); repeat auto.
+    rewrite InA_altdef in Hmt.
+    rewrite Exists_exists in Hmt.
+    destruct Hmt as ((k',s'), (Hin', Heq)).
+    unfold M.eq_key_elt in Heq.
+    destruct Heq as (Heq1, Heq2).
+    simpl in *.
+    apply k_eq_subst in Heq1.
+    subst.
+    intuition.
+    apply unproj_1_nodupa.
+    auto.
 Qed.
-
 End Project.

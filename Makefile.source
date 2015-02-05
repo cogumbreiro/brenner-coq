@@ -11,7 +11,7 @@ Example1.v
 PhaserMap.v
 Phaser.v
 Completeness.v
-# ResourceDependencyImpl.v
+ResourceDependencyImpl.v
 ResourceDependency.v
 Semantics.v
 Syntax.v

@@ -347,7 +347,7 @@ Proof.
   exists r; assumption.
 Qed.
 
-Definition impeding (s:state) (r:resource) : list tid :=
+Definition blocks (s:state) (r:resource) : list tid :=
   match Map_PHID.find (get_phaser r) (get_phasers s) with
     | Some ph =>
         flat_map
@@ -360,16 +360,92 @@ Definition impeding (s:state) (r:resource) : list tid :=
     | _ => nil
   end.
 
-Lemma impeding_spec:
-  forall (s:state) (r:resource) (t:tid),
-  In t (impeding s r) <-> (exists r', Registered s t r' /\ prec r' r).
+Lemma blocks_spec_1:
+  forall (s:state) (r:resource) (t:tid) (t':tid),
+  In t (blocks s r) ->
+  Blocked s t' r ->
+  Blocks s r t.
 Proof.
+  unfold blocks.
   intros.
-  unfold impeding.
   remember (Map_PHID.find (get_phaser r) (get_phasers s)) as of.
   symmetry in Heqof.
   destruct of.
-  unfold Registered, prec.
+  - apply <- Map_PHID_Facts.find_mapsto_iff in Heqof.
+    rewrite in_flat_map in H.
+    destruct H as ((t'',n), (Hin, Hin')).
+    apply Map_TID_Extra.in_elements_impl_maps_to in Hin.
+    remember (is_blocked s t'') as o.
+    destruct (lt_ge_dec n (get_phase r)), o.
+    + destruct Hin'.
+      subst.
+      apply blocks_def with (t':=t') (r':=((get_phaser r), n)); repeat auto.
+      unfold Registered.
+      exists p.
+      simpl in *.
+      intuition.
+      symmetry in Heqo.
+      apply is_blocked_spec in Heqo.
+      assumption.
+      unfold prec.
+      auto.
+      inversion H.
+    + inversion Hin'.
+    + inversion Hin'.
+    + inversion Hin'.
+  - inversion H.
+Qed.
+
+Lemma blocks_spec_2:
+  forall (s:state) (r:resource) (t:tid),
+  Blocks s r t ->
+  In t (blocks s r).
+Proof.
+  intros.
+  unfold blocks.
+  remember (Map_PHID.find (get_phaser r) (get_phasers s)) as of.
+  symmetry in Heqof.
+  destruct of.
+  + apply in_flat_map.
+    destruct H as ((t1, Ht1b), (r', ((ph, (Hmt, (Hmt', (r'', Hb)))), (Heq, Hlt)))).
+      destruct r' as (h', n').
+      destruct r as (h, n).
+      simpl in *; subst.
+      exists (t, n').
+      rename p into ph'.
+      apply Map_TID_Extra.maps_to_iff_in_elements in Hmt'.
+      apply Map_PHID_Facts.MapsTo_fun with (e:=ph') in Hmt.
+      subst.
+      intuition.
+      destruct (lt_ge_dec n' n).
+      remember (is_blocked s t) as b.
+      symmetry in Heqb.
+      destruct b.
+      apply in_eq.
+      apply is_blocked_from_prop in Hb.
+      rewrite Heqb in Hb.
+      inversion Hb.
+      apply Lt.lt_not_le in Hlt.
+      assert (n <= n').
+      auto.
+      contradiction Hlt.
+      apply Map_PHID_Facts.find_mapsto_iff in Heqof.
+      assumption.
+      auto.
+   + apply Map_PHID_Facts.not_find_in_iff in Heqof.
+     apply blocks_in_phasermap in H.
+     contradiction Heqof.
+Qed.
+(*
+Lemma blocks_spec:
+  forall (s:state) (r:resource) (t:tid),
+  In t (blocks s r) -> Blocks s r t.
+Proof.
+  intros.
+  unfold blocks.
+  remember (Map_PHID.find (get_phaser r) (get_phasers s)) as of.
+  symmetry in Heqof.
+  destruct of.
   - apply <- Map_PHID_Facts.find_mapsto_iff in Heqof.
     rewrite in_flat_map.
     split.
@@ -377,7 +453,10 @@ Proof.
       destruct H as ((t',n), (Hin, Hin')).
       remember (is_blocked s t') as o.
       destruct (lt_ge_dec n (get_phase r)), o.
-      * exists (get_phaser r, n).
+      * apply blocks_def with (t':=t') (r':=((get_phaser r), n)).
+        apply is_blocked_spec in Heqo.
+        destruct r'
+        exists (get_phaser r, n).
         inversion Hin'.
         subst.
         intuition.
@@ -432,21 +511,20 @@ Proof.
     subst.
     apply Map_PHID_Extra.mapsto_to_in in Hph.
     contradiction Heqof.
-Qed.
+Qed.*)
 
 Definition gen_tedges s : list (resource*tid) :=
   flat_map
   (fun (e:(tid*prog))  =>
     match (blocked s e) with
-      | Some r => map (fun t => (r, t)) (impeding s r)
+      | Some r => map (fun t => (r, t)) (blocks s r)
       | None => nil
     end)
   (get_blocked s).
 
-
-Lemma in_gen_tedges_to_impedes:
+Lemma in_gen_tedges_to_blocks:
   forall r t s,
-  In (r, t) (gen_tedges s) -> (exists r', Registered s t r' /\ prec r' r).
+  In (r, t) (gen_tedges s) -> Blocks s r t.
 Proof.
   intros.
   unfold gen_tedges in *.
@@ -460,7 +538,13 @@ Proof.
     inversion Heq.
     subst.
     clear Heq.
-    apply impeding_spec.
+    apply blocks_spec_1 with (t':=t') in Himp.
+    assumption.
+    apply get_blocked_spec_1 in Hinb.
+    destruct Hinb as (r', (Hblocked, Hb)).
+    rewrite Heqo in Hblocked.
+    inversion Hblocked.
+    subst.
     assumption.
   + inversion Hinr.
 Qed.
@@ -487,78 +571,50 @@ Proof.
   assumption.
 Qed.
 
-Lemma impedes_to_in_gen_tedges:
-  forall r t' r' s,
-  Registered s t' r' ->
-  prec r' r ->
-  In (r, t') (gen_tedges s).
+Lemma blocks_to_in_gen_tedges:
+  forall s r t,
+  Blocks s r t ->
+  In (r, t) (gen_tedges s).
 Proof.
   intros.
   unfold gen_tedges.
   apply in_flat_map.
   assert (Hx := H).
-  apply registered_to_blocked in Hx.
-  destruct Hx as (r'', Hb).
-  apply blocked_from_prop in Hb.
-  destruct Hb as (prg, (Hgb, Hb)).
-  exists (t', prg).
-  intuition.
-  remember (blocked s (t', prg)) as o.
-  destruct o.
-  (*
-  destruct Hx as (r'', Hb).
-  apply blocked_from_prop in H.
-  destruct H as (prg, (Hgb, Hb)).
-  exists (t, prg).
-  intuition.
-  remember (blocked s (t, prg)) as o.
-  destruct o.*)
-  + apply in_map_iff.
-    inversion Hb; subst; clear Hb.
-    exists t'.
-    intuition.
-    apply impeding_spec.
-    exists r'.
-    intuition.
-  + inversion Hb.
-Qed.  
-
-Lemma impedes_to_in_gen_tedges:
-  forall t r t' r' s,
-  Blocked s t r ->
-  Registered s t' r' ->
-  prec r' r ->
-  In (r, t') (gen_tedges s).
-Proof.
-  intros.
-  unfold gen_tedges.
-  apply in_flat_map.
-  apply blocked_from_prop in H.
-  destruct H as (prg, (Hgb, Hb)).
-  exists (t, prg).
-  intuition.
-  remember (blocked s (t, prg)) as o.
-  destruct o.
-  + apply in_map_iff.
-    inversion Hb; subst; clear Hb.
-    exists t'.
-    intuition.
-    apply impeding_spec.
-    exists r'.
-    intuition.
-  + inversion Hb.
+  destruct H as ((t', Hb), (r', (Hr,Hprec))).
+  destruct Hb as (prg, (Hb1,Hb2)).
+  remember (pcons (Await (get_phaser r) (get_phase r)) prg) as prg'.
+  exists (t', prg').
+  split.
+  + apply get_blocked_spec_2 with (r:=r).
+    * apply blocked_spec.
+      intuition.
+      exists prg.
+      assumption.
+    * assumption.
+  + remember (blocked s (t', prg')).
+    rewrite Heqprg' in Heqo.
+    symmetry in Heqo.
+    destruct o.
+    * apply in_map_iff.
+      exists t.
+      apply blocked_inv_3 in Heqo.
+      subst.
+      intuition.
+      apply blocks_spec_2.
+      assumption.
+    * apply blocked_inv_2 in Heqo.
+      contradiction Heqo.
 Qed.
+
 
 Lemma gen_tedges_spec:
   forall r t s,
-  In (r, t) (gen_tedges s) <-> (exists r', Registered s t r' /\ prec r' r).
+  In (r, t) (gen_tedges s) <-> Blocks s r t.
 Proof.
   intros.
   split.
-  - apply in_gen_tedges_to_impedes.
-  - intuition.
-    destruct H as (r', (Hreg, Hprec)).
-    apply impedes_to_in_gen_tedges.
+  - apply in_gen_tedges_to_blocks.
+  - apply blocks_to_in_gen_tedges.
 Qed.
 
 Module I := Project Map_RES Set_TID.
@@ -575,24 +631,25 @@ Proof.
   intros.
   split.
   - intros.
-    apply W.unproject_spec in H.
-    apply gen_wedges_spec in H.
+    apply I.unproject_spec in H.
+    apply gen_tedges_spec in H.
     assumption.
-    apply res_eq_subst.
+    apply tid_eq_subst.
   - intros.
-    apply gen_wedges_spec in H.
-    apply W.unproject_spec.
-    apply res_eq_subst.
+    apply gen_tedges_spec in H.
+    apply I.unproject_spec.
+    apply tid_eq_subst.
     assumption.
 Qed.
-(*
-Lemma gen_wedges_spec:
-  forall r t s,
-  In (t, r) (gen_wedges s) <-> Blocked s t r.
+
+Theorem deps_of_total:
+  forall s,
+  exists d, Deps_of s d.
 Proof.
-
-Module I := Project Map_RES Set_TID.
-
-Definition to_impedes s := I.unproject res_eq_subst (gen_tedges s).
-*)
-
+  intros.
+  destruct (impedes_total s) as (i, Hi).
+  destruct (waits_total s) as (w, Hw).
+  exists (i,w).
+  unfold Deps_of.
+  intuition.
+Qed.

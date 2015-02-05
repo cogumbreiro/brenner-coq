@@ -65,11 +65,8 @@ Proof.
   - subst. simpl in *.
     apply tedge_inv in Hin.
     + destruct Hin as (r, (_, Himp)).
-      apply impedes_to_registered with (s:=s) in Himp.
-      destruct Himp as (r', (Hreg, _)).
-      apply registered_to_blocked in Hreg.
-      destruct Hreg as (r'', Hblock).
-      apply blocked_in_tasks in Hblock; r_auto.
+      apply impedes_eq_blocks with (s:=s) in Himp.
+      apply blocks_in_tasks with (r:=r); repeat auto.
       assumption.
     + auto.
 Qed.
@@ -136,7 +133,8 @@ Proof.
     apply blocked_in_tasks with (r:=r').
     assumption.
     assumption.
-  - rewrite <- (impedes_eq_registered (d:=d) (s:=s)).
+  - rewrite (impedes_eq_blocks (d:=d) (s:=s)) in H0.
+    destruct H0 as (_, Hr).
     assumption.
     assumption.
 Qed.
@@ -322,12 +320,14 @@ Proof.
   inversion H0; clear H0; subst.
   apply waits_for_to_blocked with (s:=s) in H1.
   apply blocked_conv in H1.
-  apply impedes_to_registered with (s:=s) in H2.
-  destruct H2 as (r, (H2, H3)).
+  apply impedes_eq_blocks with (s:=s) in H2.
+  destruct H2 as (_, (r, (H2, H3))).
   apply registered_conv in H2.
   apply Core.aa with (b:=b).
   apply blocked_to_waits_for with (s:=ds); r_auto.
-  apply registered_to_impedes with (s:=ds) (r':=r); r_auto.
+  assert (Hb: Blocks ds b a2).
+  apply blocks_def with (t':=a1) (r':=r); repeat auto.
+  apply impedes_eq_blocks with (d:=dd) in Hb; assumption.
   apply in_def with (e:=(a1, a2)).
   apply pair_in_right.
   assumption.

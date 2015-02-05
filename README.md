@@ -79,6 +79,11 @@ See also:
 Changelog
 =========
 
+[Version 1.0](https://bitbucket.org/cogumbreiro/brenner-coq/src/v0.2/):
+
+ * Proved an extended version of the formalism in our
+   [PPoPP15 paper](https://bitbucket.org/cogumbreiro/armus/wiki/PPoPP15).
+
 [Version 0.2](https://bitbucket.org/cogumbreiro/brenner-coq/src/v0.2/):
 
  * Refactored the theory in resource-dependencies into a bipartite

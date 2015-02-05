@@ -101,17 +101,33 @@ Definition W_of (w:waits) :=
   <->
   Blocked t r.
 
-Definition I_of (i:impedes) :=
+Definition Blocks (r:resource) (t:tid) := (exists t', Blocked t' r) /\
+  (exists r', Registered t r' /\ prec r' r).
+
+Lemma blocks_def:
+  forall r t t' r',
+  Blocked t' r ->
+  Registered t r' ->
+  prec r' r ->
+  Blocks r t.
+Proof.
+  unfold Blocks.
+  intros.
+  split.
+  - exists t'.
+    assumption.
+  - exists r'.
+    intuition.
+Qed.
+
+Definition I_of (i:impedes) := 
   forall t r,
   (exists ts, Map_RES.MapsTo r ts i /\ Set_TID.In t ts)
   <->
-  (exists r', Registered t r' /\ prec r' r).
+  Blocks r t.
 
 Definition Deps_of (d:dependencies) :=
   W_of (get_waits d) /\ I_of (get_impedes d).
-
-Axiom deps_of_total:
-  exists d, Deps_of d.
 
 End StateProps.
 
@@ -252,45 +268,50 @@ Proof.
   apply waits_for_to_blocked.
 Qed.
 
-Lemma impedes_to_registered:
-  forall t r,
-  Impedes d r t ->
-  exists r', Registered s t r' /\ prec r' r.
+Lemma impedes_eq_blocks:
+  forall r t,
+  Impedes d r t <-> Blocks s r t.
 Proof.
   intros.
-  unfold Impedes in H.
-  assert (H':= d_of_s).
-  destruct H' as (_, H').
-  apply H' in H.
-  destruct H as (r', H).
-  exists r'.
-  intuition.
+  split.
+  - intros.
+    unfold Impedes in *.
+    assert (H':= d_of_s).
+    destruct H' as (_, H').
+    apply H'.
+    auto.
+  - intros.
+    unfold Impedes.
+    assert (H':= d_of_s).
+    destruct H' as (_, H').
+    apply H'.
+    assumption.
 Qed.
 
-Lemma registered_to_impedes :
-  forall t r' r,
-  Registered s t r' ->
-  prec r' r ->
-  Impedes d r t.
+Lemma blocks_in_tasks:
+  forall r t,
+  Blocks s r t ->
+  Map_TID.In (elt:=prog) t (get_tasks s).
 Proof.
   intros.
-  unfold Impedes.
-  assert (H':= d_of_s).
-  destruct H' as (_, H').
-  apply H'.
-  exists r'.
-  intuition.
+  destruct H as (_, (r', (H,_))).
+  apply registered_to_blocked in H.
+  destruct H as (r'', Hb).
+  unfold Blocked in Hb.
+  destruct Hb as (prg, (Hmt, _)).
+  apply Map_TID_Extra.mapsto_to_in in Hmt.
+  assumption.
 Qed.
 
-Lemma impedes_eq_registered:
-  forall t r,
-  Impedes d r t <->
-  (exists r', Registered s t r' /\ prec r' r).
+Lemma blocks_in_phasermap:
+  forall r t,
+  Blocks s r t ->
+  Map_PHID.In (elt:=Phaser.phaser) (get_phaser r) (get_phasers s).
 Proof.
   intros.
-  intuition.
-  - apply_auto impedes_to_registered.
-  - destruct H as (r', (H1, H2)).
-    apply registered_to_impedes with (r':=r'); r_auto.
+  destruct H as ((t',H),_).
+  unfold Blocked in H.
+  destruct H as (_, (_, H)).
+  assumption.
 Qed.
 End Basic.

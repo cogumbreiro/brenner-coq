@@ -1,5 +1,7 @@
 
 Require Import ResourceDependency.
+Require Import ResourceDependencyImpl.
+Require Project.
 Require Import Semantics.
 Require Import Vars.
 Require Import Syntax.
@@ -8,7 +10,7 @@ Require Import Coq.Lists.SetoidList.
 Require Import MapUtil SetUtil.
 Require Import Bool.
 
-
+(*
 Module Project (M:FMapInterface.WS) (S:FSetInterface.WS).
 Module S_Props := FSetProperties.Properties S.
 Module M_Extra := MapUtil M.
@@ -141,8 +143,8 @@ Proof.
     
 *)
 End Project.
-
-Module I_Proj := Project Map_RES Set_TID.
+*)
+Module I_Proj := Project.Project Map_RES Set_TID.
 
 Definition impedes_edges : impedes -> list (resource * tid) :=
   I_Proj.edges.
@@ -160,7 +162,7 @@ Proof.
   - auto.
 Qed.
 
-Module W_Proj := Project Map_TID Set_RES.
+Module W_Proj := Project.Project Map_TID Set_RES.
 
 Definition waits_edges : waits -> list (tid * resource) :=
   W_Proj.edges.
@@ -308,7 +310,8 @@ Proof.
   destruct (H _ _ H0) as (t', (Ht'blk, (r', (Hreg, Hprec)))).
   exists t'.
   split.
-  - apply registered_to_impedes with (s:=s) (r':=r'); repeat auto.
+  - apply impedes_eq_blocks with (s:=s). auto.
+    apply blocks_def with (t':=t) (r':=r'); repeat auto.
   - exists r.
     apply blocked_to_waits_for with (s:=s); repeat auto.
 Qed.
@@ -370,7 +373,7 @@ Proof.
   destruct (Hi t r) as (Ha, _); clear Hi.
   unfold Impedes in *.
   apply Ha in H; clear Ha.
-  destruct H as (r', (Hr, _)).
+  destruct H as (_,(r', (Hr, _))).
   unfold Registered in Hr.
   destruct Hr as (_, (_, (_, Hb))).
   auto.
@@ -474,6 +477,21 @@ Proof.
   assumption.
 Qed.
 
+Let blocks_conv:
+  forall r t,
+  Blocks ds r t ->
+  Blocks s r t.
+Proof.
+  intros.
+  unfold Blocks in *.
+  destruct H as ((t',Hb), (r', (Hr, Hp))).
+  split.
+  - exists t'.
+    auto.
+  - exists r'.
+    intuition.
+Qed.
+
 Lemma tedge_conv: 
   forall e,
   TEdge dd e ->
@@ -488,9 +506,8 @@ Proof.
     apply orig_deps_of.
     apply blocked_conv.
     assumption.
-  - apply impedes_to_registered with (s:=ds) in H1.
-    destruct H1 as (r, (H1, H3)).
-    apply registered_to_impedes with (s:=s) (r':=r); r_auto.
+  - apply impedes_eq_blocks with (s:=ds) in H1.
+    apply impedes_eq_blocks with (s:=s) (*r':=r*); r_auto.
     apply deadlocked_deps_of.
   - apply deadlocked_deps_of.
 Qed.

@@ -1,4 +1,5 @@
 Require Import ResourceDependency.
+Require Import ResourceDependencyImpl.
 Require Import Semantics.
 Require Graphs.FGraphs.
 Module F := Graphs.FGraphs.

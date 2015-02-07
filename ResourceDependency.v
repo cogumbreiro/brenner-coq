@@ -35,6 +35,7 @@ Definition dependencies := (impedes * waits) % type.
 Definition get_waits (d:dependencies) : waits := snd d.
 Definition get_impedes (d:dependencies) : impedes := fst d.
 
+(* Phases from the same phaser are in a precedes relation. *)
 Definition prec (r1:resource) (r2:resource) :=
   get_phaser r1 = get_phaser r2 /\ get_phase r1 < get_phase r2.
 
@@ -42,19 +43,22 @@ Section StateProps.
 
 Variable s:state.
 
-Definition Blocked (t:tid) (r:resource) :=
+(* We say that a task [t] is blocked on a resource [r] if there exists a task in the
+   task map that is awaiting on resource [r] and phaser [get_phaser r] is in the phaser map. *)
+Definition WaitsFor (t:tid) (r:resource) :=
   exists prg,
   Map_TID.MapsTo t (pcons (Await (get_phaser r) (get_phase r)) prg) (get_tasks s) /\
   Map_PHID.In (get_phaser r) (get_phasers s).
 
+(* It is easy to see that the blocked predicate is a function from task ids to resources. *)
 Lemma blocked_fun:
   forall t r r',
-  Blocked t r ->
-  Blocked t r' ->
+  WaitsFor t r ->
+  WaitsFor t r' ->
   r = r'.
 Proof.
   intros.
-  unfold Blocked in *.
+  unfold WaitsFor in *.
   destruct H as (p1, (H1, H2)).
   destruct H0 as (p2, (H3, H4)).
   (* MapsTo is functional, so p1 = p2 *)
@@ -67,27 +71,32 @@ Proof.
   auto.
 Qed.
 
+(* Similarly, any blocked task is in the task map of [s]. *)
 Lemma blocked_in_tasks:
   forall t r,
-  Blocked t r ->
+  WaitsFor t r ->
   Map_TID.In t (get_tasks s).
 Proof.
   intros.
-  unfold Blocked in H.
+  unfold WaitsFor in H.
   destruct H as (p, (H1, H2)).
   apply Map_TID_Extra.mapsto_to_in in H1.
   assumption.
 Qed.
 
+(* A task [t] is registered in a resource [r] if [t] is registered
+   in phaser [get_phaser r] and in phase [get_phase r]. We only
+   consider registered tasks if they are blocked in some resource. *)
 Definition Registered (t:tid) (r:resource) :=
   exists ph,
   Map_PHID.MapsTo (get_phaser r) ph (get_phasers s) /\
-  Map_TID.MapsTo t (get_phase r) ph /\ exists r', Blocked t r'.
+  Map_TID.MapsTo t (get_phase r) ph /\ exists r', WaitsFor t r'.
 
+(* Again, any task registered in a resource is blocked on some resource. *)
 Lemma registered_to_blocked:
   forall t r,
   Registered t r ->
-  exists r', Blocked t r'.
+  exists r', WaitsFor t r'.
 Proof.
   intros.
   unfold Registered in H.
@@ -95,23 +104,29 @@ Proof.
   assumption.
 Qed.
 
+(* We build the phaser map of waiting tasks to be constituted by all
+   blocked tasks in state [s]. *)
 Definition W_of (w:waits) := 
   forall t r,
   (exists rs, Map_TID.MapsTo t rs w /\ Set_RES.In r rs)
   <->
-  Blocked t r.
+  WaitsFor t r.
 
-Definition Blocks (r:resource) (t:tid) := (exists t', Blocked t' r) /\
+(* A resource [r] blocks a task [r] if task [t] is registered in a
+   preceeding resource. The resource that blocks must be target of
+   a blocked task. *)
+Definition Impedes (r:resource) (t:tid) :=
+  (exists t', WaitsFor t' r) /\
   (exists r', Registered t r' /\ prec r' r).
 
 Lemma blocks_def:
   forall r t t' r',
-  Blocked t' r ->
+  WaitsFor t' r ->
   Registered t r' ->
   prec r' r ->
-  Blocks r t.
+  Impedes r t.
 Proof.
-  unfold Blocks.
+  unfold Impedes.
   intros.
   split.
   - exists t'.
@@ -120,11 +135,12 @@ Proof.
     intuition.
 Qed.
 
+(* The map of impedes holds all resources that are blocking a task. *)
 Definition I_of (i:impedes) := 
   forall t r,
   (exists ts, Map_RES.MapsTo r ts i /\ Set_TID.In t ts)
   <->
-  Blocks r t.
+  Impedes r t.
 
 Definition Deps_of (d:dependencies) :=
   W_of (get_waits d) /\ I_of (get_impedes d).
@@ -132,11 +148,11 @@ Definition Deps_of (d:dependencies) :=
 End StateProps.
 
 Definition AllTasksBlocked s :=
-  forall t, (Map_TID.In t (get_tasks s) -> exists r, Blocked s t r).
+  forall t, (Map_TID.In t (get_tasks s) -> exists r, WaitsFor s t r).
 
 Definition AllBlockedRegistered s :=
   forall t r,
-  Blocked s t r ->
+  WaitsFor s t r ->
   exists t',
   Map_TID.In t' (get_tasks s) /\ (exists r', Registered s t' r' /\ prec r' r).
 
@@ -163,13 +179,13 @@ Module Map_R := FMapAVL.Make R.
 Definition r_edge := R.t.
 Definition set_r_edge := Set_R.t.
 
-Definition WaitsFor (d:dependencies) (t:tid) (r:resource) :=
+Definition WEdge (d:dependencies) (t:tid) (r:resource) :=
   exists rs, Map_TID.MapsTo t rs (get_waits d) /\ Set_RES.In r rs.
 
-Definition Impedes (d:dependencies) (r:resource) (t:tid) :=
+Definition IEdge (d:dependencies) (r:resource) (t:tid) :=
   exists ts, Map_RES.MapsTo r ts (get_impedes d) /\ Set_TID.In t ts.
 
-Definition GRG(d:dependencies) := B.mk_bipartite _ _ (WaitsFor d) (Impedes d).
+Definition GRG(d:dependencies) := B.mk_bipartite _ _ (WEdge d) (IEdge d).
 
 Notation WFG d := (B.contract_a (GRG d)).
 Notation SG d := (B.contract_b (GRG d)).
@@ -184,7 +200,7 @@ Lemma tedge_spec:
   forall d (t1 t2:tid),
   TEdge d (t1, t2) <->
   exists r,
-  WaitsFor d t1 r /\ Impedes d r t2.
+  WEdge d t1 r /\ IEdge d r t2.
 Proof.
   split.
   + intros.
@@ -232,85 +248,85 @@ Section Basic.
   Variable s:state.
   Variable d_of_s: Deps_of s d.
 
-Lemma waits_for_to_blocked:
+Let wedge_to_waits_for:
   forall r t,
-  WaitsFor d t r ->
-  Blocked s t r.
+  WEdge d t r ->
+  WaitsFor s t r.
 Proof.
   intros.
-  unfold WaitsFor in H.
+  unfold WEdge in H.
   assert (H':= d_of_s).
   destruct H' as (H', _).
   apply H' in H.
   assumption.
 Qed.
 
-Lemma blocked_to_waits_for:
+Let waits_for_to_wedge:
   forall r t,
-  Blocked s t r ->
-  WaitsFor d t r.
+  WaitsFor s t r ->
+  WEdge d t r.
 Proof.
   intros.
-  unfold WaitsFor in *.
+  unfold WEdge in *.
   assert (H':= d_of_s).
   destruct H' as (H', _).
   apply H' in H.
   assumption.
 Qed.
 
-Lemma blocked_eq_waits_for:
+Lemma waits_for_eq_wedge:
   forall r t,
-  Blocked s t r <-> WaitsFor d t r.
+  WaitsFor s t r <-> WEdge d t r.
 Proof.
   intros.
   split.
-  apply blocked_to_waits_for.
-  apply waits_for_to_blocked.
+  apply waits_for_to_wedge.
+  apply wedge_to_waits_for.
 Qed.
 
-Lemma impedes_eq_blocks:
+Lemma iedge_eq_impedes:
   forall r t,
-  Impedes d r t <-> Blocks s r t.
+  IEdge d r t <-> Impedes s r t.
 Proof.
   intros.
   split.
   - intros.
-    unfold Impedes in *.
+    unfold IEdge in *.
     assert (H':= d_of_s).
     destruct H' as (_, H').
     apply H'.
     auto.
   - intros.
-    unfold Impedes.
+    unfold IEdge.
     assert (H':= d_of_s).
     destruct H' as (_, H').
     apply H'.
     assumption.
 Qed.
 
-Lemma blocks_in_tasks:
+Lemma impedes_in_tasks:
   forall r t,
-  Blocks s r t ->
+  Impedes s r t ->
   Map_TID.In (elt:=prog) t (get_tasks s).
 Proof.
   intros.
   destruct H as (_, (r', (H,_))).
   apply registered_to_blocked in H.
   destruct H as (r'', Hb).
-  unfold Blocked in Hb.
+  unfold WaitsFor in Hb.
   destruct Hb as (prg, (Hmt, _)).
   apply Map_TID_Extra.mapsto_to_in in Hmt.
   assumption.
 Qed.
 
-Lemma blocks_in_phasermap:
+Lemma impedes_in_phasermap:
   forall r t,
-  Blocks s r t ->
+  Impedes s r t ->
   Map_PHID.In (elt:=Phaser.phaser) (get_phaser r) (get_phasers s).
 Proof.
   intros.
   destruct H as ((t',H),_).
-  unfold Blocked in H.
+  unfold WaitsFor in H.
   destruct H as (_, (_, H)).
   assumption.
 Qed.

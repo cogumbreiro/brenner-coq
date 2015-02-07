@@ -19,7 +19,7 @@ Lemma tedge_inv:
   TWalk d w ->
   F.Edge w (t, t') ->
   exists r,
-  WaitsFor d t r /\ Impedes d r t'.
+  WEdge d t r /\ IEdge d r t'.
 Proof.
   intros.
   apply in_edge with (Edge:=G.Edge (WFG d)) in H0.
@@ -33,11 +33,11 @@ Qed.
 
 Lemma blocked_in_tasks:
   forall t r,
-  Blocked s t r ->
+  WaitsFor s t r ->
   Map_TID.In t (get_tasks s).
 Proof.
   intros.
-  unfold Blocked in H.
+  unfold WaitsFor in H.
   destruct H as (p', (H, _)).
   apply mapsto_to_in in H.
   assumption.
@@ -56,8 +56,8 @@ Proof.
   - subst; simpl in *.
     apply tedge_inv in Hin.
     + destruct Hin as (r, (Hwf, _)).
-      apply waits_for_to_blocked with (s:=s) in Hwf.
-      unfold Blocked in Hwf.
+      apply waits_for_eq_wedge with (s:=s) in Hwf.
+      unfold WaitsFor in Hwf.
       destruct Hwf as (p', (Hf, _)).
       apply mapsto_to_in in Hf.
       assumption.
@@ -66,8 +66,8 @@ Proof.
   - subst. simpl in *.
     apply tedge_inv in Hin.
     + destruct Hin as (r, (_, Himp)).
-      apply impedes_eq_blocks with (s:=s) in Himp.
-      apply blocks_in_tasks with (r:=r); repeat auto.
+      apply iedge_eq_impedes with (s:=s) in Himp.
+      apply impedes_in_tasks with (r:=r); repeat auto.
       assumption.
     + auto.
 Qed.
@@ -87,11 +87,11 @@ Qed.
   
 Lemma blocked_in_walk:
   forall t r,
-  Blocked s t r ->
+  WaitsFor s t r ->
   exists t', F.Edge w (t', t).
 Proof.
   intros.
-  unfold Blocked in *.
+  unfold WaitsFor in *.
   destruct H as (p, (Hin, _)).
   apply mapsto_to_in in Hin.
   rewrite <- vertex_in_tasks in Hin.
@@ -121,8 +121,8 @@ Qed.
 
 Lemma as_blocked_registered:
   forall (t:tid) (r r':resource),
-  WaitsFor d t r' ->
-  Impedes d r t ->
+  WEdge d t r' ->
+  IEdge d r t ->
   exists t' : Map_TID.key,
   Map_TID.In (elt:=prog) t' (get_tasks s) /\
   (exists r' : resource, Registered s t' r' /\ prec r' r).
@@ -130,11 +130,11 @@ Proof.
   intros.
   exists t.
   split.
-  - apply waits_for_to_blocked with (s:=s) in H.
+  - apply waits_for_eq_wedge with (s:=s) in H.
     apply blocked_in_tasks with (r:=r').
     assumption.
     assumption.
-  - rewrite (impedes_eq_blocks (d:=d) (s:=s)) in H0.
+  - rewrite (iedge_eq_impedes (d:=d) (s:=s)) in H0.
     destruct H0 as (_, Hr).
     assumption.
     assumption.
@@ -143,7 +143,7 @@ Qed.
 Lemma vertex_to_blocked:
   forall t,
   F.In t w ->
-  exists r, Blocked s t r.
+  exists r, WaitsFor s t r.
 Proof.
   intros.
   apply F.succ_in_cycle with (E:=TEdge d) in H; repeat auto.
@@ -151,7 +151,7 @@ Proof.
   apply tedge_inv in Hi.
   destruct Hi as (r, (Hw, Hi')).
   exists r.
-  apply waits_for_to_blocked with (d:=d).
+  apply waits_for_eq_wedge with (d:=d).
   assumption.
   assumption.
   assumption.
@@ -159,8 +159,8 @@ Qed.
 
 Lemma blocked_to_impedes:
   forall t r,
-  Blocked s t r ->
-  exists t', Impedes d r t' /\ exists r', Blocked s t' r'.
+  WaitsFor s t r ->
+  exists t', IEdge d r t' /\ exists r', WaitsFor s t' r'.
 Proof.
   intros.
   assert (Hblocked := H).
@@ -173,7 +173,7 @@ Proof.
   destruct Hin as (r', (Hw, Hi)).
   exists t'.
   assert (r' = r).
-  apply waits_for_to_blocked with (s:=s) in Hw.
+  apply waits_for_eq_wedge with (s:=s) in Hw.
   apply blocked_fun with (r:=r) in Hw; r_auto.
   auto.
   subst.
@@ -203,7 +203,7 @@ Proof.
     destruct H1 as (t2, H1).
     apply tedge_spec in H1.
     destruct H1 as (r', (Hwf1, Himp1)).
-    apply waits_for_to_blocked with (s:=s) in Hwf1.
+    apply waits_for_eq_wedge with (s:=s) in Hwf1.
     exists r'; assumption.
     assumption.
   - unfold AllBlockedRegistered; intros.
@@ -211,7 +211,7 @@ Proof.
     apply blocked_to_impedes in H.
     destruct H as (t', (Him, (r', Hv))).
     apply as_blocked_registered with (t:=t') (r':=r').
-    + apply blocked_to_waits_for with (s:=s); r_auto.
+    + apply waits_for_eq_wedge with (s:=s); r_auto.
     + assumption.
   - inversion is_cycle.
     exists v1.
@@ -275,11 +275,11 @@ Qed.
 Let blocked_conv:
   forall t r,
   F.In t w ->
-  Blocked s t r ->
-  Blocked ds t r.
+  WaitsFor s t r ->
+  WaitsFor ds t r.
 Proof.
   intros.
-  unfold Blocked in *.
+  unfold WaitsFor in *.
   destruct H0 as (p, (H1, H2)).
   exists p.
   intuition.
@@ -319,16 +319,16 @@ Proof.
   intros.
   simpl in *.
   inversion H0; clear H0; subst.
-  apply waits_for_to_blocked with (s:=s) in H1.
+  apply waits_for_eq_wedge with (s:=s) in H1.
   apply blocked_conv in H1.
-  apply impedes_eq_blocks with (s:=s) in H2.
+  apply iedge_eq_impedes with (s:=s) in H2.
   destruct H2 as (_, (r, (H2, H3))).
   apply registered_conv in H2.
   apply Core.aa with (b:=b).
-  apply blocked_to_waits_for with (s:=ds); r_auto.
-  assert (Hb: Blocks ds b a2).
+  apply waits_for_eq_wedge with (s:=ds); r_auto.
+  assert (Hb: Impedes ds b a2).
   apply blocks_def with (t':=a1) (r':=r); repeat auto.
-  apply impedes_eq_blocks with (d:=dd) in Hb; assumption.
+  apply iedge_eq_impedes with (d:=dd) in Hb; assumption.
   apply in_def with (e:=(a1, a2)).
   apply pair_in_right.
   assumption.

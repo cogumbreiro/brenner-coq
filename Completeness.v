@@ -1,4 +1,3 @@
-
 Require Import ResourceDependency.
 Require Import ResourceDependencyImpl.
 Require Project.
@@ -17,10 +16,10 @@ Definition impedes_edges : impedes -> list (resource * tid) :=
 
 Lemma impedes_edges_spec:
   forall r t d,
-  List.In (r,t) (impedes_edges (get_impedes d)) <-> Impedes d r t.
+  List.In (r,t) (impedes_edges (get_impedes d)) <-> IEdge d r t.
 Proof.
   intros.
-  unfold Impedes.
+  unfold IEdge.
   unfold impedes_edges.
   apply I_Proj.edges_spec.
   - intros. destruct H, k1, k2.
@@ -35,11 +34,11 @@ Definition waits_edges : waits -> list (tid * resource) :=
 
 Lemma waits_edges_spec:
   forall t r d,
-  List.In (t,r) (waits_edges (get_waits d)) <-> WaitsFor d t r.
+  List.In (t,r) (waits_edges (get_waits d)) <-> WEdge d t r.
 Proof.
   intros.
   unfold waits_edges.
-  unfold WaitsFor.
+  unfold WEdge.
   apply W_Proj.edges_spec.
   - auto.
   - intros. destruct H, e1, e2.
@@ -63,7 +62,7 @@ Definition build_wfg (d:dependencies) : list (tid*tid) :=
 Theorem build_wfg_spec:
   forall d t t',
   List.In (t,t') (build_wfg d) <-> 
-  (exists (r:resource), WaitsFor d t r /\ Impedes d r t').
+  (exists (r:resource), WEdge d t r /\ IEdge d r t').
 Proof.
   intros.
   unfold build_wfg.
@@ -149,7 +148,7 @@ Lemma totally_deadlocked_in_tasks_blocked:
   forall t,
   TotallyDeadlocked s ->
   Map_TID.In t (get_tasks s) ->
-  exists r, Blocked s t r.
+  exists r, WaitsFor s t r.
 Proof.
   intros.
   unfold TotallyDeadlocked in *.
@@ -165,10 +164,10 @@ Qed.
 Lemma totally_deadlocked_inv1:
   forall t r,
   TotallyDeadlocked s ->
-  Blocked s t r ->
+  WaitsFor s t r ->
   exists t',
-  Impedes d r t' /\
-  exists r', WaitsFor d t r'.
+  IEdge d r t' /\
+  exists r', WEdge d t r'.
 Proof.
   intros.
   unfold TotallyDeadlocked in *.
@@ -176,16 +175,16 @@ Proof.
   destruct (H _ _ H0) as (t', (Ht'blk, (r', (Hreg, Hprec)))).
   exists t'.
   split.
-  - apply impedes_eq_blocks with (s:=s). auto.
+  - apply iedge_eq_impedes with (s:=s). auto.
     apply blocks_def with (t':=t) (r':=r'); repeat auto.
   - exists r.
-    apply blocked_to_waits_for with (s:=s); repeat auto.
+    apply waits_for_eq_wedge with (s:=s); repeat auto.
 Qed.
 
 Lemma totally_deadlocked_blocked_odgree:
   forall t r,
   TotallyDeadlocked s ->
-  Blocked s t r ->
+  WaitsFor s t r ->
   HasOutgoing wfg t.
 Proof.
   intros.
@@ -196,7 +195,7 @@ Proof.
   rewrite tedge_spec.
   exists r.
   intuition.
-  apply blocked_to_waits_for with (s:=s).
+  apply waits_for_eq_wedge with (s:=s).
   auto.
   auto.
 Qed.
@@ -230,14 +229,14 @@ Qed.
 
 Lemma impedes_to_blocked:
   forall t r,
-  Impedes d r t ->
-  exists r', Blocked s t r'.
+  IEdge d r t ->
+  exists r', WaitsFor s t r'.
 Proof.
   intros.
   destruct deps_of as (_, Hi).
   unfold I_of in *.
   destruct (Hi t r) as (Ha, _); clear Hi.
-  unfold Impedes in *.
+  unfold IEdge in *.
   apply Ha in H; clear Ha.
   destruct H as (_,(r', (Hr, _))).
   unfold Registered in Hr.
@@ -249,7 +248,7 @@ Lemma totally_deadlocked_vertex_blocked:
   forall t,
   TotallyDeadlocked s ->
   Core.In (Edge wfg) t ->
-  exists r, Blocked s t r.
+  exists r, WaitsFor s t r.
 Proof.
   intros.
   destruct H0 as (e, (He, Hin)).
@@ -261,7 +260,7 @@ Proof.
   destruct He as (r, (Hwf, Himp)).
   inversion Hin.
   - subst; simpl in *.
-    apply waits_for_to_blocked with (s:=s) in Hwf.
+    apply waits_for_eq_wedge with (s:=s) in Hwf.
     exists r; assumption.
     assumption.
   - subst; simpl in *.
@@ -314,11 +313,11 @@ Variable deadlocked_deps_of: Deps_of ds dd.
 
 Let blocked_conv:
   forall t r,
-  Blocked ds t r ->
-  Blocked s t r.
+  WaitsFor ds t r ->
+  WaitsFor s t r.
 Proof.
   intros.
-  unfold Blocked in *.
+  unfold WaitsFor in *.
   destruct H as (p, (H1, H2)).
   exists p.
   intuition.
@@ -345,11 +344,11 @@ Qed.
 
 Let blocks_conv:
   forall r t,
-  Blocks ds r t ->
-  Blocks s r t.
+  Impedes ds r t ->
+  Impedes s r t.
 Proof.
   intros.
-  unfold Blocks in *.
+  unfold Impedes in *.
   destruct H as ((t',Hb), (r', (Hr, Hp))).
   split.
   - exists t'.
@@ -366,14 +365,14 @@ Proof.
   intros.
   simpl in *.
   inversion H; clear H; subst.
-  apply waits_for_to_blocked with (s:=ds) in H0.
+  apply waits_for_eq_wedge with (s:=ds) in H0.
   apply B.B.aa with (b:=b).
-  - apply blocked_to_waits_for with (s:=s).
+  - apply waits_for_eq_wedge with (s:=s).
     apply orig_deps_of.
     apply blocked_conv.
     assumption.
-  - apply impedes_eq_blocks with (s:=ds) in H1.
-    apply impedes_eq_blocks with (s:=s) (*r':=r*); r_auto.
+  - apply iedge_eq_impedes with (s:=ds) in H1.
+    apply iedge_eq_impedes with (s:=s) (*r':=r*); r_auto.
     apply deadlocked_deps_of.
   - apply deadlocked_deps_of.
 Qed.
@@ -458,7 +457,7 @@ Qed.
 
 End COMPLETE.
 
-Corollary deadlocked_has_cycle:
+Corollary completeness:
   forall (s : state),
   Deadlocked s ->
   exists d,

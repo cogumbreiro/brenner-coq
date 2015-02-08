@@ -6,6 +6,9 @@ coq: Makefile.coq
 Makefile.coq: Makefile.source
 	coq_makefile -f Makefile.source -o Makefile.coq
 
+doc:
+	$(MAKE) -f Makefile.coq html COQDOCFLAGS="-interpolate -utf8 -g"
+
 clean:
 	rm -f */*.vo */*.v.d */*.glob */*~ */.#* Makefile.coq
 	rm -f */*/*.vo */*/*.v.d */*/*.glob

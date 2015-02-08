@@ -9,11 +9,13 @@ Require Import Coq.Lists.SetoidList.
 Require Import MapUtil SetUtil.
 Require Import Bool.
 
+(** The projection module takes a map I and generates a list of pairs
+    each holds a resource and a task. *)
 Module I_Proj := Project.Project Map_RES Set_TID.
-
 Definition impedes_edges : impedes -> list (resource * tid) :=
   I_Proj.edges.
 
+(** We have that any pair in [impedes_edges] is an [IEdge]. *)
 Lemma impedes_edges_spec:
   forall r t d,
   List.In (r,t) (impedes_edges (get_impedes d)) <-> IEdge d r t.
@@ -27,6 +29,7 @@ Proof.
   - auto.
 Qed.
 
+(** We also project [WEdges]. *)
 Module W_Proj := Project.Project Map_TID Set_RES.
 
 Definition waits_edges : waits -> list (tid * resource) :=
@@ -45,9 +48,8 @@ Proof.
     auto.
 Qed.
 
-Definition starts_from (r:resource) (e:(resource*tid)) :=
-  let (r', t) := e in if RES.eq_dec r' r then true else false.
-
+(** Given a dependency state [d], compute the tasks
+    that resource [r] impedes. *)
 Definition impedes_from d r := 
   filter (fun e:(resource*tid)=> let (r', t) := e in if RES.eq_dec r' r then true else false)
   (impedes_edges (get_impedes d)).
@@ -157,7 +159,7 @@ Proof.
   simpl in *.
   rename t0 into tasks.
   destruct H as (Hblocked, _).
-  unfold AllTasksBlocked in *.
+  unfold AllTasksWaitFor in *.
   apply Hblocked; assumption.
 Qed.
 
@@ -176,7 +178,7 @@ Proof.
   exists t'.
   split.
   - apply iedge_eq_impedes with (s:=s). auto.
-    apply blocks_def with (t':=t) (r':=r'); repeat auto.
+    apply impedes_def with (t':=t) (r':=r'); repeat auto.
   - exists r.
     apply waits_for_eq_wedge with (s:=s); repeat auto.
 Qed.

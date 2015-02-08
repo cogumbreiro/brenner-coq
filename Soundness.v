@@ -174,7 +174,7 @@ Proof.
   exists t'.
   assert (r' = r).
   apply waits_for_eq_wedge with (s:=s) in Hw.
-  apply blocked_fun with (r:=r) in Hw; r_auto.
+  apply waits_for_fun with (r:=r) in Hw; r_auto.
   auto.
   subst.
   intuition.
@@ -194,7 +194,7 @@ Proof.
   unfold TotallyDeadlocked.
   intros.
   intuition.
-  - unfold AllTasksBlocked; intros.
+  - unfold AllTasksWaitFor; intros.
     assert (F.In t w).
     apply vertex_in_tasks; assumption.
     assert (exists t2, TEdge d (t, t2)).
@@ -327,7 +327,7 @@ Proof.
   apply Core.aa with (b:=b).
   apply waits_for_eq_wedge with (s:=ds); r_auto.
   assert (Hb: Impedes ds b a2).
-  apply blocks_def with (t':=a1) (r':=r); repeat auto.
+  apply impedes_def with (t':=a1) (r':=r); repeat auto.
   apply iedge_eq_impedes with (d:=dd) in Hb; assumption.
   apply in_def with (e:=(a1, a2)).
   apply pair_in_right.

@@ -373,7 +373,7 @@ Proof.
     destruct (lt_ge_dec n (get_phase r)), o.
     + destruct Hin'.
       subst.
-      apply blocks_def with (t':=t') (r':=((get_phaser r), n)); repeat auto.
+      apply impedes_def with (t':=t') (r':=((get_phaser r), n)); repeat auto.
       unfold Registered.
       exists p.
       simpl in *.

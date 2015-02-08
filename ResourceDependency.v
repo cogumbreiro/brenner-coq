@@ -28,14 +28,18 @@ Definition res (p:phid) (n:nat) : resource := (p, n).
 Definition get_phaser (r:resource) : phid := fst r.
 Definition get_phase (r:resource) : nat := snd r.
 
-(* Defines the module of I *)
+(** The type of map I ranges from resources to sets of tasks. *)
 Definition impedes := Map_RES.t set_tid.
+
+(** The type of map W ranges tasks to sets of resources. *)
 Definition waits := Map_TID.t set_resource.
+
+(** A dependency state *)
 Definition dependencies := (impedes * waits) % type.
 Definition get_waits (d:dependencies) : waits := snd d.
 Definition get_impedes (d:dependencies) : impedes := fst d.
 
-(* Phases from the same phaser are in a precedes relation. *)
+(** Phases from the same phaser are in a precedes relation. *)
 Definition prec (r1:resource) (r2:resource) :=
   get_phaser r1 = get_phaser r2 /\ get_phase r1 < get_phase r2.
 
@@ -43,15 +47,15 @@ Section StateProps.
 
 Variable s:state.
 
-(* We say that a task [t] is blocked on a resource [r] if there exists a task in the
+(** We say that a task [t] is blocked on a resource [r] if there exists a task in the
    task map that is awaiting on resource [r] and phaser [get_phaser r] is in the phaser map. *)
 Definition WaitsFor (t:tid) (r:resource) :=
   exists prg,
   Map_TID.MapsTo t (pcons (Await (get_phaser r) (get_phase r)) prg) (get_tasks s) /\
   Map_PHID.In (get_phaser r) (get_phasers s).
 
-(* It is easy to see that the blocked predicate is a function from task ids to resources. *)
-Lemma blocked_fun:
+(** It is easy to see that the blocked predicate is a function from task ids to resources. *)
+Lemma waits_for_fun:
   forall t r r',
   WaitsFor t r ->
   WaitsFor t r' ->
@@ -71,8 +75,8 @@ Proof.
   auto.
 Qed.
 
-(* Similarly, any blocked task is in the task map of [s]. *)
-Lemma blocked_in_tasks:
+(** Similarly, any blocked task is in the task map of [s]. *)
+Lemma waits_for_in_tasks:
   forall t r,
   WaitsFor t r ->
   Map_TID.In t (get_tasks s).
@@ -84,7 +88,7 @@ Proof.
   assumption.
 Qed.
 
-(* A task [t] is registered in a resource [r] if [t] is registered
+(** A task [t] is registered in a resource [r] if [t] is registered
    in phaser [get_phaser r] and in phase [get_phase r]. We only
    consider registered tasks if they are blocked in some resource. *)
 Definition Registered (t:tid) (r:resource) :=
@@ -92,7 +96,7 @@ Definition Registered (t:tid) (r:resource) :=
   Map_PHID.MapsTo (get_phaser r) ph (get_phasers s) /\
   Map_TID.MapsTo t (get_phase r) ph /\ exists r', WaitsFor t r'.
 
-(* Again, any task registered in a resource is blocked on some resource. *)
+(** Again, any task registered in a resource is blocked on some resource. *)
 Lemma registered_to_blocked:
   forall t r,
   Registered t r ->
@@ -104,22 +108,20 @@ Proof.
   assumption.
 Qed.
 
-(* We build the phaser map of waiting tasks to be constituted by all
+(** We build the phaser map of waiting tasks to be constituted by all
    blocked tasks in state [s]. *)
 Definition W_of (w:waits) := 
   forall t r,
-  (exists rs, Map_TID.MapsTo t rs w /\ Set_RES.In r rs)
-  <->
-  WaitsFor t r.
+  (exists rs, Map_TID.MapsTo t rs w /\ Set_RES.In r rs) <-> WaitsFor t r.
 
-(* A resource [r] blocks a task [r] if task [t] is registered in a
-   preceeding resource. The resource that blocks must be target of
+(** A resource [r] impedes a task [r] if task [t] is registered in a
+   preceeding resource; the impeding resource must be the target of
    a blocked task. *)
 Definition Impedes (r:resource) (t:tid) :=
   (exists t', WaitsFor t' r) /\
   (exists r', Registered t r' /\ prec r' r).
 
-Lemma blocks_def:
+Lemma impedes_def:
   forall r t t' r',
   WaitsFor t' r ->
   Registered t r' ->
@@ -135,7 +137,7 @@ Proof.
     intuition.
 Qed.
 
-(* The map of impedes holds all resources that are blocking a task. *)
+(** The map of impedes holds all resources that are blocking a task. *)
 Definition I_of (i:impedes) := 
   forall t r,
   (exists ts, Map_RES.MapsTo r ts i /\ Set_TID.In t ts)
@@ -147,8 +149,15 @@ Definition Deps_of (d:dependencies) :=
 
 End StateProps.
 
-Definition AllTasksBlocked s :=
+(** We now characterize a deadlocked state.
+    Let [AllTasksWaitFor] be a state such that all tasks in the state
+    are waiting for a resource. *)
+
+Definition AllTasksWaitFor s :=
   forall t, (Map_TID.In t (get_tasks s) -> exists r, WaitsFor s t r).
+
+(** Let [AllBlockedRegistered] be a state such that any task waiting for
+    a resource, that resource is also impeding another task in the state. *)
 
 Definition AllBlockedRegistered s :=
   forall t r,
@@ -156,10 +165,19 @@ Definition AllBlockedRegistered s :=
   exists t',
   Map_TID.In t' (get_tasks s) /\ (exists r', Registered s t' r' /\ prec r' r).
 
+(** A totally deadlocked state is such that all tasks are waiting for
+    resources that are impeding a tasks in the task map. *)
+
 Definition TotallyDeadlocked (s:state) :=
-  AllTasksBlocked s /\ AllBlockedRegistered s /\
+  AllTasksWaitFor s /\ AllBlockedRegistered s /\
   exists t, Map_TID.In t (get_tasks s). (* nonempty *)
 
+(* TODO: Now would be a nice time to show that a totally deadlocked state
+   does not reduce. For this we need to have a decidable reduction. *)
+
+(** A [Deadlocked] state is such that we can take a partition of the task
+    map [tm] and [tm'] such that the state [(get_phasers s, tm)] is
+    totally deadlock. *)
 Definition Deadlocked (s:state) :=
   exists tm tm',
   Map_TID_Props.Partition (get_tasks s) tm tm' /\
@@ -179,15 +197,20 @@ Module Map_R := FMapAVL.Make R.
 Definition r_edge := R.t.
 Definition set_r_edge := Set_R.t.
 
+(* A w-edge is an edge in the dependency state such that `r in W(t)`. *)
+
 Definition WEdge (d:dependencies) (t:tid) (r:resource) :=
   exists rs, Map_TID.MapsTo t rs (get_waits d) /\ Set_RES.In r rs.
 
+(* An i-edge is an edge in the dependency state such that `t in I(t)`. *)
 Definition IEdge (d:dependencies) (r:resource) (t:tid) :=
   exists ts, Map_RES.MapsTo r ts (get_impedes d) /\ Set_TID.In t ts.
 
+(** A GRG is defined as a bipartite graph *)
 Definition GRG(d:dependencies) := B.mk_bipartite _ _ (WEdge d) (IEdge d).
-
+(** where if we contract the resources we get a WFG graph *)
 Notation WFG d := (B.contract_a (GRG d)).
+(** and where if we contract the tasks we get an SG graph *)
 Notation SG d := (B.contract_b (GRG d)).
 Notation TWalk d := (G.Walk (WFG d)).
 Notation RWalk d := (G.Walk (SG d)).
@@ -196,6 +219,9 @@ Notation TEdge d := (G.Edge (WFG d)).
 Notation RCycle d := (G.Cycle (SG d)).
 Notation t_walk := (list t_edge).
 
+(** It is easy to see that if we have a WFG-edge, then there exists
+    a resource [r] such that task [t1] is waiting for [r] and resource
+    [r] impedes [t2]. *)
 Lemma tedge_spec:
   forall d (t1 t2:tid),
   TEdge d (t1, t2) <->
@@ -218,7 +244,8 @@ Qed.
 Section Dependencies.
 
 Variable d:dependencies.
-
+(** Since the graph is bipartite, then if we have a cycle in the WFG, then
+    there exists a cycle in the SG. *)
 Theorem wfg_to_sg:
   forall w,
   TCycle d w ->
@@ -229,6 +256,7 @@ Proof.
   tauto.
 Qed.
 
+(** Vice-versa also holds. *)
 Theorem sg_to_wfg:
   forall w,
   RCycle d w ->
@@ -274,6 +302,9 @@ Proof.
   assumption.
 Qed.
 
+(** If we have that [d] are the state-depencies of
+    a state [s], then a W-edge is equivalent to a waits-for
+    relation. *)
 Lemma waits_for_eq_wedge:
   forall r t,
   WaitsFor s t r <-> WEdge d t r.
@@ -284,6 +315,7 @@ Proof.
   apply wedge_to_waits_for.
 Qed.
 
+(** Similarly, an i-edge is equivalent to an impedes relation. *)
 Lemma iedge_eq_impedes:
   forall r t,
   IEdge d r t <-> Impedes s r t.

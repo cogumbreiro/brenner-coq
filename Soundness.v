@@ -206,13 +206,14 @@ Proof.
     apply waits_for_eq_wedge with (s:=s) in Hwf1.
     exists r'; assumption.
     assumption.
-  - unfold AllBlockedRegistered; intros.
+  - unfold AllImpedes; intros.
     assert (Hblocked := H).
     apply blocked_to_impedes in H.
     destruct H as (t', (Him, (r', Hv))).
-    apply as_blocked_registered with (t:=t') (r':=r').
-    + apply waits_for_eq_wedge with (s:=s); r_auto.
-    + assumption.
+    exists t'.
+    rewrite <- iedge_eq_impedes with (d:=d).
+    assumption.
+    assumption.
   - inversion is_cycle.
     exists v1.
     apply in_inv_left with (t':=v2).

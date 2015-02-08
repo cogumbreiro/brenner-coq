@@ -159,17 +159,14 @@ Definition AllTasksWaitFor s :=
 (** Let [AllBlockedRegistered] be a state such that any task waiting for
     a resource, that resource is also impeding another task in the state. *)
 
-Definition AllBlockedRegistered s :=
-  forall t r,
-  WaitsFor s t r ->
-  exists t',
-  Map_TID.In t' (get_tasks s) /\ (exists r', Registered s t' r' /\ prec r' r).
+Definition AllImpedes s :=
+  forall t r, WaitsFor s t r -> exists t', Impedes s r t'.
 
 (** A totally deadlocked state is such that all tasks are waiting for
     resources that are impeding a tasks in the task map. *)
 
 Definition TotallyDeadlocked (s:state) :=
-  AllTasksWaitFor s /\ AllBlockedRegistered s /\
+  AllTasksWaitFor s /\ AllImpedes s /\
   exists t, Map_TID.In t (get_tasks s). (* nonempty *)
 
 (* TODO: Now would be a nice time to show that a totally deadlocked state

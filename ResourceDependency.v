@@ -302,14 +302,14 @@ Qed.
 (** If we have that [d] are the state-depencies of
     a state [s], then a W-edge is equivalent to a waits-for
     relation. *)
-Lemma waits_for_eq_wedge:
+Lemma wedge_eq_waits_for:
   forall r t,
-  WaitsFor s t r <-> WEdge d t r.
+  WEdge d t r <-> WaitsFor s t r.
 Proof.
   intros.
   split.
-  apply waits_for_to_wedge.
   apply wedge_to_waits_for.
+  apply waits_for_to_wedge.
 Qed.
 
 (** Similarly, an i-edge is equivalent to an impedes relation. *)
@@ -359,4 +359,28 @@ Proof.
   destruct H as (_, (_, H)).
   assumption.
 Qed.
+
+Lemma tedge_altdef:
+  (forall (t1 t2:tid),
+  TEdge d (t1, t2) <->
+  exists r,
+  WaitsFor s t1 r /\ Impedes s r t2).
+Proof.
+  intros.
+  rewrite tedge_spec.
+  split.
+  + intros.
+    destruct H as (r, (Hw, Hi)).
+    exists r.
+    rewrite wedge_eq_waits_for in Hw.
+    rewrite iedge_eq_impedes in Hi.
+    intuition.
+  + intros.
+    destruct H as (r, (Hw, Hi)).
+    exists r.
+    rewrite <- wedge_eq_waits_for in Hw.
+    rewrite <- iedge_eq_impedes in Hi.
+    intuition.
+Qed.
+
 End Basic.

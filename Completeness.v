@@ -15,7 +15,8 @@ Module I_Proj := Project.Project Map_RES Set_TID.
 Definition impedes_edges : impedes -> list (resource * tid) :=
   I_Proj.edges.
 
-(** We have that any pair in [impedes_edges] is an [IEdge]. *)
+(** By using module Project, we get that any pair in [impedes_edges]
+    is an [IEdge]. *)
 Lemma impedes_edges_spec:
   forall r t d,
   List.In (r,t) (impedes_edges (get_impedes d)) <-> IEdge d r t.
@@ -29,12 +30,11 @@ Proof.
   - auto.
 Qed.
 
-(** We also project [WEdges]. *)
+(** Similarly, we project the map I into pairs of tasks and resources. *)
 Module W_Proj := Project.Project Map_TID Set_RES.
-
 Definition waits_edges : waits -> list (tid * resource) :=
   W_Proj.edges.
-
+(** We show that any pair in [wait_edges] is a [WEdge].*)
 Lemma waits_edges_spec:
   forall t r d,
   List.In (t,r) (waits_edges (get_waits d)) <-> WEdge d t r.
@@ -53,14 +53,18 @@ Qed.
 Definition impedes_from d r := 
   filter (fun e:(resource*tid)=> let (r', t) := e in if RES.eq_dec r' r then true else false)
   (impedes_edges (get_impedes d)).
-
+(** Function [build_edges] takes a pair that consists of task waiting
+    waiting for a resource [r]. The function then computes a wfg-edge by
+    obtaining all tasks impeded [r]. *)
 Definition build_edges (d:dependencies) (e:(tid*resource)) : list (tid*tid) :=
   let (t, r) := e in
   map (fun e':(resource*tid)=> (t, snd e')) (impedes_from d r).
-
+(** Function [build_wfg] iterates over all wait-for dependencies in [d],
+    yielding the wfg-edges per wait-for relation. *)
 Definition build_wfg (d:dependencies) : list (tid*tid) :=
   flat_map (build_edges d) (waits_edges (get_waits d)).
-
+(** The first main result is to show that function [build_wfg] is correct,
+    that is any pair in [build_wfg] is a WFG edge. *)
 Theorem build_wfg_spec:
   forall d t t',
   List.In (t,t') (build_wfg d) <-> 
@@ -111,10 +115,12 @@ Proof.
       contradiction n.
       auto.
 Qed.
-
+(** Let [WFG_of] be the definition of a finite WFG defined
+    as a sequence of edges. *)
 Definition WFG_of wfg d := 
   forall (e:t_edge), List.In e wfg <-> TEdge d e.
-
+(** Given [build_wfg_spec] it is easy to show that we can
+    always obtain a finite WFG from a dependency state [d].*)
 Corollary wfg_of_total:
   forall d:dependencies, exists wfg, WFG_of wfg d.
 Proof.
@@ -135,6 +141,7 @@ Variable deps_of: Deps_of s d.
 Variable wfg: list t_edge.
 Variable wfg_spec: WFG_of wfg d.
 
+(** Any edge in a graph [wfg] is a [TEdge] (i.e., a WFG edge). *)
 Lemma totally_deadlocked_edge:
   forall e,
   Edge wfg e ->
@@ -146,6 +153,9 @@ Proof.
   assumption.
 Qed.
 
+(** Any task in a totally deadlocked state is in
+    a wait-for relation, the proof follows trivially by the
+    various definitions. *)
 Lemma totally_deadlocked_in_tasks_blocked:
   forall t,
   TotallyDeadlocked s ->
@@ -163,26 +173,25 @@ Proof.
   apply Hblocked; assumption.
 Qed.
 
+(** Again, by unfolding the definitions in [TotallyDeadlocked] we
+    know that given a task [t] in a wait-for relation with a resource [r] we
+    know that there exists an outgoing i-edge from resource [r]
+    and an outgoing w-edge from task [t].*)
 Lemma totally_deadlocked_inv1:
   forall t r,
   TotallyDeadlocked s ->
   WaitsFor s t r ->
-  exists t',
-  IEdge d r t' /\
-  exists r', WEdge d t r'.
+  exists t', Impedes s r t'.
 Proof.
   intros.
   unfold TotallyDeadlocked in *.
   destruct H as (_, (H, _)).
-  destruct (H _ _ H0) as (t', (Ht'blk, (r', (Hreg, Hprec)))).
-  exists t'.
-  split.
-  - apply iedge_eq_impedes with (s:=s). auto.
-    apply impedes_def with (t':=t) (r':=r'); repeat auto.
-  - exists r.
-    apply waits_for_eq_wedge with (s:=s); repeat auto.
+  apply H in H0.
+  assumption.
 Qed.
 
+(** Thus, it follows that, in a WFG, a task waiting for a resource
+   has a positive out-degree. *)
 Lemma totally_deadlocked_blocked_odgree:
   forall t r,
   TotallyDeadlocked s ->
@@ -190,22 +199,23 @@ Lemma totally_deadlocked_blocked_odgree:
   HasOutgoing wfg t.
 Proof.
   intros.
-  destruct (totally_deadlocked_inv1 _ _ H H0) as (t', (H1, (r', H2))).
+  destruct (totally_deadlocked_inv1 _ _ H H0) as (t', Hi).
   apply has_outgoing_def with (v':=t').
   unfold Edge.
   apply wfg_spec.
-  rewrite tedge_spec.
+  rewrite tedge_altdef with (s:=s).
   exists r.
   intuition.
-  apply waits_for_eq_wedge with (s:=s).
-  auto.
   auto.
 Qed.
-
+(** Since that: all tasks in a totally deadlocked state
+    are waiting for a resource, there is at least one task in the task map,
+    and from [totally_deadlocked_blocked_odgree] this task has a positive
+    outdegree, then we know that there exists at least one task with a positive
+    outdegree.*)
 Let totally_deadlocked_has_odegree:
   TotallyDeadlocked s ->
-  exists t, 
-  HasOutgoing wfg t.
+  exists t, HasOutgoing wfg t.
 Proof.
   intros.
   assert (Hx :=H).
@@ -215,6 +225,8 @@ Proof.
   apply totally_deadlocked_blocked_odgree with (r:=r); repeat auto.
 Qed.
 
+(** Using lemma [totally_deadlocked_has_odegree] we show that
+    wfg is non-empty. *)
 Lemma totally_deadlocked_nonempty:
   TotallyDeadlocked s ->
   wfg <> nil.
@@ -228,24 +240,22 @@ Proof.
   subst.
   inversion H0.
 Qed.
-
-Lemma impedes_to_blocked:
+(** By inverting the impedes relation between [r] and [t] we have
+    that there exists a task waiting for resource [r]. *)
+Let impedes_inv_1:
   forall t r,
-  IEdge d r t ->
+  Impedes s r t ->
   exists r', WaitsFor s t r'.
 Proof.
   intros.
-  destruct deps_of as (_, Hi).
-  unfold I_of in *.
-  destruct (Hi t r) as (Ha, _); clear Hi.
-  unfold IEdge in *.
-  apply Ha in H; clear Ha.
-  destruct H as (_,(r', (Hr, _))).
-  unfold Registered in Hr.
-  destruct Hr as (_, (_, (_, Hb))).
-  auto.
+  destruct H as (_, (r', (H, _))).
+  inversion H.
+  intuition.
 Qed.
-
+(** We show that any vertex in the wfg has an outgoing edge.
+    By inverting the hypothesis either [t] is the outgoing edge
+    (in which case by the proof follows by hypothesis)
+    or [t] is incoming (in which case we use [impedes_inv_1] to conclude. *)
 Lemma totally_deadlocked_vertex_blocked:
   forall t,
   TotallyDeadlocked s ->
@@ -258,19 +268,22 @@ Proof.
   unfold WFG_of in *.
   rewrite wfg_spec in *.
   destruct e as (t1, t2).
-  rewrite tedge_spec in He.
+  rewrite (tedge_altdef deps_of) in He.
   destruct He as (r, (Hwf, Himp)).
   inversion Hin.
   - subst; simpl in *.
-    apply waits_for_eq_wedge with (s:=s) in Hwf.
-    exists r; assumption.
-    assumption.
+    exists r; auto.
   - subst; simpl in *.
-    apply impedes_to_blocked in Himp.
-    auto.
+    apply impedes_inv_1 in Himp; auto.
 Qed.
 
-Theorem totally_deadlocked_all_incoming:
+(** A main theorem is to show that a totally deadlocked state
+    yields a wfg in which all vertices have an outgoing edge.
+    The proof uses lemma [totally_deadlocked_vertex_blocked]
+    to show that any task (vertex) is in a wait-for relation
+    which by lemma [totally_deadlocked_blocked_odgree] yields
+    that the vertex must have an ougoing edge. *)
+Theorem totally_deadlocked_all_outgoing:
   TotallyDeadlocked s ->
   AllOutgoing wfg.
 Proof.
@@ -284,16 +297,23 @@ Proof.
   apply totally_deadlocked_blocked_odgree with (r:=r); repeat auto.
 Qed.
 
+(** We have that the WFG that yield from state [s]
+    is non-empty, from lemma [totally_deadlocked_nonempty].
+    We can also conclude that the WFG that yields from state [s]
+    only vertices with outgoing edges, using
+    lemma [totally_deadlocked_all_outgoing].
+    Thus, by using theorem [all_pos_odegree_impl_cycle] we get that
+    the WFG has a cycle. *)
 Theorem totally_deadlock_has_cycle:
   TotallyDeadlocked s ->
-  wfg <> nil ->
   exists c, Core.Cycle (Edge wfg) c.
 Proof.
   intros.
+  assert (Hwfg := totally_deadlocked_nonempty H).
   apply all_pos_odegree_impl_cycle.
   - apply TID.eq_dec.
   - auto.
-  - apply totally_deadlocked_all_incoming.
+  - apply totally_deadlocked_all_outgoing.
     assumption.
 Qed.
 
@@ -313,7 +333,9 @@ Let ds :=  (get_phasers s, deadlocked_tasks).
 Variable dd : dependencies.
 Variable deadlocked_deps_of: Deps_of ds dd.
 
-Let blocked_conv:
+(** A waits-for relation holds from a deadlocked to the totally
+    deadlocked state. *)
+Let waits_for_conv:
   forall t r,
   WaitsFor ds t r ->
   WaitsFor s t r.
@@ -339,12 +361,12 @@ Proof.
   destruct H as (ph, H1); exists ph.
   intuition.
   destruct H2 as (r', H4).
-  apply blocked_conv in H4.
+  apply waits_for_conv in H4.
   exists r'.
   assumption.
 Qed.
 
-Let blocks_conv:
+Let impedes_conv:
   forall r t,
   Impedes ds r t ->
   Impedes s r t.
@@ -359,6 +381,8 @@ Proof.
     intuition.
 Qed.
 
+(** A wfg-edge holds from the totally deadlocked state to the
+    deadlocked state. *)
 Lemma tedge_conv: 
   forall e,
   TEdge dd e ->
@@ -367,11 +391,11 @@ Proof.
   intros.
   simpl in *.
   inversion H; clear H; subst.
-  apply waits_for_eq_wedge with (s:=ds) in H0.
+  apply wedge_eq_waits_for with (s:=ds) in H0.
   apply B.B.aa with (b:=b).
-  - apply waits_for_eq_wedge with (s:=s).
+  - apply wedge_eq_waits_for with (s:=s).
     apply orig_deps_of.
-    apply blocked_conv.
+    apply waits_for_conv.
     assumption.
   - apply iedge_eq_impedes with (s:=ds) in H1.
     apply iedge_eq_impedes with (s:=s) (*r':=r*); r_auto.
@@ -389,7 +413,9 @@ Variable wfg: list t_edge.
 Variable wfg_spec: WFG_of wfg d.
 Variable is_deadlocked : Deadlocked s.
 
-Lemma deadlocked_inv:
+(** We can construct a totally deadlocked
+    from a deadlocked state. *)
+Let deadlocked_inv:
   exists s' d' wfg',
   TotallyDeadlocked s' /\
   Deps_of s' d' /\
@@ -422,7 +448,13 @@ Proof.
     assumption.
 Qed.
 
-Theorem deadlocked_has_cycle':
+(** By lemmas [deadlocked_inv] and [totally_deadlock_has_cycle]
+    we get that the totally deadlocked has a cycle.
+    We also know that the WFG in the totally deadlocked state is
+    a subgraph of the WFG of the deadlocked state, which implies
+    that any cycle in the WFG of the totally deadlocked state is
+    also in the deadlocked state. *)
+Theorem deadlocked_has_cycle:
   exists c, Core.Cycle (Edge wfg) c.
 Proof.
   intros.
@@ -434,6 +466,8 @@ Proof.
   apply subgraph_cycle with (g:=wfg'); repeat auto.
 Qed.
 
+(** It is easy to show that a cycle in [wfg] corresponds
+    to the usual cycle defined with [TCycle]. *)
 Lemma wfg_cycle_to_tcycle:
   forall c,
   Core.Cycle (Edge wfg) c ->
@@ -459,6 +493,10 @@ Qed.
 
 End COMPLETE.
 
+(**
+  The main theorem of completness uses [deadlocked_has_cycle]
+  to obtain a cycle and then result [wfg_cycle_to_tcycle] to
+  convert it to the expected type. *)
 Corollary completeness:
   forall (s : state),
   Deadlocked s ->
@@ -471,7 +509,7 @@ Proof.
   exists d.
   intuition.
   destruct (wfg_of_total d) as (wfg, Hwfg).
-  destruct (deadlocked_has_cycle' _ _ Hd _ Hwfg H) as (c, Hc).
+  destruct (deadlocked_has_cycle _ _ Hd _ Hwfg H) as (c, Hc).
   exists c.
   apply wfg_cycle_to_tcycle with (wfg:=wfg).
   assumption.

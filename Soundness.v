@@ -56,7 +56,7 @@ Proof.
   - subst; simpl in *.
     apply tedge_inv in Hin.
     + destruct Hin as (r, (Hwf, _)).
-      apply waits_for_eq_wedge with (s:=s) in Hwf.
+      apply wedge_eq_waits_for with (s:=s) in Hwf.
       unfold WaitsFor in Hwf.
       destruct Hwf as (p', (Hf, _)).
       apply mapsto_to_in in Hf.
@@ -130,7 +130,7 @@ Proof.
   intros.
   exists t.
   split.
-  - apply waits_for_eq_wedge with (s:=s) in H.
+  - apply wedge_eq_waits_for with (s:=s) in H.
     apply blocked_in_tasks with (r:=r').
     assumption.
     assumption.
@@ -151,7 +151,7 @@ Proof.
   apply tedge_inv in Hi.
   destruct Hi as (r, (Hw, Hi')).
   exists r.
-  apply waits_for_eq_wedge with (d:=d).
+  apply wedge_eq_waits_for with (d:=d).
   assumption.
   assumption.
   assumption.
@@ -173,7 +173,7 @@ Proof.
   destruct Hin as (r', (Hw, Hi)).
   exists t'.
   assert (r' = r).
-  apply waits_for_eq_wedge with (s:=s) in Hw.
+  apply wedge_eq_waits_for with (s:=s) in Hw.
   apply waits_for_fun with (r:=r) in Hw; r_auto.
   auto.
   subst.
@@ -203,7 +203,7 @@ Proof.
     destruct H1 as (t2, H1).
     apply tedge_spec in H1.
     destruct H1 as (r', (Hwf1, Himp1)).
-    apply waits_for_eq_wedge with (s:=s) in Hwf1.
+    apply wedge_eq_waits_for with (s:=s) in Hwf1.
     exists r'; assumption.
     assumption.
   - unfold AllImpedes; intros.
@@ -320,13 +320,13 @@ Proof.
   intros.
   simpl in *.
   inversion H0; clear H0; subst.
-  apply waits_for_eq_wedge with (s:=s) in H1.
+  apply wedge_eq_waits_for with (s:=s) in H1.
   apply blocked_conv in H1.
   apply iedge_eq_impedes with (s:=s) in H2.
   destruct H2 as (_, (r, (H2, H3))).
   apply registered_conv in H2.
   apply Core.aa with (b:=b).
-  apply waits_for_eq_wedge with (s:=ds); r_auto.
+  apply wedge_eq_waits_for with (s:=ds); r_auto.
   assert (Hb: Impedes ds b a2).
   apply impedes_def with (t':=a1) (r':=r); repeat auto.
   apply iedge_eq_impedes with (d:=dd) in Hb; assumption.

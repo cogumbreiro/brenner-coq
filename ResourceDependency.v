@@ -20,6 +20,7 @@ Module C := Graphs.Bipartite.Cycle.
 Ltac r_auto := repeat auto.
 Ltac apply_auto H := apply H; r_auto.
 
+(** We define a resource as a pair of phaser ids and a natural (the phase). *)
 Module RES := PairOrderedType PHID Nat_as_OT.
 Module Set_RES := FSetAVL.Make RES.
 Module Set_RES_Extra := SetUtil Set_RES.
@@ -27,22 +28,14 @@ Module Map_RES := FMapAVL.Make RES.
 Module Map_RES_Extra := MapUtil Map_RES.
 Definition resource := RES.t.
 Definition set_resource := Set_RES.t.
-Definition res (p:phid) (n:nat) : resource := (p, n).
+(*Definition res (p:phid) (n:nat) : resource := (p, n).*)
+
+(* Function [get_phaser] obtains the phaser id in the resource. *)
 Definition get_phaser (r:resource) : phid := fst r.
+
+(* Function [get_phase] obtains the phase number of the resource. *)
 Definition get_phase (r:resource) : nat := snd r.
 
-(*
-(** The type of map I ranges from resources to sets of tasks. *)
-Definition impedes := Map_RES.t set_tid.
-
-(** The type of map W ranges tasks to sets of resources. *)
-Definition waits := Map_TID.t set_resource.
-
-(** A dependency state *)
-Definition dependencies := (impedes * waits) % type.
-Definition get_waits (d:dependencies) : waits := snd d.
-Definition get_impedes (d:dependencies) : impedes := fst d.
-*)
 (** Phases from the same phaser are in a precedes relation. *)
 Definition prec (r1:resource) (r2:resource) :=
   get_phaser r1 = get_phaser r2 /\ get_phase r1 < get_phase r2.
@@ -51,14 +44,17 @@ Section StateProps.
 
 Variable s:state.
 
-(** We say that a task [t] is blocked on a resource [r] if there exists a task in the
-   task map that is awaiting on resource [r] and phaser [get_phaser r] is in the phaser map. *)
+(** We say that a task [t] is waiting for a resource [r] 
+    when there is a task awaiting for a certain phase (which is represented by
+    resource [r]). *)
 Definition WaitsFor (t:tid) (r:resource) :=
   exists prg,
   Map_TID.MapsTo t (pcons (Await (get_phaser r) (get_phase r)) prg) (get_tasks s) /\
   Map_PHID.In (get_phaser r) (get_phasers s).
 
-(** It is easy to see that the blocked predicate is a function from task ids to resources. *)
+(** Since in our language tasks can only be blocked on a phase
+    it is easy to see that the [WaitsFor] predicate is a function
+    from task ids to resources. *)
 Lemma waits_for_fun:
   forall t r r',
   WaitsFor t r ->
@@ -79,7 +75,7 @@ Proof.
   auto.
 Qed.
 
-(** Similarly, any blocked task is in the task map of [s]. *)
+(** We show that any task id in the [WaitsFor] is in the task map of [s]. *)
 Lemma waits_for_in_tasks:
   forall t r,
   WaitsFor t r ->
@@ -93,14 +89,14 @@ Proof.
 Qed.
 
 (** A task [t] is registered in a resource [r] if [t] is registered
-   in phaser [get_phaser r] and in phase [get_phase r]. We only
-   consider registered tasks if they are blocked in some resource. *)
+    in phaser [get_phaser r] and in phase [get_phase r]; task [t] must
+    be waiting for some resource. *)
 Definition Registered (t:tid) (r:resource) :=
   exists ph,
   Map_PHID.MapsTo (get_phaser r) ph (get_phasers s) /\
   Map_TID.MapsTo t (get_phase r) ph /\ exists r', WaitsFor t r'.
 
-(** Again, any task registered in a resource is blocked on some resource. *)
+(** Any registered task is waiting for some resource. *)
 Lemma registered_to_blocked:
   forall t r,
   Registered t r ->

@@ -108,11 +108,13 @@ Proof.
   assumption.
 Qed.
 
+(** A w-edge is an edge in the dependency state such that `r in W(t)`. *)
+Definition WDep (w:waits) (t:tid) (r:resource) :=
+  exists rs, Map_TID.MapsTo t rs w /\ Set_RES.In r rs.
+
 (** We build the phaser map of waiting tasks to be constituted by all
    blocked tasks in state [s]. *)
-Definition W_of (w:waits) := 
-  forall t r,
-  (exists rs, Map_TID.MapsTo t rs w /\ Set_RES.In r rs) <-> WaitsFor t r.
+Definition W_of (w:waits) := forall t r, WDep w t r <-> WaitsFor t r.
 
 (** A resource [r] impedes a task [r] if task [t] is registered in a
    preceeding resource; the impeding resource must be the target of
@@ -137,15 +139,14 @@ Proof.
     intuition.
 Qed.
 
-(** The map of impedes holds all resources that are blocking a task. *)
-Definition I_of (i:impedes) := 
-  forall t r,
-  (exists ts, Map_RES.MapsTo r ts i /\ Set_TID.In t ts)
-  <->
-  Impedes r t.
+(* An i-edge is an edge in the dependency state such that `t in I(t)`. *)
+Definition IDep (i:impedes) (r:resource) (t:tid) :=
+  exists ts, Map_RES.MapsTo r ts i /\ Set_TID.In t ts.
 
-Definition Deps_of (d:dependencies) :=
-  W_of (get_waits d) /\ I_of (get_impedes d).
+(** The map of impedes holds all resources that are blocking a task. *)
+Definition I_of (i:impedes) := forall t r, IDep i r t <-> Impedes r t.
+
+Definition Deps_of (d:dependencies) := W_of (get_waits d) /\ I_of (get_impedes d).
 
 End StateProps.
 
@@ -194,36 +195,27 @@ Module Map_R := FMapAVL.Make R.
 Definition r_edge := R.t.
 Definition set_r_edge := Set_R.t.
 
-(* A w-edge is an edge in the dependency state such that `r in W(t)`. *)
-
-Definition WEdge (d:dependencies) (t:tid) (r:resource) :=
-  exists rs, Map_TID.MapsTo t rs (get_waits d) /\ Set_RES.In r rs.
-
-(* An i-edge is an edge in the dependency state such that `t in I(t)`. *)
-Definition IEdge (d:dependencies) (r:resource) (t:tid) :=
-  exists ts, Map_RES.MapsTo r ts (get_impedes d) /\ Set_TID.In t ts.
-
 (** A GRG is defined as a bipartite graph *)
-Definition GRG(d:dependencies) := B.mk_bipartite _ _ (WEdge d) (IEdge d).
+Definition GRG(s:state) := B.mk_bipartite _ _ (WaitsFor s) (Impedes s).
 (** where if we contract the resources we get a WFG graph *)
-Notation WFG d := (B.contract_a (GRG d)).
+Notation WFG s := (B.contract_a (GRG s)).
 (** and where if we contract the tasks we get an SG graph *)
-Notation SG d := (B.contract_b (GRG d)).
-Notation TWalk d := (G.Walk (WFG d)).
-Notation RWalk d := (G.Walk (SG d)).
-Notation TCycle d := (G.Cycle (WFG d)).
-Notation TEdge d := (G.Edge (WFG d)).
-Notation RCycle d := (G.Cycle (SG d)).
+Notation SG s := (B.contract_b (GRG s)).
+Notation TWalk s := (G.Walk (WFG s)).
+Notation RWalk s := (G.Walk (SG s)).
+Notation TCycle s := (G.Cycle (WFG s)).
+Notation TEdge s := (G.Edge (WFG s)).
+Notation RCycle s := (G.Cycle (SG s)).
 Notation t_walk := (list t_edge).
 
 (** It is easy to see that if we have a WFG-edge, then there exists
     a resource [r] such that task [t1] is waiting for [r] and resource
     [r] impedes [t2]. *)
 Lemma tedge_spec:
-  forall d (t1 t2:tid),
-  TEdge d (t1, t2) <->
+  forall s (t1 t2:tid),
+  TEdge s (t1, t2) <->
   exists r,
-  WEdge d t1 r /\ IEdge d r t2.
+  WaitsFor s t1 r /\ Impedes s r t2.
 Proof.
   split.
   + intros.
@@ -240,33 +232,36 @@ Qed.
 
 Section Dependencies.
 
-Variable d:dependencies.
+Variable s:state.
 (** Since the graph is bipartite, then if we have a cycle in the WFG, then
     there exists a cycle in the SG. *)
 Theorem wfg_to_sg:
-  forall w,
-  TCycle d w ->
-  exists w', RCycle d w'.
+  forall c,
+  TCycle s c ->
+  exists c', RCycle s c'.
 Proof.
   intros.
-  assert (H':= C.cycle_a_to_cycle_b (GRG d) w H).
+  assert (H':= C.cycle_a_to_cycle_b (GRG s) c H).
   tauto.
 Qed.
 
 (** Vice-versa also holds. *)
 Theorem sg_to_wfg:
-  forall w,
-  RCycle d w ->
-  exists w', TCycle d w'.
+  forall c,
+  RCycle s c ->
+  exists c', TCycle s c'.
 Proof.
   intros.
-  assert (H':= C.cycle_b_to_cycle_a (GRG d) w H).
+  assert (H':= C.cycle_b_to_cycle_a (GRG s) c H).
   tauto.
 Qed.
 
 End Dependencies.
 
 Set Implicit Arguments.
+
+Notation WEdge d := (WDep (get_waits d)).
+Notation IEdge d := (IDep (get_impedes d)).
 
 Section Basic.
   Variable d:dependencies.
@@ -279,7 +274,7 @@ Let wedge_to_waits_for:
   WaitsFor s t r.
 Proof.
   intros.
-  unfold WEdge in H.
+  unfold WDep in H.
   assert (H':= d_of_s).
   destruct H' as (H', _).
   apply H' in H.
@@ -292,7 +287,7 @@ Let waits_for_to_wedge:
   WEdge d t r.
 Proof.
   intros.
-  unfold WEdge in *.
+  unfold WDep in *.
   assert (H':= d_of_s).
   destruct H' as (H', _).
   apply H' in H.
@@ -320,13 +315,13 @@ Proof.
   intros.
   split.
   - intros.
-    unfold IEdge in *.
+    unfold IDep in *.
     assert (H':= d_of_s).
     destruct H' as (_, H').
     apply H'.
     auto.
   - intros.
-    unfold IEdge.
+    unfold IDep.
     assert (H':= d_of_s).
     destruct H' as (_, H').
     apply H'.
@@ -359,10 +354,10 @@ Proof.
   destruct H as (_, (_, H)).
   assumption.
 Qed.
-
+(*
 Lemma tedge_altdef:
   (forall (t1 t2:tid),
-  TEdge d (t1, t2) <->
+  TEdge s (t1, t2) <->
   exists r,
   WaitsFor s t1 r /\ Impedes s r t2).
 Proof.
@@ -382,5 +377,5 @@ Proof.
     rewrite <- iedge_eq_impedes in Hi.
     intuition.
 Qed.
-
+*)
 End Basic.

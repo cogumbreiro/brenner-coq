@@ -12,17 +12,16 @@ Require Import Bool.
 (** The projection module takes a map I and generates a list of pairs
     each holds a resource and a task. *)
 Module I_Proj := Project.Project Map_RES Set_TID.
-Definition impedes_edges : impedes -> list (resource * tid) :=
-  I_Proj.edges.
+Definition impedes_edges : impedes -> list (resource * tid) := I_Proj.edges.
 
-(** By using module Project, we get that any pair in [impedes_edges]
-    is an [IEdge]. *)
+(** By using lemma [Project.edges_spec], we get that any pair
+    in [impedes_edges] is an [IEdge] (aka impedes relation). *)
 Lemma impedes_edges_spec:
   forall r t d,
   List.In (r,t) (impedes_edges (get_impedes d)) <-> IEdge d r t.
 Proof.
   intros.
-  unfold IEdge.
+  unfold IDep.
   unfold impedes_edges.
   apply I_Proj.edges_spec.
   - intros. destruct H, k1, k2.
@@ -32,39 +31,42 @@ Qed.
 
 (** Similarly, we project the map I into pairs of tasks and resources. *)
 Module W_Proj := Project.Project Map_TID Set_RES.
-Definition waits_edges : waits -> list (tid * resource) :=
-  W_Proj.edges.
-(** We show that any pair in [wait_edges] is a [WEdge].*)
+Definition waits_edges : waits -> list (tid * resource) := W_Proj.edges.
+(** By using lemma [Project.edges_spec], we get that any pair
+    in [waits_edges] is a [WEdge] (aka impedes relation). *)
 Lemma waits_edges_spec:
   forall t r d,
   List.In (t,r) (waits_edges (get_waits d)) <-> WEdge d t r.
 Proof.
   intros.
   unfold waits_edges.
-  unfold WEdge.
+  unfold WDep.
   apply W_Proj.edges_spec.
   - auto.
   - intros. destruct H, e1, e2.
     auto.
 Qed.
 
-(** Given a dependency state [d], compute the tasks
-    that resource [r] impedes. *)
-Definition impedes_from d r := 
-  filter (fun e:(resource*tid)=> let (r', t) := e in if RES.eq_dec r' r then true else false)
+(** Given the impedes of a dependency state [d], filter the edges
+    matching [r]. *)
+Definition impedes_matching d r := 
+  filter
+  (fun e:(resource*tid)=>
+    let (r', t) := e in
+    if RES.eq_dec r' r then true else false)
   (impedes_edges (get_impedes d)).
-(** Function [build_edges] takes a pair that consists of task waiting
-    waiting for a resource [r]. The function then computes a wfg-edge by
-    obtaining all tasks impeded [r]. *)
+(** Given a task [t] waiting for resource [r], compute WEdges starting
+    from [t]. The definition uses function [impedes_matching]. *)
 Definition build_edges (d:dependencies) (e:(tid*resource)) : list (tid*tid) :=
   let (t, r) := e in
-  map (fun e':(resource*tid)=> (t, snd e')) (impedes_from d r).
-(** Function [build_wfg] iterates over all wait-for dependencies in [d],
-    yielding the wfg-edges per wait-for relation. *)
+  map (fun e':(resource*tid)=> (t, snd e')) (impedes_matching d r).
+(** For each blocked tasks in the dependency state compute the WEdges
+    using function [build_edges].*)
 Definition build_wfg (d:dependencies) : list (tid*tid) :=
   flat_map (build_edges d) (waits_edges (get_waits d)).
-(** The first main result is to show that function [build_wfg] is correct,
-    that is any pair in [build_wfg] is a WFG edge. *)
+(** The first main result is to show that any pair in
+     [build_wfg] is a [WEdge]. The proof uses lemmas
+     [waits_edges_spec] and [impedes_edges_spec]. *)
 Theorem build_wfg_spec:
   forall d t t',
   List.In (t,t') (build_wfg d) <-> 
@@ -76,14 +78,17 @@ Proof.
   unfold build_edges in *.
   split.
   - intros.
+    (* We have that there exists a (t1, r) in [wait_edges]. *)
     destruct H as ((t1, r), (Hinw, Hinb)).
     rewrite waits_edges_spec in Hinw.
+    (* Thus, we have that (t1, r) is a [WEdge]. *)
     exists r.
     rewrite in_map_iff in *.
     destruct Hinb as ((r', t''), (Heq, Hini)).
     simpl in *.
     inversion Heq; subst; clear Heq.
-    unfold impedes_from in *.
+    (* We also know that (r', t') is in [impedes_matching d r]. *)
+    unfold impedes_matching in *.
     rewrite filter_In in *.
     destruct Hini as (Hini, Hcnd).
     remember (Map_RES_Extra.P.F.eq_dec r' r) as b.
@@ -105,7 +110,7 @@ Proof.
     exists (r, t').
     simpl.
     intuition.
-    unfold impedes_from.
+    unfold impedes_matching.
     rewrite filter_In.
     split.
     * rewrite impedes_edges_spec.
@@ -117,35 +122,43 @@ Proof.
 Qed.
 (** Let [WFG_of] be the definition of a finite WFG defined
     as a sequence of edges. *)
-Definition WFG_of wfg d := 
-  forall (e:t_edge), List.In e wfg <-> TEdge d e.
+Definition WFG_of wfg s := 
+  forall (e:t_edge), List.In e wfg <-> TEdge s e.
 (** Given [build_wfg_spec] it is easy to show that we can
     always obtain a finite WFG from a dependency state [d].*)
 Corollary wfg_of_total:
-  forall d:dependencies, exists wfg, WFG_of wfg d.
+  forall s:state, exists wfg, WFG_of wfg s.
 Proof.
   intros.
   unfold WFG_of.
+  destruct (deps_of_total s) as (d, Hd).
   exists (build_wfg d).
   destruct e as (t, t').
   rewrite build_wfg_spec.
   rewrite tedge_spec.
-  intuition.
+  destruct Hd as (Hw, Hi).
+  unfold W_of in *.
+  unfold I_of in *.
+  split; (
+    intros;
+    destruct H as (r, (w, i));
+    apply Hw in w;
+    apply Hi in i;
+    exists r;
+    intuition).
 Qed.
 
 Section TOTALLY_COMPLETE.
-Variable d:dependencies.
 Variable s:state.
 Variable w:t_walk.
-Variable deps_of: Deps_of s d.
 Variable wfg: list t_edge.
-Variable wfg_spec: WFG_of wfg d.
+Variable wfg_spec: WFG_of wfg s.
 
 (** Any edge in a graph [wfg] is a [TEdge] (i.e., a WFG edge). *)
 Lemma totally_deadlocked_edge:
   forall e,
   Edge wfg e ->
-  TEdge d e.
+  TEdge s e.
 Proof.
   intros.
   unfold Edge in *.
@@ -203,10 +216,9 @@ Proof.
   apply has_outgoing_def with (v':=t').
   unfold Edge.
   apply wfg_spec.
-  rewrite tedge_altdef with (s:=s).
+  rewrite tedge_spec with (s:=s).
   exists r.
   intuition.
-  auto.
 Qed.
 (** Since that: all tasks in a totally deadlocked state
     are waiting for a resource, there is at least one task in the task map,
@@ -268,7 +280,7 @@ Proof.
   unfold WFG_of in *.
   rewrite wfg_spec in *.
   destruct e as (t1, t2).
-  rewrite (tedge_altdef deps_of) in He.
+  rewrite tedge_spec in He.
   destruct He as (r, (Hwf, Himp)).
   inversion Hin.
   - subst; simpl in *.
@@ -385,66 +397,54 @@ Qed.
     deadlocked state. *)
 Lemma tedge_conv: 
   forall e,
-  TEdge dd e ->
-  TEdge d e.
+  TEdge ds e ->
+  TEdge s e.
 Proof.
   intros.
   simpl in *.
   inversion H; clear H; subst.
-  apply wedge_eq_waits_for with (s:=ds) in H0.
   apply B.B.aa with (b:=b).
-  - apply wedge_eq_waits_for with (s:=s).
-    apply orig_deps_of.
-    apply waits_for_conv.
+  - apply waits_for_conv.
     assumption.
-  - apply iedge_eq_impedes with (s:=ds) in H1.
-    apply iedge_eq_impedes with (s:=s) (*r':=r*); r_auto.
-    apply deadlocked_deps_of.
-  - apply deadlocked_deps_of.
+  - apply impedes_conv.
+    assumption.
 Qed.
 End Totally.
 
 Section COMPLETE.
-Variable d:dependencies.
 Variable s:state.
 Variable w:t_walk.
-Variable deps_of: Deps_of s d.
 Variable wfg: list t_edge.
-Variable wfg_spec: WFG_of wfg d.
+Variable wfg_spec: WFG_of wfg s.
 Variable is_deadlocked : Deadlocked s.
 
 (** We can construct a totally deadlocked
     from a deadlocked state. *)
 Let deadlocked_inv:
-  exists s' d' wfg',
+  exists s' wfg',
   TotallyDeadlocked s' /\
-  Deps_of s' d' /\
   wfg' <> nil /\
-  WFG_of wfg' d' /\ 
+  WFG_of wfg' s' /\ 
   subgraph wfg' wfg.
 Proof.
   intros.
   unfold Deadlocked in *.
   destruct is_deadlocked as (tm, (tm', (Hp, Hd))).
   exists (get_phasers s, tm).
-  assert (exists d', Deps_of (get_phasers s, tm) d').
-  apply deps_of_total; repeat auto.
-  destruct H as (d', Hdeps).
-  exists d'.
-  assert (exists wfg', WFG_of wfg' d').
+  assert (exists wfg', WFG_of wfg' (get_phasers s, tm)).
   apply wfg_of_total.
   destruct H as (wfg', Hwfg).
   exists wfg'.
   intuition.
-  - apply totally_deadlocked_nonempty with (d:=d') (wfg:=wfg') in Hd; repeat auto.
+  - apply totally_deadlocked_nonempty with (*d:=d'*) (wfg:=wfg') in Hd; repeat auto.
   - unfold subgraph.
     unfold Core.subgraph.
     intros.
     unfold Edge in *.
     unfold WFG_of in *.
     rewrite wfg_spec in *.
-    apply totally_deadlocked_edge with (d:=d') in H.
-    apply tedge_conv with (s:=s) (deadlocked_tasks:=tm) (other_tasks:=tm') (dd:=d'); repeat auto.
+    apply totally_deadlocked_edge with (s:=(get_phasers s, tm)) in H.
+    apply tedge_conv with (s:=s) (deadlocked_tasks:=tm) (other_tasks:=tm') (*dd:=d'*); repeat auto.
     assumption.
 Qed.
 
@@ -458,9 +458,9 @@ Theorem deadlocked_has_cycle:
   exists c, Core.Cycle (Edge wfg) c.
 Proof.
   intros.
-  destruct deadlocked_inv as (s', (d', (wfg', (Hdd, (Hd, (Hnil, (Hwfg, Hsg))))))).
+  destruct deadlocked_inv as (s', (wfg', (Hdd, (Hnil, (Hwfg, Hsg))))).
   assert (exists c, Core.Cycle (Edge wfg') c).
-  apply totally_deadlock_has_cycle with (d:=d') (s:=s'); repeat auto.
+  apply totally_deadlock_has_cycle with (*d:=d'*) (s:=s'); repeat auto.
   destruct H as (c, Hc).
   exists c.
   apply subgraph_cycle with (g:=wfg'); repeat auto.
@@ -471,7 +471,7 @@ Qed.
 Lemma wfg_cycle_to_tcycle:
   forall c,
   Core.Cycle (Edge wfg) c ->
-  TCycle d c.
+  TCycle s c.
 Proof.
   intros.
   apply Core.cycle_inv in H.
@@ -500,16 +500,11 @@ End COMPLETE.
 Corollary completeness:
   forall (s : state),
   Deadlocked s ->
-  exists d,
-  Deps_of s d /\
-  exists c, TCycle d c.
+  exists c, TCycle s c.
 Proof.
   intros.
-  destruct (deps_of_total s) as (d, Hd).
-  exists d.
-  intuition.
-  destruct (wfg_of_total d) as (wfg, Hwfg).
-  destruct (deadlocked_has_cycle _ _ Hd _ Hwfg H) as (c, Hc).
+  destruct (wfg_of_total s) as (wfg, Hwfg).
+  destruct deadlocked_has_cycle with (s:=s) (wfg:=wfg) as (c, Hc); r_auto.
   exists c.
   apply wfg_cycle_to_tcycle with (wfg:=wfg).
   assumption.

@@ -268,8 +268,8 @@ Lemma waits_total:
   exists (w:waits), W_of s w.
 Proof.
   intros.
-  exists (to_waits s).
   unfold W_of.
+  exists (to_waits s).
   intros.
   split.
   - intros.

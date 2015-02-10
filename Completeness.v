@@ -335,16 +335,10 @@ End TOTALLY_COMPLETE.
 Section Totally.
 
 Variable s : state.
-Variable d : dependencies.
-Variable orig_deps_of : Deps_of s d.
-
 Variable deadlocked_tasks : Map_TID.t prog.
 Variable other_tasks: Map_TID.t prog.
 Variable partition_holds: Map_TID_Props.Partition (get_tasks s) deadlocked_tasks other_tasks.
-
-Let ds :=  (get_phasers s, deadlocked_tasks).
-Variable dd : dependencies.
-Variable deadlocked_deps_of: Deps_of ds dd.
+Let ds := (get_phasers s, deadlocked_tasks).
 
 (** A waits-for relation holds from a deadlocked to the totally
     deadlocked state. *)

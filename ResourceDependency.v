@@ -28,7 +28,6 @@ Module Map_RES := FMapAVL.Make RES.
 Module Map_RES_Extra := MapUtil Map_RES.
 Definition resource := RES.t.
 Definition set_resource := Set_RES.t.
-(*Definition res (p:phid) (n:nat) : resource := (p, n).*)
 
 (* Function [get_phaser] obtains the phaser id in the resource. *)
 Definition get_phaser (r:resource) : phid := fst r.
@@ -45,48 +44,12 @@ Section StateProps.
 Variable s:state.
 
 (** We say that a task [t] is waiting for a resource [r] 
-    when there is a task awaiting for a certain phase (which is represented by
-    resource [r]). *)
+    when task [t] is executing an instruction [Await] and
+    the target phaser is defined in the phaser map. *)
 Definition WaitsFor (t:tid) (r:resource) :=
   exists prg,
   Map_TID.MapsTo t (pcons (Await (get_phaser r) (get_phase r)) prg) (get_tasks s) /\
   Map_PHID.In (get_phaser r) (get_phasers s).
-
-(** Since in our language tasks can only be blocked on a phase
-    it is easy to see that the [WaitsFor] predicate is a function
-    from task ids to resources. *)
-Lemma waits_for_fun:
-  forall t r r',
-  WaitsFor t r ->
-  WaitsFor t r' ->
-  r = r'.
-Proof.
-  intros.
-  unfold WaitsFor in *.
-  destruct H as (p1, (H1, H2)).
-  destruct H0 as (p2, (H3, H4)).
-  (* MapsTo is functional, so p1 = p2 *)
-  assert (Heq:= @Map_TID_Facts.MapsTo_fun _ _ _ _ _
-          H1 H3).
-  inversion Heq.
-  destruct r as (p,n).
-  destruct r' as (p', n').
-  simpl in *.
-  auto.
-Qed.
-
-(** We show that any task id in the [WaitsFor] is in the task map of [s]. *)
-Lemma waits_for_in_tasks:
-  forall t r,
-  WaitsFor t r ->
-  Map_TID.In t (get_tasks s).
-Proof.
-  intros.
-  unfold WaitsFor in H.
-  destruct H as (p, (H1, H2)).
-  apply Map_TID_Extra.mapsto_to_in in H1.
-  assumption.
-Qed.
 
 (** A task [t] is registered in a resource [r] if [t] is registered
     in phaser [get_phaser r] and in phase [get_phase r]; task [t] must
@@ -96,20 +59,8 @@ Definition Registered (t:tid) (r:resource) :=
   Map_PHID.MapsTo (get_phaser r) ph (get_phasers s) /\
   Map_TID.MapsTo t (get_phase r) ph /\ exists r', WaitsFor t r'.
 
-(** Any registered task is waiting for some resource. *)
-Lemma registered_to_blocked:
-  forall t r,
-  Registered t r ->
-  exists r', WaitsFor t r'.
-Proof.
-  intros.
-  unfold Registered in H.
-  destruct H as (ph, (H1, (H2, H3))).
-  assumption.
-Qed.
-
-(** A resource [r] impedes a task [r] if task [t] is registered in a
-   preceeding resource; the impeding resource must be the target of
+(** A resource [r] impedes a task [t] this task is registered in a
+   resource [r'] that precedes [r]; the impeding resource must be the target of
    a blocked task. *)
 Definition Impedes (r:resource) (t:tid) :=
   (exists t', WaitsFor t' r) /\
@@ -164,22 +115,25 @@ Definition Deadlocked (s:state) :=
   Map_TID_Props.Partition (get_tasks s) tm tm' /\
   TotallyDeadlocked ((get_phasers s), tm).
 
-(** A GRG is defined as a bipartite graph *)
+(** A GRG is a bipartite graph that is defined
+   from relations [WaitsFor] and [Impedes]. *)
 Definition GRG(s:state) := B.mk_bipartite _ _ (WaitsFor s) (Impedes s).
-(** where if we contract the resources we get a WFG graph *)
+(** By contracting the resources we get a WFG graph. *)
 Notation WFG s := (B.contract_a (GRG s)).
-(** and where if we contract the tasks we get an SG graph *)
+(** By contracting the tasks we get an SG graph. *)
 Notation SG s := (B.contract_b (GRG s)).
+
 Notation TWalk s := (G.Walk (WFG s)).
 Notation RWalk s := (G.Walk (SG s)).
 Notation TCycle s := (G.Cycle (WFG s)).
 Notation TEdge s := (G.Edge (WFG s)).
+Notation REdge s := (G.Edge (SG s)).
 Notation RCycle s := (G.Cycle (SG s)).
 Notation t_walk := (list (tid * tid) % type).
 
-(** It is easy to see that if we have a WFG-edge, then there exists
-    a resource [r] such that task [t1] is waiting for [r] and resource
-    [r] impedes [t2]. *)
+(** In WFG an arc from task [t1] to [t2] is read as [t1] waits for [t2].
+    In Brenner this means that there exists a resource [r] where task
+    [t1] is blocked and task [t2] has not arrived at resource [r].*)
 Lemma tedge_spec:
   forall s (t1 t2:tid),
   TEdge s (t1, t2) <->
@@ -199,7 +153,33 @@ Proof.
     apply Core.aa with (b:=r); repeat auto.
 Qed.
 
-Section Dependencies.
+(** In an SG an arc from [r1] to [r2] can be read
+    as resource [r1] happens before resource [r2].
+    In Brenner, this means that there is a task [t]
+    blocked in [r2] and impedes [r1]. Recall the definition
+    of [Impedes] that states that [t] is registered in
+    a resource [r'] that precedes [r]; and that resource
+    [r] is obtained because there exists some task blocked
+    in [r] (again by definition). *)
+Lemma redge_spec:
+  forall s (r1 r2:resource),
+  REdge s (r1, r2) <->
+  exists t,
+  Impedes s r1 t /\ WaitsFor s t r2.
+Proof.
+  split.
+  - intros.
+    inversion H.
+    subst.
+    exists a.
+    simpl in *.
+    intuition.
+  - intros [t (Hi, Hw)].
+    simpl.
+    apply Core.bb with (a:=t); repeat auto.
+Qed.
+
+Section Graphs.
 
 Variable s:state.
 (** Since the graph is bipartite, then if we have a cycle in the WFG, then
@@ -225,10 +205,58 @@ Proof.
   tauto.
 Qed.
 
-End Dependencies.
+End Graphs.
 
 Section Basic.
   Variable s:state.
+
+(** In our language tasks can only await a single phaser, so
+    it is easy to see that the [WaitsFor] predicate is actually a function
+    from task ids to resources. *)
+Lemma waits_for_fun:
+  forall t r r',
+  WaitsFor s t r ->
+  WaitsFor s t r' ->
+  r = r'.
+Proof.
+  intros.
+  unfold WaitsFor in *.
+  destruct H as (p1, (H1, H2)).
+  destruct H0 as (p2, (H3, H4)).
+  (* MapsTo is functional, so p1 = p2 *)
+  assert (Heq:= @Map_TID_Facts.MapsTo_fun _ _ _ _ _
+          H1 H3).
+  inversion Heq.
+  destruct r as (p,n).
+  destruct r' as (p', n').
+  simpl in *.
+  auto.
+Qed.
+
+(** We show that any task id in the [WaitsFor] is in the task map of [s]. *)
+Lemma waits_for_in_tasks:
+  forall t r,
+  WaitsFor s t r ->
+  Map_TID.In t (get_tasks s).
+Proof.
+  intros.
+  unfold WaitsFor in H.
+  destruct H as (p, (H1, H2)).
+  apply Map_TID_Extra.mapsto_to_in in H1.
+  assumption.
+Qed.
+
+(** Any registered task is waiting for some resource. *)
+Lemma registered_to_blocked:
+  forall t r,
+  Registered s t r ->
+  exists r', WaitsFor s t r'.
+Proof.
+  intros.
+  unfold Registered in H.
+  destruct H as (ph, (H1, (H2, H3))).
+  assumption.
+Qed.
 
 Lemma impedes_in_tasks:
   forall r t,

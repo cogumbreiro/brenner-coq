@@ -10,6 +10,9 @@ Require Graphs.Main.
 Require Import Graphs.Core.
 Require Graphs.Bipartite.Main.
 Require Graphs.Bipartite.Cycle.
+
+Set Implicit Arguments.
+
 Module G := Graphs.Main.
 Module B := Graphs.Bipartite.Main.
 Module C := Graphs.Bipartite.Cycle.
@@ -28,6 +31,7 @@ Definition res (p:phid) (n:nat) : resource := (p, n).
 Definition get_phaser (r:resource) : phid := fst r.
 Definition get_phase (r:resource) : nat := snd r.
 
+(*
 (** The type of map I ranges from resources to sets of tasks. *)
 Definition impedes := Map_RES.t set_tid.
 
@@ -38,7 +42,7 @@ Definition waits := Map_TID.t set_resource.
 Definition dependencies := (impedes * waits) % type.
 Definition get_waits (d:dependencies) : waits := snd d.
 Definition get_impedes (d:dependencies) : impedes := fst d.
-
+*)
 (** Phases from the same phaser are in a precedes relation. *)
 Definition prec (r1:resource) (r2:resource) :=
   get_phaser r1 = get_phaser r2 /\ get_phase r1 < get_phase r2.
@@ -108,14 +112,6 @@ Proof.
   assumption.
 Qed.
 
-(** A w-edge is an edge in the dependency state such that `r in W(t)`. *)
-Definition WDep (w:waits) (t:tid) (r:resource) :=
-  exists rs, Map_TID.MapsTo t rs w /\ Set_RES.In r rs.
-
-(** We build the phaser map of waiting tasks to be constituted by all
-   blocked tasks in state [s]. *)
-Definition W_of (w:waits) := forall t r, WDep w t r <-> WaitsFor t r.
-
 (** A resource [r] impedes a task [r] if task [t] is registered in a
    preceeding resource; the impeding resource must be the target of
    a blocked task. *)
@@ -138,15 +134,6 @@ Proof.
   - exists r'.
     intuition.
 Qed.
-
-(* An i-edge is an edge in the dependency state such that `t in I(t)`. *)
-Definition IDep (i:impedes) (r:resource) (t:tid) :=
-  exists ts, Map_RES.MapsTo r ts i /\ Set_TID.In t ts.
-
-(** The map of impedes holds all resources that are blocking a task. *)
-Definition I_of (i:impedes) := forall t r, IDep i r t <-> Impedes r t.
-
-Definition Deps_of (d:dependencies) := W_of (get_waits d) /\ I_of (get_impedes d).
 
 End StateProps.
 
@@ -181,20 +168,6 @@ Definition Deadlocked (s:state) :=
   Map_TID_Props.Partition (get_tasks s) tm tm' /\
   TotallyDeadlocked ((get_phasers s), tm).
 
-Module T := PairOrderedType TID TID.
-Module Set_T := FSetAVL.Make T.
-Module Set_T_Props := FSetProperties.Properties Set_T.
-Module Set_T_Facts := FSetFacts.Facts Set_T.
-Module Map_T := FMapAVL.Make T.
-Definition t_edge := T.t.
-Definition set_t_edge := Set_T.t.
-
-Module R := PairOrderedType RES RES.
-Module Set_R := FSetAVL.Make R.
-Module Map_R := FMapAVL.Make R.
-Definition r_edge := R.t.
-Definition set_r_edge := Set_R.t.
-
 (** A GRG is defined as a bipartite graph *)
 Definition GRG(s:state) := B.mk_bipartite _ _ (WaitsFor s) (Impedes s).
 (** where if we contract the resources we get a WFG graph *)
@@ -206,7 +179,7 @@ Notation RWalk s := (G.Walk (SG s)).
 Notation TCycle s := (G.Cycle (WFG s)).
 Notation TEdge s := (G.Edge (WFG s)).
 Notation RCycle s := (G.Cycle (SG s)).
-Notation t_walk := (list t_edge).
+Notation t_walk := (list (tid * tid) % type).
 
 (** It is easy to see that if we have a WFG-edge, then there exists
     a resource [r] such that task [t1] is waiting for [r] and resource
@@ -258,75 +231,8 @@ Qed.
 
 End Dependencies.
 
-Set Implicit Arguments.
-
-Notation WEdge d := (WDep (get_waits d)).
-Notation IEdge d := (IDep (get_impedes d)).
-
 Section Basic.
-  Variable d:dependencies.
   Variable s:state.
-  Variable d_of_s: Deps_of s d.
-
-Let wedge_to_waits_for:
-  forall r t,
-  WEdge d t r ->
-  WaitsFor s t r.
-Proof.
-  intros.
-  unfold WDep in H.
-  assert (H':= d_of_s).
-  destruct H' as (H', _).
-  apply H' in H.
-  assumption.
-Qed.
-
-Let waits_for_to_wedge:
-  forall r t,
-  WaitsFor s t r ->
-  WEdge d t r.
-Proof.
-  intros.
-  unfold WDep in *.
-  assert (H':= d_of_s).
-  destruct H' as (H', _).
-  apply H' in H.
-  assumption.
-Qed.
-
-(** If we have that [d] are the state-depencies of
-    a state [s], then a W-edge is equivalent to a waits-for
-    relation. *)
-Lemma wedge_eq_waits_for:
-  forall r t,
-  WEdge d t r <-> WaitsFor s t r.
-Proof.
-  intros.
-  split.
-  apply wedge_to_waits_for.
-  apply waits_for_to_wedge.
-Qed.
-
-(** Similarly, an i-edge is equivalent to an impedes relation. *)
-Lemma iedge_eq_impedes:
-  forall r t,
-  IEdge d r t <-> Impedes s r t.
-Proof.
-  intros.
-  split.
-  - intros.
-    unfold IDep in *.
-    assert (H':= d_of_s).
-    destruct H' as (_, H').
-    apply H'.
-    auto.
-  - intros.
-    unfold IDep.
-    assert (H':= d_of_s).
-    destruct H' as (_, H').
-    apply H'.
-    assumption.
-Qed.
 
 Lemma impedes_in_tasks:
   forall r t,
@@ -354,28 +260,5 @@ Proof.
   destruct H as (_, (_, H)).
   assumption.
 Qed.
-(*
-Lemma tedge_altdef:
-  (forall (t1 t2:tid),
-  TEdge s (t1, t2) <->
-  exists r,
-  WaitsFor s t1 r /\ Impedes s r t2).
-Proof.
-  intros.
-  rewrite tedge_spec.
-  split.
-  + intros.
-    destruct H as (r, (Hw, Hi)).
-    exists r.
-    rewrite wedge_eq_waits_for in Hw.
-    rewrite iedge_eq_impedes in Hi.
-    intuition.
-  + intros.
-    destruct H as (r, (Hw, Hi)).
-    exists r.
-    rewrite <- wedge_eq_waits_for in Hw.
-    rewrite <- iedge_eq_impedes in Hi.
-    intuition.
-Qed.
-*)
+
 End Basic.

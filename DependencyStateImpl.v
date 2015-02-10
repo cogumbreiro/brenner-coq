@@ -1,4 +1,5 @@
 Require Import ResourceDependency.
+Require Import DependencyState.
 Require Import Vars.
 Require Import Syntax.
 Require Import PhaserMap.

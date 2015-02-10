@@ -1,5 +1,6 @@
 Require Import ResourceDependency.
-Require Import ResourceDependencyImpl.
+Require Import DependencyState.
+Require Import DependencyStateImpl.
 Require Project.
 Require Import Semantics.
 Require Import Vars.
@@ -123,7 +124,7 @@ Qed.
 (** Let [WFG_of] be the definition of a finite WFG defined
     as a sequence of edges. *)
 Definition WFG_of wfg s := 
-  forall (e:t_edge), List.In e wfg <-> TEdge s e.
+  forall (e:(tid * tid)%type), List.In e wfg <-> TEdge s e.
 (** Given [build_wfg_spec] it is easy to show that we can
     always obtain a finite WFG from a dependency state [d].*)
 Corollary wfg_of_total:
@@ -151,7 +152,7 @@ Qed.
 Section TOTALLY_COMPLETE.
 Variable s:state.
 Variable w:t_walk.
-Variable wfg: list t_edge.
+Variable wfg: list (tid * tid) % type.
 Variable wfg_spec: WFG_of wfg s.
 
 (** Any edge in a graph [wfg] is a [TEdge] (i.e., a WFG edge). *)
@@ -414,7 +415,7 @@ End Totally.
 Section COMPLETE.
 Variable s:state.
 Variable w:t_walk.
-Variable wfg: list t_edge.
+Variable wfg: list (tid * tid).
 Variable wfg_spec: WFG_of wfg s.
 Variable is_deadlocked : Deadlocked s.
 

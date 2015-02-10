@@ -348,10 +348,10 @@ Qed.
 End Totally.
 
 Section Soundness.
-Variable d:dependencies.
+(*Variable d:dependencies.*)
 Variable s:state.
 Variable w:t_walk.
-Variable deps_of: Deps_of s d.
+(*Variable deps_of: Deps_of s d.*)
 Variable w_cycle: TCycle s w.
 
 Let split : tid -> prog -> bool := (fun t (p:prog) => F.mem TID.eq_dec t w).

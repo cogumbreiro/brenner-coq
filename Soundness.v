@@ -1,5 +1,4 @@
 Require Import ResourceDependency.
-Require Import ResourceDependencyImpl.
 Require Import Semantics.
 Require Graphs.FGraphs.
 Module F := Graphs.FGraphs.
@@ -187,36 +186,26 @@ Qed.
 End TotallyDeadlocked.
 End Basic.
 
-Record DeadlockedState := mk_deadlocked {
-  (* any state *)
-  orig_state : state;
-  (* partition *)
-  is_deadlocked : tid -> Prop;
-  deadlocked_tasks : Map_TID.t prog;
-  other_tasks: Map_TID.t prog;
-  partition_holds: Map_TID_Props.Partition (get_tasks orig_state) deadlocked_tasks other_tasks;
-  lhs_is_deadlocked:
-    (forall t, is_deadlocked t <-> Map_TID.In t deadlocked_tasks);
-  (* deadlocked props *)
-  deadlocked_state := (get_phasers orig_state, deadlocked_tasks)
-}.
-
 Section Totally.
-Variable DS : DeadlockedState.
 Variable w:t_walk.
-Notation s := (orig_state DS).
-Notation ds := (deadlocked_state DS).
+Variable s : state.
 Variable is_cycle: TCycle s w.
+Variable is_deadlocked : tid -> Prop.
 Variable in_w_is_deadlocked:
-  forall t, F.In t w <-> is_deadlocked DS t.
-Let Hpart := partition_holds DS.
+  forall t, F.In t w <-> is_deadlocked t.
+Variable deadlocked_tasks : Map_TID.t prog.
+Variable other_tasks: Map_TID.t prog.
+Let ds := (get_phasers s, deadlocked_tasks).
+Variable partition_holds: Map_TID_Props.Partition (get_tasks s) deadlocked_tasks other_tasks.
+Variable lhs_is_deadlocked:
+    (forall t, is_deadlocked t <-> Map_TID.In t deadlocked_tasks).
 
 Let tid_in_walk:
   forall t,
   F.In t w ->
   exists p,
-  Map_TID.MapsTo t p (get_tasks (orig_state DS)) /\
-  Map_TID.MapsTo t p (deadlocked_tasks DS).
+  Map_TID.MapsTo t p (get_tasks s) /\
+  Map_TID.MapsTo t p deadlocked_tasks.
 Proof.
   intros.
   rewrite in_w_is_deadlocked in H.
@@ -225,8 +214,8 @@ Proof.
   destruct H as (p, H).
   exists p.
   intuition.
-  - unfold Map_TID_Props.Partition in Hpart.
-    destruct Hpart as (Hdj, Hrw).
+  - unfold Map_TID_Props.Partition in partition_holds.
+    destruct partition_holds as (Hdj, Hrw).
     rewrite Hrw.
     auto.
 Qed.
@@ -241,6 +230,7 @@ Proof.
   unfold WaitsFor in *.
   destruct H0 as (p, (H1, H2)).
   exists p.
+  simpl.
   intuition.
   apply tid_in_walk in H.
   destruct H as (p', (H4, H5)).
@@ -265,9 +255,6 @@ Proof.
   assumption.
   assumption.
 Qed.
-
-(*Let Hd := (orig_deps_of DS).*)
-(*Let Hdd := (deadlocked_deps_of DS).*)
 
 Let t_edge_conv:
   forall e,
@@ -331,27 +318,25 @@ Let vertex_in_tasks:
 Proof.
   intros.
   rewrite in_w_is_deadlocked.
-  apply (lhs_is_deadlocked DS).
+  apply lhs_is_deadlocked.
 Qed.
 
 Let ds_totally_deadlocked :=
-  soundness_totally (*dd*) ds (*Hdd*) w cycle_conv vertex_in_tasks.
+  soundness_totally ds w cycle_conv vertex_in_tasks.
 
 Lemma ds_deadlocked:
-  Deadlocked (orig_state DS).
+  Deadlocked s.
 Proof.
   unfold Deadlocked.
-  exists (deadlocked_tasks DS).
-  exists (other_tasks DS).
+  exists deadlocked_tasks.
+  exists other_tasks.
   auto.
 Qed.
 End Totally.
 
 Section Soundness.
-(*Variable d:dependencies.*)
 Variable s:state.
 Variable w:t_walk.
-(*Variable deps_of: Deps_of s d.*)
 Variable w_cycle: TCycle s w.
 
 Let split : tid -> prog -> bool := (fun t (p:prog) => F.mem TID.eq_dec t w).
@@ -443,19 +428,18 @@ Proof.
   apply deadlocked_in_right.
 Qed.
 
-Let DS :=
-  mk_deadlocked s c_is_deadlocked
-  (fst deadlocked)
-  (snd deadlocked)
-  Hpart deadlocked_in.
-
 Theorem soundness :
   Deadlocked s.
 Proof.
-  apply (ds_deadlocked DS w).
-  auto.
-  unfold is_deadlocked.
-  intuition.
+  apply ds_deadlocked with
+    (w := w)
+    (is_deadlocked := c_is_deadlocked)
+    (deadlocked_tasks := fst deadlocked)
+    (other_tasks := snd deadlocked); repeat auto.
+  intros.
+  split.
+  - auto.
+  - auto.
 Qed.
 
 End Soundness.

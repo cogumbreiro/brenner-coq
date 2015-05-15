@@ -10,26 +10,26 @@ Require Import Project.
 Set Implicit Arguments.
 
 (** The type of map I ranges from resources to sets of tasks. *)
-Definition impedes := Map_RES.t set_tid.
+Definition impedes := Map_EVT.t set_tid.
 
 (** The type of map W ranges tasks to sets of resources. *)
-Definition waits := Map_TID.t set_resource.
+Definition waits := Map_TID.t set_event.
 
 (** A dependency state *)
 Definition dependencies := (impedes * waits) % type.
 Definition get_waits (d:dependencies) : waits := snd d.
 Definition get_impedes (d:dependencies) : impedes := fst d.
 
-(** A w-edge is an edge in the dependency state such that `r in W(t)`. *)
-Definition WDep (w:waits) (t:tid) (r:resource) :=
-  exists rs, Map_TID.MapsTo t rs w /\ Set_RES.In r rs.
+(** A w-edge is an edge in the dependency state such that `e in W(t)`. *)
+Definition WDep (w:waits) (t:tid) (e:event) :=
+  exists es, Map_TID.MapsTo t es w /\ Set_EVT.In e es.
 
 Definition WEdge d := (WDep (get_waits d)).
 
 
 (* An i-edge is an edge in the dependency state such that `t in I(t)`. *)
-Definition IDep (i:impedes) (r:resource) (t:tid) :=
-  exists ts, Map_RES.MapsTo r ts i /\ Set_TID.In t ts.
+Definition IDep (i:impedes) (e:event) (t:tid) :=
+  exists ts, Map_EVT.MapsTo e ts i /\ Set_TID.In t ts.
 
 Definition IEdge d := (IDep (get_impedes d)).
 
@@ -37,7 +37,7 @@ Definition IEdge d := (IDep (get_impedes d)).
   
   In this section we define the construction of a WFG from a totally deadlocked
   state. More precisely, by definition of [TotallyDeadlocked], every [t] waits
-  for some [r] and this [r] impedes some [t'], hence there is an outgoing
+  for some event [e] that impedes some [t'], hence there is an outgoing
   WFG-edge from [t] to [t']. Theorem [all_pos_odegree_impl_cycle] states
   that a finite graph in which all vertices have outgoing edges includes a cycle.
   To prove this result we need to provide a WFG defined as a list of pairs
@@ -54,10 +54,10 @@ Definition IEdge d := (IDep (get_impedes d)).
 (** The [Project] module converts maps of sets into list of pairs. Let [I_Proj]
     for maps of type [impedes]. *)
 
-Module I_Proj := Project.Project Map_RES Set_TID.
+Module I_Proj := Project.Project Map_EVT Set_TID.
 (** Function [impedes_edges] converts a map of [impedes] relation into
     a list of pairs. *)
-Definition impedes_edges : impedes -> list (resource * tid) := I_Proj.edges.
+Definition impedes_edges : impedes -> list (event * tid) := I_Proj.edges.
 
 (** Lemma [impedes_edges_spec] establishes the correctness of
     Function [impedes_edges]: each pair in the outcome of the
@@ -65,8 +65,8 @@ Definition impedes_edges : impedes -> list (resource * tid) := I_Proj.edges.
     
     To prove this result we use Lemma [Project.edges_spec]. *)
 Lemma impedes_edges_spec:
-  forall r t d,
-  List.In (r,t) (impedes_edges (get_impedes d)) <-> IEdge d r t.
+  forall e t d,
+  List.In (e,t) (impedes_edges (get_impedes d)) <-> IEdge d e t.
 Proof.
   intros.
   unfold IDep.
@@ -78,13 +78,13 @@ Proof.
 Qed.
 
 (** Similarly, we project the map I into pairs of tasks and resources. *)
-Module W_Proj := Project.Project Map_TID Set_RES.
-Definition waits_edges : waits -> list (tid * resource) := W_Proj.edges.
+Module W_Proj := Project.Project Map_TID Set_EVT.
+Definition waits_edges : waits -> list (tid * event) := W_Proj.edges.
 (** By using lemma [Project.edges_spec], we get that any pair
     in [waits_edges] is a [WEdge] (aka impedes relation). *)
 Lemma waits_edges_spec:
-  forall t r d,
-  List.In (t,r) (waits_edges (get_waits d)) <-> WEdge d t r.
+  forall t e d,
+  List.In (t,e) (waits_edges (get_waits d)) <-> WEdge d t e.
 Proof.
   intros.
   unfold waits_edges.
@@ -97,21 +97,21 @@ Qed.
 
 Require Import Coq.Lists.List.
 
-Definition WFGEdge d t t' := exists r, WEdge d t r /\ IEdge d r t'.
+Definition WFGEdge d t t' := exists e, WEdge d t e /\ IEdge d e t'.
 
 (** Given the impedes of a dependency state [d], filter the edges
-    matching [r]. *)
-Definition impedes_matching d r := 
+    matching [e]. *)
+Definition impedes_matching d e := 
   filter
-  (fun e:(resource*tid)=>
-    let (r', t) := e in
-    if RES.eq_dec r' r then true else false)
+  (fun edge:(event*tid)=>
+    let (e', t) := edge in
+    if EVT.eq_dec e' e then true else false)
   (impedes_edges (get_impedes d)).
-(** Given a task [t] waiting for resource [r], compute WEdges starting
+(** Given a task [t] waiting for event [e], compute WEdges starting
     from [t]. The definition uses function [impedes_matching]. *)
-Definition build_edges (d:dependencies) (e:(tid*resource)) : list (tid*tid) :=
-  let (t, r) := e in
-  map (fun e':(resource*tid)=> (t, snd e')) (impedes_matching d r).
+Definition build_edges (d:dependencies) (edge:(tid*event)) : list (tid*tid) :=
+  let (t, e) := edge in
+  map (fun edge':(event*tid)=> (t, snd edge')) (impedes_matching d e).
 (** For each blocked tasks in the dependency state compute the WEdges
     using function [build_edges].*)
 Definition build_wfg (d:dependencies) : list (tid*tid) :=
@@ -142,7 +142,7 @@ Proof.
     unfold impedes_matching in *.
     rewrite filter_In in *.
     destruct Hini as (Hini, Hcnd).
-    remember (Map_RES_Extra.P.F.eq_dec r' r) as b.
+    remember (Map_EVT_Extra.P.F.eq_dec r' r) as b.
     destruct b.
     assert (r' = r).
     destruct a, r', r.
@@ -166,7 +166,7 @@ Proof.
     split.
     * rewrite impedes_edges_spec.
       assumption.
-    * destruct (Map_RES_Extra.P.F.eq_dec r r).
+    * destruct (Map_EVT_Extra.P.F.eq_dec r r).
       auto.
       contradiction n.
       auto.

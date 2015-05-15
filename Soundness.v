@@ -15,8 +15,8 @@ Lemma tedge_inv:
   forall w t t',
   TWalk s w ->
   F.Edge w (t, t') ->
-  exists r,
-  WaitsFor s t r /\ Impedes s r t'.
+  exists e,
+  WaitsFor s t e /\ Impedes s e t'.
 Proof.
   intros.
   apply in_edge with (Edge:=G.Edge (WFG s)) in H0.
@@ -66,8 +66,8 @@ Proof.
 Qed.
 
 Lemma blocked_in_walk:
-  forall t r,
-  WaitsFor s t r ->
+  forall t e,
+  WaitsFor s t e ->
   exists t', F.Edge w (t', t).
 Proof.
   intros.
@@ -102,7 +102,7 @@ Qed.
 Lemma vertex_to_blocked:
   forall t,
   F.In t w ->
-  exists r, WaitsFor s t r.
+  exists e, WaitsFor s t e.
 Proof.
   intros.
   apply F.succ_in_cycle with (E:=TEdge s) in H; repeat auto.
@@ -115,9 +115,9 @@ Proof.
 Qed.
 
 Lemma blocked_to_impedes:
-  forall t r,
-  WaitsFor s t r ->
-  exists t', Impedes s r t' /\ exists r', WaitsFor s t' r'.
+  forall t e,
+  WaitsFor s t e ->
+  exists t', Impedes s e t' /\ exists e', WaitsFor s t' e'.
 Proof.
   intros.
   assert (Hblocked := H).
@@ -127,10 +127,10 @@ Proof.
   destruct H as (t', (He, Hin)).
   assert (Hx := Hin).
   apply tedge_inv in Hin.
-  destruct Hin as (r', (Hw, Hi)).
+  destruct Hin as (e', (Hw, Hi)).
   exists t'.
-  assert (r' = r).
-  apply waits_for_fun with (r:=r) in Hw; r_auto.
+  assert (e' = e).
+  apply waits_for_fun with (e:=e) in Hw; r_auto.
   subst.
   intuition.
   assert (F.In t' w).
@@ -338,9 +338,9 @@ Proof.
   (* eoa *)
   apply Core.aa with (b:=b).
   - assumption.
-  - destruct H2 as (_, (r, (H2, H3))).
+  - destruct H2 as (_, (ev, (H2, H3))).
     apply registered_conv in H2.
-    + apply impedes_def with (t':=a1) (r':=r); repeat auto.
+    + apply impedes_def with (t':=a1) (e':=ev); repeat auto.
     + apply in_def with (e:=(a1, a2)).
       apply pair_in_right.
       unfold F.Edge.

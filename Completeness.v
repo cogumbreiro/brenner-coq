@@ -99,9 +99,10 @@ Qed.
 
 (* end hide *)
 
-(** Any task in a totally deadlocked state is in
-    a wait-for relation, the proof follows trivially by expanding the
-    various definitions. *)
+(** printing nil $\emptyset$ **)
+
+(** Any task in a totally deadlocked state is blocked,
+   by definition. *)
 
 Lemma totally_deadlocked_in_tasks_blocked:
   forall t, Map_TID.In t (get_tasks s) -> exists e, WaitsFor s t e.
@@ -158,8 +159,7 @@ Qed.
     outdegree, then we know that there exists at least one task with a positive
     outdegree.*)
 
-Lemma totally_deadlocked_has_odegree:
-  exists t, HasOutgoing g t.
+Lemma totally_deadlocked_has_odegree: exists t, HasOutgoing g t.
 Proof.
   intros.
   destruct s_deadlocked as (H1, (H2, (t, H3))).
@@ -171,8 +171,7 @@ Qed.
 (** Using lemma [totally_deadlocked_has_odegree] we show that
     wfg is non-empty. *)
 
-Lemma totally_deadlocked_nonempty:
-  g <> nil.
+Lemma totally_deadlocked_nonempty: g <> nil.
 Proof.
   intros.
   destruct totally_deadlocked_has_odegree as (t, H1).
@@ -190,9 +189,7 @@ Qed.
     or [t] is incoming (in which case we use [impedes_inv_1] to conclude. *)
 
 Lemma totally_deadlocked_vertex_blocked:
-  forall t,
-  Core.In (Edge g) t ->
-  exists r, WaitsFor s t r.
+  forall t, Core.In (Edge g) t -> exists r, WaitsFor s t r.
 Proof.
   intros.
   destruct H as (e, (He, Hin)).
@@ -237,8 +234,7 @@ Qed.
     Thus, by using theorem [all_pos_odegree_impl_cycle] we get that
     the WFG has a cycle. *)
 
-Theorem totally_deadlock_has_cycle:
-  exists c, Core.Cycle (Edge g) c.
+Theorem totally_deadlock_has_cycle: exists c, Core.Cycle (Edge g) c.
 Proof.
   intros.
   apply all_pos_odegree_impl_cycle.
@@ -247,7 +243,9 @@ Proof.
   - apply totally_deadlocked_all_outgoing.
 Qed.
 
+(* begin hide *)
 End TOTALLY_COMPLETE.
+(* end hide *)
 
 (** * Completeness for deadlocked states *)
 

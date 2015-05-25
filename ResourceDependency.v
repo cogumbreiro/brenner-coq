@@ -82,6 +82,21 @@ Proof.
     intuition.
 Qed.
 
+
+(** By inverting the impedes relation between [r] and [t] we have
+    that there exists a task waiting for resource [r]. *)
+
+Lemma impedes_inv_1:
+  forall t e,
+  Impedes e t ->
+  exists e', WaitsFor t e'.
+Proof.
+  intros.
+  destruct H as (_, (e', (H, _))).
+  inversion H.
+  intuition.
+Qed.
+
 End StateProps.
 
 (** We now characterize a deadlocked state.

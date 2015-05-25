@@ -101,28 +101,9 @@ Qed.
 
 (** printing nil $\emptyset$ **)
 
-(** Any task in a totally deadlocked state is blocked,
-   by definition. *)
-
-Lemma totally_deadlocked_in_tasks_blocked:
-  forall t, Map_TID.In t (get_tasks s) -> exists e, WaitsFor s t e.
-Proof.
-  intros.
-  unfold TotallyDeadlocked in *.
-  unfold get_tasks in s_deadlocked.
-  destruct s.
-  simpl in *.
-  rename t0 into tasks.
-  destruct s_deadlocked as (Hblocked, _).
-  unfold AllTasksWaitFor in Hblocked.
-  apply Hblocked; assumption.
-Qed.
-
-(** Again, by unfolding the definitions, we
-    know that if task [t] is blocked on [e], then
+(** We have that if task [t] is blocked on event [e], then
     there exists a task [t'] such that event [e]
-    impedes [t'].
-*)
+    impedes task [t'], by unfolding the definition of [TotallyDeadlocked]. *)
 
 Lemma totally_deadlocked_impedes:
   forall t e, WaitsFor s t e -> exists t', Impedes s e t'.
@@ -134,62 +115,42 @@ Proof.
   assumption.
 Qed.
 
-(** Using Lemma [totally_deadlocked_impedes] and [tedge_spec] we have that
-    [(t, t')] is in graph [g].
-    Thus, it follows that if [t] is blocked, then [t] has an outgoing edge in [g]. *)
+(**
+    We also know that if [t] is blocked on [e] and [e] impedes [t'],
+    then [(t,t')] is an edge in the WFG associated with [s], hence [(t,t')] is
+    in graph [g]. *)
 
-Lemma totally_deadlocked_blocked_odgree:
-  forall t r,
-  WaitsFor s t r ->
-  HasOutgoing g t.
+Lemma totally_deadlocked_blocked_odgree_1:
+  forall t e, WaitsFor s t e -> exists t', Edge g (t, t').
 Proof.
   intros.
   destruct (totally_deadlocked_impedes _ _ H) as (t', Hi).
-  apply has_outgoing_def with (v':=t').
   unfold Edge.
+  exists t'.
   apply wfg_spec.
   rewrite tedge_spec with (s:=s).
-  exists r.
+  exists e.
   intuition.
 Qed.
 
-(** Since that: all tasks in a totally deadlocked state
-    are waiting for an event, there is at least one task in the task map,
-    and from [totally_deadlocked_blocked_odgree] this task has a positive
-    outdegree, then we know that there exists at least one task with a positive
-    outdegree.*)
+(** Therefore, it follows that if [t] is blocked, then [t] has
+    an outgoing edge in [g]. *)
 
-Lemma totally_deadlocked_has_odegree: exists t, HasOutgoing g t.
+Lemma totally_deadlocked_blocked_odgree:
+  forall t e, WaitsFor s t e -> HasOutgoing g t.
 Proof.
   intros.
-  destruct s_deadlocked as (H1, (H2, (t, H3))).
-  exists t.
-  destruct (H1 _ H3) as (r, H).
-  apply totally_deadlocked_blocked_odgree with (r:=r); repeat auto.
+  apply totally_deadlocked_blocked_odgree_1 in H.
+  destruct H as (t', H).
+  apply has_outgoing_def with (v':=t').
+  assumption.
 Qed.
 
-(** Using lemma [totally_deadlocked_has_odegree] we show that
-    wfg is non-empty. *)
 
-Lemma totally_deadlocked_nonempty: g <> nil.
-Proof.
-  intros.
-  destruct totally_deadlocked_has_odegree as (t, H1).
-  inversion H1.
-  subst.
-  unfold Edge in H.
-  intuition.
-  subst.
-  inversion H.
-Qed.
-
-(** We show that any vertex in the wfg has an outgoing edge.
-    By inverting the hypothesis either [t] is the outgoing edge
-    (in which case by the proof follows by hypothesis)
-    or [t] is incoming (in which case we use [impedes_inv_1] to conclude. *)
+(** It is easy to see that any task [t] in [g] is blocked. *)
 
 Lemma totally_deadlocked_vertex_blocked:
-  forall t, Core.In (Edge g) t -> exists r, WaitsFor s t r.
+  forall t, Core.In (Edge g) t -> exists e, WaitsFor s t e.
 Proof.
   intros.
   destruct H as (e, (He, Hin)).
@@ -198,23 +159,20 @@ Proof.
   rewrite wfg_spec in *.
   destruct e as (t1, t2).
   rewrite tedge_spec in He.
-  destruct He as (r, (Hwf, Himp)).
+  destruct He as (e, (Hwf, Himp)).
   inversion Hin.
   - subst; simpl in *.
-    exists r; auto.
+    exists e; auto.
   - subst; simpl in *.
     apply impedes_inv_1 in Himp; auto.
 Qed.
 
-(** A main theorem is to show that a totally deadlocked state
-    yields a wfg in which all vertices have an outgoing edge.
-    The proof uses lemma [totally_deadlocked_vertex_blocked]
-    to show that any task (vertex) is in a wait-for relation
-    which by lemma [totally_deadlocked_blocked_odgree] yields
-    that the vertex must have an ougoing edge. *)
 
-Theorem totally_deadlocked_all_outgoing:
-  AllOutgoing g.
+(**
+    Since any [t] in [g] is blocked, then by Lemma [totally_deadlocked_blocked_odgree]
+    any task [t] in [g] has an outgoing edge. *)
+
+Lemma totally_deadlocked_all_outgoing: AllOutgoing g.
 Proof.
   intros.
   unfold AllOutgoing.
@@ -222,17 +180,30 @@ Proof.
   unfold Core.Forall.
   intros.
   apply totally_deadlocked_vertex_blocked in H; repeat auto.
-  destruct H as (r, Hb).
-  apply totally_deadlocked_blocked_odgree with (r:=r); repeat auto.
+  destruct H as (e, Hb).
+  apply totally_deadlocked_blocked_odgree with (e:=e); repeat auto.
 Qed.
 
-(** We have that the WFG that yield from state [s]
-    is non-empty, from lemma [totally_deadlocked_nonempty].
-    We can also conclude that the WFG that yields from state [s]
-    only vertices with outgoing edges, using
-    lemma [totally_deadlocked_all_outgoing].
-    Thus, by using theorem [all_pos_odegree_impl_cycle] we get that
-    the WFG has a cycle. *)
+(** From definition [TotallyDeadlocked] there exists
+    a task [t] and this task is blocked,
+    thus from [totally_deadlocked_blocked_odgree]
+    task [t] has an outgoing edge, and therefore [g] is nonempty. *)
+
+Lemma totally_deadlocked_nonempty: g <> nil.
+Proof.
+  intros.
+  (* *)
+  destruct s_deadlocked as (H1, (_, (t, H3))).
+  destruct (H1 _ H3) as (e, H).
+  intuition.
+  apply totally_deadlocked_blocked_odgree with (e:=e) in H; repeat auto.
+  inversion H; subst.
+  inversion H2.
+Qed.
+
+(** As graph [g] is nonempty and given that all vertices in [g] have
+    outgoing edges, then from Lemma [all_pos_odegree_impl_cycle] graph [g] has
+    a cycle. *)
 
 Theorem totally_deadlock_has_cycle: exists c, Core.Cycle (Edge g) c.
 Proof.

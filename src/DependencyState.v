@@ -3,9 +3,9 @@
   to a GRG. We define a function to generate a WFG from some
   [dependencies]. *)
 
-Require Import Vars.
-Require Import ResourceDependency.
-Require Import Project.
+Require Import Brenner.Vars.
+Require Import Brenner.ResourceDependency.
+Require Import Aniceto.Project.
 
 Set Implicit Arguments.
 

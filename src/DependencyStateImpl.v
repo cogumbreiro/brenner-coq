@@ -1,13 +1,16 @@
-Require Import ResourceDependency.
-Require Import DependencyState.
-Require Import Vars.
-Require Import Syntax.
-Require Import PhaserMap.
+Require Import Brenner.ResourceDependency.
+Require Import Brenner.DependencyState.
+Require Import Brenner.Vars.
+Require Import Brenner.Syntax.
+Require Import Brenner.PhaserMap.
+Require Import Brenner.Semantics.
+
 Require Import Coq.Arith.Bool_nat.
-Require Import Project.
 Require Import Coq.Lists.SetoidList.
-Require Import MapUtil SetUtil.
-Require Import Semantics.
+
+Require Import Aniceto.Project.
+Require Import Aniceto.Map.
+Require Import Aniceto.Set.
 
 Set Implicit Arguments.
 

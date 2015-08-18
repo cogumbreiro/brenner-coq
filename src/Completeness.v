@@ -1,15 +1,18 @@
 (* begin hide *)
-Require Import ResourceDependency.
-Require Import DependencyState.
-Require Import DependencyStateImpl.
-Require Project.
-Require Import Semantics.
-Require Import Vars.
-Require Import Syntax.
-Require Import Graphs.FGraphs.
+Require Import Brenner.ResourceDependency.
+Require Import Brenner.DependencyState.
+Require Import Brenner.DependencyStateImpl.
+Require Import Brenner.Semantics.
+Require Import Brenner.Vars.
+Require Import Brenner.Syntax.
+
+Require Aniceto.Project.
+Require Import Aniceto.Graphs.FGraph.
+Require Import Aniceto.Map.
+Require Import Aniceto.Set.
+
 Require Import Coq.Lists.SetoidList.
-Require Import MapUtil SetUtil.
-Require Import Bool.
+Require Import Coq.Bool.Bool.
 (* end hide *)
 
 (**
@@ -150,7 +153,7 @@ Qed.
 (** It is easy to see that any task [t] in [g] is blocked. *)
 
 Lemma totally_deadlocked_vertex_blocked:
-  forall t, Core.In (Edge g) t -> exists e, WaitsFor s t e.
+  forall t, Graph.In (Edge g) t -> exists e, WaitsFor s t e.
 Proof.
   intros.
   destruct H as (e, (He, Hin)).
@@ -176,8 +179,8 @@ Lemma totally_deadlocked_all_outgoing: AllOutgoing g.
 Proof.
   intros.
   unfold AllOutgoing.
-  unfold FGraphs.Forall.
-  unfold Core.Forall.
+  unfold FGraph.Forall.
+  unfold Graph.Forall.
   intros.
   apply totally_deadlocked_vertex_blocked in H; repeat auto.
   destruct H as (e, Hb).
@@ -205,7 +208,7 @@ Qed.
     outgoing edges, then from Lemma [all_pos_odegree_impl_cycle] graph [g] has
     a cycle. *)
 
-Theorem totally_deadlock_has_cycle: exists c, Core.Cycle (Edge g) c.
+Theorem totally_deadlock_has_cycle: exists c, Graph.Cycle (Edge g) c.
 Proof.
   intros.
   apply all_pos_odegree_impl_cycle.
@@ -286,11 +289,7 @@ Proof.
   intros.
   simpl in *.
   inversion H; clear H; subst.
-  apply B.B.aa with (b:=b).
-  - apply waits_for_conv.
-    assumption.
-  - apply impedes_conv.
-    assumption.
+  eauto using Bipartite.aa, waits_for_conv, impedes_conv.
 Qed.
 End DeadlockedStates.
 
@@ -321,7 +320,7 @@ Proof.
   intuition.
   - apply totally_deadlocked_nonempty with (g:=g') in Hd; repeat auto.
   - unfold subgraph.
-    unfold Core.subgraph.
+    unfold Graph.subgraph.
     intros.
     unfold Edge in *.
     unfold WFG_of in *.
@@ -338,11 +337,11 @@ Qed.
     that any cycle in the WFG of the totally deadlocked state is
     also in the deadlocked state. *)
 Lemma deadlocked_has_cycle:
-  exists c, Core.Cycle (Edge g) c.
+  exists c, Graph.Cycle (Edge g) c.
 Proof.
   intros.
   destruct deadlocked_inv as (s', (wfg', (Hdd, (Hnil, (Hwfg, Hsg))))).
-  assert (exists c, Core.Cycle (Edge wfg') c).
+  assert (exists c, Graph.Cycle (Edge wfg') c).
   apply totally_deadlock_has_cycle with (*d:=d'*) (s:=s'); repeat auto.
   destruct H as (c, Hc).
   exists c.
@@ -353,25 +352,14 @@ Qed.
     to the usual cycle defined with [TCycle]. *)
 Lemma wfg_cycle_to_tcycle:
   forall c,
-  Core.Cycle (Edge g) c ->
+  Graph.Cycle (Edge g) c ->
   TCycle s c.
 Proof.
   intros.
-  apply Core.cycle_inv in H.
-  destruct H as (t, (Hsw, (Hew, Hw))).
-  apply Core.cycle_def2 with (v:=t); repeat auto.
-  apply Core.walk_def.
-  - apply List.Forall_forall.
-    intros.
-    rename x into e.
-    unfold WFG_of in *.
-    apply Core.in_edge with (Edge:=Edge g) in H.
-    apply wfg_spec.
-    unfold Edge in *.
-    assumption.
-    assumption.
-  - apply Core.walk_to_connected in Hw.
-    assumption.
+  apply Graph.cycle_impl with (E:=Edge g); auto.
+  intros.
+  apply wfg_spec in H0.
+  assumption.
 Qed.
 
 End Bootstrap.
@@ -387,9 +375,7 @@ Corollary completeness:
 Proof.
   intros.
   destruct (wfg_of_total s) as (g, Hwfg).
-  destruct deadlocked_has_cycle with (s:=s) (g:=g) as (c, Hc); r_auto.
+  destruct deadlocked_has_cycle with (s:=s) (g:=g) as (c, Hc); auto.
   exists c.
-  apply wfg_cycle_to_tcycle with (g:=g).
-  assumption.
-  assumption.
+  eauto using wfg_cycle_to_tcycle.
 Qed.

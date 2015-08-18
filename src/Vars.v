@@ -4,8 +4,8 @@ Require Import Coq.FSets.FSetAVL.
 Require Import Coq.FSets.FMapAVL.
 Require Coq.FSets.FMapFacts.
 Require Coq.FSets.FSetProperties.
-Require Import MapUtil.
-Require Import SetUtil.
+Require Import Aniceto.Map.
+Require Import Aniceto.Set.
 
 Module TID := Nat_as_OT.
 Module TID_Facts := OrderedTypeFacts TID.

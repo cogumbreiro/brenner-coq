@@ -1,11 +1,11 @@
-Require Import ResourceDependency.
-Require Import Semantics.
-Require Graphs.FGraphs.
-Module F := Graphs.FGraphs.
-Require Import Graphs.Core.
-Require Import Vars.
-Require Import Syntax.
-Require Import PairUtil.
+Require Import Brenner.ResourceDependency.
+Require Import Brenner.Semantics.
+Require Aniceto.Graphs.FGraph.
+Module F := Aniceto.Graphs.FGraph.
+Require Import Aniceto.Graphs.Graph.
+Require Import Brenner.Vars.
+Require Import Brenner.Syntax.
+Require Import Aniceto.Pair.
 Import Map_TID_Extra.
 
 Section Basic.
@@ -19,7 +19,7 @@ Lemma tedge_inv:
   WaitsFor s t e /\ Impedes s e t'.
 Proof.
   intros.
-  apply in_edge with (Edge:=G.Edge (WFG s)) in H0.
+  apply in_edge with (Edge:=TEdge s) in H0.
   inversion H0.
   simpl in *.
   subst.
@@ -126,20 +126,20 @@ Proof.
   apply F.succ_in_cycle with (E:=TEdge s) in H; repeat auto.
   destruct H as (t', (He, Hin)).
   assert (Hx := Hin).
-  apply tedge_inv in Hin.
+  apply tedge_inv in Hin; auto.
   destruct Hin as (e', (Hw, Hi)).
   exists t'.
-  assert (e' = e).
-  apply waits_for_fun with (e:=e) in Hw; r_auto.
+  assert (e' = e). {
+    eauto using waits_for_fun.
+  }
   subst.
   intuition.
-  assert (F.In t' w).
-  apply in_def with (e:=(t, t')).
-  apply pair_in_right.
-  assumption.
-  apply vertex_to_blocked.
-  assumption.
-  assumption.
+  assert (F.In t' w). {
+  apply in_def with (e:=(t, t'));
+   auto using pair_in_right.
+ }
+ apply vertex_to_blocked.
+ assumption.
 Qed.
 
 Lemma soundness_totally:
@@ -258,9 +258,7 @@ Let deadlocked_in:
   (In (F.Edge w) t <-> Map_TID.In t (fst part)).
 Proof.
   intros.
-  split.
-  apply deadlocked_in_left; r_auto.
-  apply deadlocked_in_right.
+  split; auto using deadlocked_in_left, deadlocked_in_right.
 Qed.
 
 Let deadlocked_tasks := fst part.
@@ -298,7 +296,7 @@ Proof.
   intuition.
   apply tid_in_walk in H.
   destruct H as (p', (H4, H5)).
-  apply Map_TID_Facts.MapsTo_fun with (e:=p') in H1; r_auto.
+  apply Map_TID_Facts.MapsTo_fun with (e:=p') in H1; auto.
   subst.
   assumption.
 Qed.
@@ -329,14 +327,14 @@ Proof.
   intros.
   simpl in *.
   inversion H0; clear H0; subst.
-  assert (Hw : WaitsFor ds a1 b).
-    apply blocked_conv in H1; r_auto.
+  assert (Hw : WaitsFor ds a1 b). {
+    apply blocked_conv in H1; repeat auto.
     apply in_def with (e:=(a1, a2)).
     apply pair_in_left.
     unfold F.Edge.
     assumption.
-  (* eoa *)
-  apply Core.aa with (b:=b).
+  }
+  apply Bipartite.aa with (b:=b).
   - assumption.
   - destruct H2 as (_, (ev, (H2, H3))).
     apply registered_conv in H2.
@@ -352,8 +350,8 @@ Let t_edge_dd :
 Proof.
   rewrite List.Forall_forall.
   intros e Hin.
-  apply_auto t_edge_conv.
-  apply in_edge with (w:=w); r_auto.
+  apply t_edge_conv; auto.
+  apply in_edge with (w:=w); auto.
   inversion is_cycle.
   assumption.
 Qed.
@@ -364,7 +362,7 @@ Proof.
   inversion is_cycle.
   rewrite H1 in *.
   apply walk_to_connected in H0.
-  apply_auto walk_def.
+  auto using walk_def.
 Qed.
 
 Let cycle_conv:

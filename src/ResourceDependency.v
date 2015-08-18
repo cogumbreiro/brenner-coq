@@ -3,22 +3,19 @@ Require Import
   Coq.FSets.FSetAVL
   Coq.Arith.Compare_dec.
 
-Require Import
-  Semantics TaskMap PhaserMap Vars Syntax SetUtil MapUtil.
+Require Import Aniceto.Set.
+Require Import Aniceto.Map.
 
-Require Graphs.Main.
-Require Import Graphs.Core.
-Require Graphs.Bipartite.Main.
-Require Graphs.Bipartite.Cycle.
+Require Import
+  Brenner.Semantics TaskMap PhaserMap Vars Syntax.
+
+Require Import Aniceto.Graphs.Graph.
+Require Aniceto.Graphs.Bipartite.Bipartite.
+Require Aniceto.Graphs.Bipartite.Cycle.
 
 Set Implicit Arguments.
 
-Module G := Graphs.Main.
-Module B := Graphs.Bipartite.Main.
 Module C := Graphs.Bipartite.Cycle.
-
-Ltac r_auto := repeat auto.
-Ltac apply_auto H := apply H; r_auto.
 
 (** We define an event as a pair of phaser ids and a natural (the phase). *)
 Module EVT := PairOrderedType PHID Nat_as_OT.
@@ -132,18 +129,18 @@ Definition Deadlocked (s:state) :=
 
 (** A GRG is a bipartite graph that is defined
    from relations [WaitsFor] and [Impedes]. *)
-Definition GRG(s:state) := B.mk_bipartite _ _ (WaitsFor s) (Impedes s).
-(** By contracting the events we get a WFG graph. *)
-Notation WFG s := (B.contract_a (GRG s)).
-(** By contracting the tasks we get an SG graph. *)
-Notation SG s := (B.contract_b (GRG s)).
 
-Notation TWalk s := (G.Walk (WFG s)).
-Notation RWalk s := (G.Walk (SG s)).
-Notation TCycle s := (G.Cycle (WFG s)).
-Notation TEdge s := (G.Edge (WFG s)).
-Notation REdge s := (G.Edge (SG s)).
-Notation RCycle s := (G.Cycle (SG s)).
+(*Definition GRG(s:state) := B.mk_bipartite _ _ (WaitsFor s) (Impedes s).*)
+(** By contracting the events we get a WFG graph. *)
+(*Notation WFG s := (B.contract_a (GRG s)).*)
+(** By contracting the tasks we get an SG graph. *)
+(*Notation SG s := (B.contract_b (GRG s)).*)
+Notation TEdge s := (Bipartite.AA (WaitsFor s) (Impedes s)).
+Notation REdge s := (Bipartite.BB (WaitsFor s) (Impedes s)).
+Notation TWalk s := (Walk (TEdge s)).
+Notation RWalk s := (Walk (REdge s)).
+Notation TCycle s := (Cycle (TEdge s)).
+Notation RCycle s := (Cycle (REdge s)).
 Notation t_walk := (list (tid * tid) % type).
 
 (** In WFG an arc from task [t1] to [t2] is read as [t1] waits for [t2].
@@ -165,7 +162,7 @@ Proof.
   + intros.
     destruct H as (e, (H1, H2)).
     simpl.
-    apply Core.aa with (b:=e); repeat auto.
+    eauto using Bipartite.aa.
 Qed.
 
 (** In an SG an arc from [e1] to [e2] can be read
@@ -191,7 +188,7 @@ Proof.
     intuition.
   - intros [t (Hi, Hw)].
     simpl.
-    apply Core.bb with (a:=t); repeat auto.
+    eauto using Bipartite.bb.
 Qed.
 
 Section Graphs.
@@ -200,13 +197,12 @@ Variable s:state.
 (** Since the graph is bipartite, then if we have a cycle in the WFG, then
     there exists a cycle in the SG. *)
 Theorem wfg_to_sg:
-  forall c,
+  forall s c,
   TCycle s c ->
   exists c', RCycle s c'.
 Proof.
   intros.
-  assert (H':= C.cycle_a_to_cycle_b (GRG s) c H).
-  tauto.
+  eauto using Cycle.cycle_a_to_b.
 Qed.
 
 (** Vice-versa also holds. *)
@@ -216,8 +212,7 @@ Theorem sg_to_wfg:
   exists c', TCycle s c'.
 Proof.
   intros.
-  assert (H':= C.cycle_b_to_cycle_a (GRG s) c H).
-  tauto.
+  eauto using Cycle.cycle_b_to_a.
 Qed.
 
 End Graphs.

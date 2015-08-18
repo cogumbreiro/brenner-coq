@@ -1,3 +1,5 @@
+(* begin hide *)
+
 Require Import Brenner.ResourceDependency.
 Require Import Brenner.Semantics.
 Require Aniceto.Graphs.FGraph.
@@ -28,6 +30,17 @@ Proof.
   assumption.
 Qed.
 
+(* end hide *)
+
+(**
+Any task [t] in a walk [w] of the WFG associated to [s], then task [t] is in [s].
+Proof: [t] is in [w], then there exists an edge [(t1,t2)] such that [t=t1] or [t=t2].
+Since (t1,t2) is an edge of on the associated WFG, then [t1] is blocked an some event [e]
+that is impeding [t2].
+If [t = t1], then [t] is blocked, which is in [s].
+Otherwise, [t = t2], then [t] is impeded, so it is blocked and therefore in [s].
+*)
+
 Lemma vertex_in_tasks:
   forall t w,
   TWalk s w ->
@@ -36,21 +49,31 @@ Lemma vertex_in_tasks:
 Proof.
   intros.
   simpl in *.
+  (* destruct F.In t w *)
   inversion H0 as ((t1, t2), (Hin, Hpin)).
+  (* then there exists an edge (t1, t2) *)
   destruct Hpin as [H2|H2].
   - subst; simpl in *.
-    apply tedge_inv in Hin.
-    + destruct Hin as (r, (Hwf, _)).
-      apply waits_for_in_tasks in Hwf.
-      assumption.
-    + auto.
+    (* lhs, t=t1 *)
+    apply tedge_inv in Hin; auto. (* invert (t, t2) *)
+    destruct Hin as (r, (Hwf, _)).
+    apply waits_for_in_tasks in Hwf.
+    assumption.
   - subst. simpl in *.
+    (* rhs *)
     apply tedge_inv in Hin.
     + destruct Hin as (r, (_, Himp)).
       apply impedes_in_tasks in Himp.
       assumption.
     + auto.
 Qed.
+
+(**
+Let [w] be a cycle in the WFG such that
+every task [t] in cycle [w] is also in [get_tasks s] and vice-versa.
+*)
+
+(* begin hide *)
 
 Section TotallyDeadlocked.
 Variable w:t_walk.
@@ -64,22 +87,44 @@ Proof.
   inversion is_cycle.
   assumption.
 Qed.
+(* end hide *)
 
+
+(** We have that any blocked task [t] is in a cycle [w],
+    and
+*)
+
+Lemma blocked_in_w:
+  forall t e,
+  WaitsFor s t e ->
+  F.In t w.
+Proof.
+  intros.
+  destruct H as (p, (Hin, _)).
+  apply mapsto_to_in in Hin.
+  rewrite vertex_in_tasks.
+  assumption.
+Qed.
+
+(**
+Any blocked task [t] is in cycle [w].
+But since [w] is a  cycle, then [t] has a predecessor [t']
+such that [(t',t)] is in [w].
+Thus, for any task [t] blocked on event [e] there exists a task [t']
+that is impeded by event [e].
+*)
+
+(* begin hide *)
 Lemma blocked_in_walk:
   forall t e,
   WaitsFor s t e ->
   exists t', F.Edge w (t', t).
 Proof.
   intros.
-  unfold WaitsFor in *.
-  destruct H as (p, (Hin, _)).
-  apply mapsto_to_in in Hin.
-  rewrite <- vertex_in_tasks in Hin.
-  assert (H := Hin).
-  apply F.pred_in_cycle with (v:=t) in is_cycle.
-  destruct is_cycle as (t', (He, He')).
+  apply blocked_in_w in H.
+  apply F.pred_in_cycle with (v:=t) in is_cycle; auto.
+  destruct is_cycle as (t', (_, He')).
   exists t'.
-  auto.
   auto.
 Qed.
 
@@ -114,6 +159,8 @@ Proof.
   assumption.
 Qed.
 
+(* end hide *)
+
 Lemma blocked_to_impedes:
   forall t e,
   WaitsFor s t e ->
@@ -141,6 +188,10 @@ Proof.
  apply vertex_to_blocked.
  assumption.
 Qed.
+
+(**
+Thus, state [s] is totally deadlocked.
+*)
 
 Lemma soundness_totally:
   TotallyDeadlocked s.
@@ -173,6 +224,20 @@ Proof.
 Qed.
 End TotallyDeadlocked.
 End Basic.
+
+
+(** * Soundness  for deadlocked  states *)
+
+(**
+Given a state [s] such that [w] is a cycle on the associated WFG, we
+partition task map [get_tasks s] into $T_d$ and $T_o$ such that any task [t] in [w]
+is in $T_d$. Let $d_s = (T_d,getphasers s)$.
+By showing that $d_s$ is totally deadlocked, then we show, by definition that [s] is
+deadlocked.
+
+*)
+
+(* begin hide *)
 
 Section Soundness.
 Variable w:t_walk.
@@ -228,7 +293,6 @@ Proof.
   auto with *.
   auto.
 Qed.
-
 Let ds := ((get_phasers s), (fst part)).
 
 Let deadlocked_in_left:
@@ -281,6 +345,7 @@ Proof.
     rewrite Hrw.
     auto.
 Qed.
+(* end hide *)
 
 Let blocked_conv:
   forall t r,
@@ -368,6 +433,7 @@ Qed.
 Let cycle_conv:
   TCycle ds w.
 Proof.
+  intros.
   inversion is_cycle.
   apply cycle_def with (vn:=vn).
   - assumption.

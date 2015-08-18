@@ -1,3 +1,5 @@
+(* begin hide *)
+
 Require Import
   Coq.Structures.OrderedTypeEx
   Coq.FSets.FSetAVL
@@ -16,41 +18,58 @@ Require Aniceto.Graphs.Bipartite.Cycle.
 Set Implicit Arguments.
 
 Module C := Graphs.Bipartite.Cycle.
+(* end hide *)
 
 (** We define an event as a pair of phaser ids and a natural (the phase). *)
+
 Module EVT := PairOrderedType PHID Nat_as_OT.
+
+(* begin hide *)
 Module Set_EVT := FSetAVL.Make EVT.
 Module Set_EVT_Extra := SetUtil Set_EVT.
 Module Map_EVT := FMapAVL.Make EVT.
 Module Map_EVT_Extra := MapUtil Map_EVT.
-Definition event := EVT.t.
 Definition set_event := Set_EVT.t.
+(* end hide *)
+Definition event := EVT.t.
 
-(* Function [get_phaser] obtains the phaser id in the event. *)
+(** Function [get_phaser] obtains the phaser id in the event. *)
+
 Definition get_phaser (e:event) : phid := fst e.
 
-(* Function [get_phase] obtains the phase number of the event. *)
+(** Function [get_phase] obtains the phase number of the event. *)
+
 Definition get_phase (e:event) : nat := snd e.
 
 (** Phases from the same phaser are in a precedes relation. *)
-Definition prec (r1:event) (r2:event) :=
-  get_phaser r1 = get_phaser r2 /\ get_phase r1 < get_phase r2.
+
+Definition prec (e1:event) (e2:event) :=
+  get_phaser e1 = get_phaser e2 /\ get_phase e1 < get_phase e2.
+
+(* begin hide *)
 
 Section StateProps.
 
 Variable s:state.
 
-(** We say that a task [t] is waiting for an event [r] 
-    when task [t] is executing an instruction [Await] and
-    the target phaser is defined in the phaser map. *)
+(* end hide *)
+
+(**
+ 
+Let [s] be a [state].
+We say that a task [t] is waiting for an event [e] 
+when task [t] is executing an instruction [Await] and
+the target phaser is defined in the phaser map. *)
+
 Definition WaitsFor (t:tid) (e:event) :=
   exists prg,
   Map_TID.MapsTo t (pcons (Await (get_phaser e) (get_phase e)) prg) (get_tasks s) /\
   Map_PHID.In (get_phaser e) (get_phasers s).
 
-(** A task [t] is registered in an event [r] if [t] is registered
-    in phaser [get_phaser r] and in phase [get_phase r]; task [t] must
+(** A task [t] is registered in an event [e] if [t] is registered
+    in phaser [get_phaser e] and in phase [get_phase r]; task [t] must
     be waiting for some event. *)
+
 Definition Registered (t:tid) (e:event) :=
   exists ph,
   Map_PHID.MapsTo (get_phaser e) ph (get_phasers s) /\
@@ -59,6 +78,7 @@ Definition Registered (t:tid) (e:event) :=
 (** an event [r] impedes a task [t] this task is registered in a
    event [r'] that precedes [r]; the impeding event must be the target of
    a blocked task. *)
+
 Definition Impedes (e:event) (t:tid) :=
   (exists t', WaitsFor t' e) /\
   (exists e', Registered t e' /\ prec e' e).
@@ -122,6 +142,7 @@ Definition TotallyDeadlocked (s:state) :=
 (** A [Deadlocked] state is such that we can take a partition of the task
     map [tm] and [tm'] such that the state [(get_phasers s, tm)] is
     totally deadlock. *)
+
 Definition Deadlocked (s:state) :=
   exists tm tm',
   Map_TID_Props.Partition (get_tasks s) tm tm' /\
@@ -130,22 +151,19 @@ Definition Deadlocked (s:state) :=
 (** A GRG is a bipartite graph that is defined
    from relations [WaitsFor] and [Impedes]. *)
 
-(*Definition GRG(s:state) := B.mk_bipartite _ _ (WaitsFor s) (Impedes s).*)
-(** By contracting the events we get a WFG graph. *)
-(*Notation WFG s := (B.contract_a (GRG s)).*)
-(** By contracting the tasks we get an SG graph. *)
-(*Notation SG s := (B.contract_b (GRG s)).*)
 Notation TEdge s := (Bipartite.AA (WaitsFor s) (Impedes s)).
 Notation REdge s := (Bipartite.BB (WaitsFor s) (Impedes s)).
 Notation TWalk s := (Walk (TEdge s)).
 Notation RWalk s := (Walk (REdge s)).
 Notation TCycle s := (Cycle (TEdge s)).
 Notation RCycle s := (Cycle (REdge s)).
-Notation t_walk := (list (tid * tid) % type).
+Notation t_edge := (tid * tid) % type.
+Notation t_walk := (list t_edge).
 
 (** In WFG an arc from task [t1] to [t2] is read as [t1] waits for [t2].
     In Brenner this means that there exists an event [e] where task
     [t1] is blocked and task [t2] has not arrived at event [e].*)
+
 Lemma tedge_spec:
   forall s (t1 t2:tid),
   TEdge s (t1, t2) <->
@@ -173,6 +191,7 @@ Qed.
     an event [e'] that precedes [e]; and that event
     [e] is obtained because there exists some task blocked
     in [e] (again by definition). *)
+
 Lemma redge_spec:
   forall s (e1 e2:event),
   REdge s (e1, e2) <->
@@ -194,8 +213,10 @@ Qed.
 Section Graphs.
 
 Variable s:state.
+
 (** Since the graph is bipartite, then if we have a cycle in the WFG, then
     there exists a cycle in the SG. *)
+
 Theorem wfg_to_sg:
   forall s c,
   TCycle s c ->
@@ -206,6 +227,7 @@ Proof.
 Qed.
 
 (** Vice-versa also holds. *)
+
 Theorem sg_to_wfg:
   forall c,
   RCycle s c ->
@@ -223,6 +245,7 @@ Section Basic.
 (** In our language tasks can only await a single phaser, so
     it is easy to see that the [WaitsFor] predicate is actually a function
     from task ids to events. *)
+
 Lemma waits_for_fun:
   forall t e e',
   WaitsFor s t e ->
@@ -244,6 +267,7 @@ Proof.
 Qed.
 
 (** We show that any task id in the [WaitsFor] is in the task map of [s]. *)
+
 Lemma waits_for_in_tasks:
   forall t e,
   WaitsFor s t e ->
@@ -257,6 +281,7 @@ Proof.
 Qed.
 
 (** Any registered task is waiting for some event. *)
+
 Lemma registered_to_blocked:
   forall t e,
   Registered s t e ->

@@ -72,11 +72,11 @@ Qed.
 (** * Completeness for totally deadlocked states *)
 
 (**
-  To prove the completeness for totally deadlocked states, the
+  To prove the completeness for totally deadlocked states,
   we observe that every node in the associated WFG has at least one outgoing
-  edges.
+  edge.
   Since any finite graph in which every node has at least an outgoing edge is
-  cyclic, then WFG associated with a totally deadlocked state is cyclic. 
+  cyclic, then the WFG associated with a totally deadlocked state is cyclic. 
   For the rest of this section, let [s] be a state that is totally deadlocked,
   and let [g] a finite WFG such that [WFG_of s g] holds.
 *)
@@ -223,16 +223,27 @@ End TOTALLY_COMPLETE.
 
 (** * Completeness for deadlocked states *)
 
+(** ** Properties about partitions of task maps *)
+
+(* begin hide *)
+
 Section DeadlockedStates.
 
 Variable s : state.
 Variable deadlocked_tasks : Map_TID.t prog.
 Variable other_tasks: Map_TID.t prog.
 Variable partition_holds: Map_TID_Props.Partition (get_tasks s) deadlocked_tasks other_tasks.
+(* end hide *)
+
+(**
+Let [s] be a state and task maps $T_d$ and $T_o$ be such that $gettasks\ s = T_o \uplus T_d$.
+Furthermore, let [ds] be the totally deadlocked state obtained from [s]. *)
+
 Let ds := (get_phasers s, deadlocked_tasks).
 
-(** A waits-for relation holds from a deadlocked to the totally
-    deadlocked state. *)
+(** The waits-for, regsitered, and impedes relations hold from a deadlocked to the totally
+    deadlocked state, using the definition of [Partition]. *)
+
 Let waits_for_conv:
   forall t r,
   WaitsFor ds t r ->
@@ -281,16 +292,20 @@ Qed.
 
 (** A wfg-edge holds from the totally deadlocked state to the
     deadlocked state. *)
+
 Lemma tedge_conv: 
   forall e,
   TEdge ds e ->
   TEdge s e.
 Proof.
   intros.
-  simpl in *.
   inversion H; clear H; subst.
   eauto using Bipartite.aa, waits_for_conv, impedes_conv.
 Qed.
+
+(** ** Properties about deadlocked states *)
+
+(* begin hide *)
 End DeadlockedStates.
 
 Section Bootstrap.
@@ -300,8 +315,13 @@ Variable g: list (tid * tid).
 Variable wfg_spec: WFG_of s g.
 Variable is_deadlocked : Deadlocked s.
 
-(** We can construct a totally deadlocked
-    from a deadlocked state. *)
+(* end hide *)
+
+(** 
+Consider a deadlocked state [s] whose associated WFG is [g].
+From the deadlocked state [s] we can construct a totally deadlocked
+    from a deadlocked state [s'], which as an associated WFG that is a subgraph of [g] . *)
+
 Let deadlocked_inv:
   exists s' g',
   TotallyDeadlocked s' /\
@@ -325,9 +345,8 @@ Proof.
     unfold Edge in *.
     unfold WFG_of in *.
     rewrite wfg_spec in *.
-    apply totally_deadlocked_edge with (s:=(get_phasers s, tm)) in H.
-    apply tedge_conv with (s:=s) (deadlocked_tasks:=tm) (other_tasks:=tm') (*dd:=d'*); repeat auto.
-    assumption.
+    apply totally_deadlocked_edge with (s:=(get_phasers s, tm)) in H;
+    eauto using tedge_conv.
 Qed.
 
 (** By lemmas [deadlocked_inv] and [totally_deadlock_has_cycle]
@@ -336,20 +355,23 @@ Qed.
     a subgraph of the WFG of the deadlocked state, which implies
     that any cycle in the WFG of the totally deadlocked state is
     also in the deadlocked state. *)
+
 Lemma deadlocked_has_cycle:
   exists c, Graph.Cycle (Edge g) c.
 Proof.
   intros.
   destruct deadlocked_inv as (s', (wfg', (Hdd, (Hnil, (Hwfg, Hsg))))).
-  assert (exists c, Graph.Cycle (Edge wfg') c).
-  apply totally_deadlock_has_cycle with (*d:=d'*) (s:=s'); repeat auto.
+  assert (exists c, Graph.Cycle (Edge wfg') c). {
+    eauto using totally_deadlock_has_cycle.
+  }
   destruct H as (c, Hc).
   exists c.
-  apply subgraph_cycle with (g:=wfg'); repeat auto.
+  eauto using subgraph_cycle.
 Qed.
 
 (** It is easy to show that a cycle in [wfg] corresponds
     to the usual cycle defined with [TCycle]. *)
+
 Lemma wfg_cycle_to_tcycle:
   forall c,
   Graph.Cycle (Edge g) c ->
@@ -362,12 +384,15 @@ Proof.
   assumption.
 Qed.
 
+(* begin hide *)
 End Bootstrap.
+(* end hide *)
 
 (**
   The main theorem of completness uses [deadlocked_has_cycle]
   to obtain a cycle and then result [wfg_cycle_to_tcycle] to
   convert it to the expected type. *)
+
 Corollary completeness:
   forall (s : state),
   Deadlocked s ->

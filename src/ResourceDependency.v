@@ -75,8 +75,8 @@ Definition Registered (t:tid) (e:event) :=
   Map_PHID.MapsTo (get_phaser e) ph (get_phasers s) /\
   Map_TID.MapsTo t (get_phase e) ph /\ exists e', WaitsFor t e'.
 
-(** an event [r] impedes a task [t] this task is registered in a
-   event [r'] that precedes [r]; the impeding event must be the target of
+(** an event [e] impedes a task [t] this task is registered in a
+   event [e'] that precedes [e]; the impeding event must be the target of
    a blocked task. *)
 
 Definition Impedes (e:event) (t:tid) :=
@@ -100,8 +100,8 @@ Proof.
 Qed.
 
 
-(** By inverting the impedes relation between [r] and [t] we have
-    that there exists a task waiting for resource [r]. *)
+(** By inverting the impedes relation between [e] and [t] we have
+    that there exists a task waiting for resource [e]. *)
 
 Lemma impedes_inv_1:
   forall t e,

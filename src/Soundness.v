@@ -33,12 +33,13 @@ Qed.
 (* end hide *)
 
 (**
-Any task [t] in a walk [w] of the WFG associated to [s], then task [t] is in [s].
-Proof: [t] is in [w], then there exists an edge [(t1,t2)] such that [t=t1] or [t=t2].
-Since (t1,t2) is an edge of on the associated WFG, then [t1] is blocked an some event [e]
-that is impeding [t2].
-If [t = t1], then [t] is blocked, which is in [s].
-Otherwise, [t = t2], then [t] is impeded, so it is blocked and therefore in [s].
+ **WHY IS THIS LEMMA IMPORTANT?**
+Any task [t] that is in a walk [w] over the WFG of [s] is in state [s].
+From [t] in [w]  there exists an edge $(t_1,t_2)$ in [w] such that $t=t_1$ or $t=t_2$.
+Since $(t_1,t_2)$ is in the WFG of [s], then $t_1$ is blocked an some event [e]
+that is impeding $t_2$.
+If $t = t_1$, then [t] is blocked, which is in [s].
+Otherwise, $t = t_2$, then $t$ is impeded, so it is blocked and therefore in [s].
 *)
 
 Lemma vertex_in_tasks:
@@ -68,13 +69,16 @@ Proof.
     + auto.
 Qed.
 
-(**
-Let [w] be a cycle in the WFG such that
-every task [t] in cycle [w] is also in [get_tasks s] and vice-versa.
-*)
 
+(** * Soundness for totally deadlocked states *)
+
+(** Consider a cycle [w] and a state [s] in which all vertices of [w] are
+ tasks of state [s] and vice versa; we show that state [s] is totally
+ deadlocked.  Formally, let [w] be a cycle in the WFG of [s] such that
+ [t] is in [w] iff [t] is in state [s].  *)
+  
 (* begin hide *)
-
+  
 Section TotallyDeadlocked.
 Variable w:t_walk.
 Variable is_cycle: TCycle s w.
@@ -90,9 +94,9 @@ Qed.
 (* end hide *)
 
 
-(** We have that any blocked task [t] is in a cycle [w],
-    and
-*)
+(** Since any blocked task [t] is in [s] (by definition of [WaitsFor])
+ and since all tasks in [s] are vertices of [w], then any blocked task
+ [t] is in [w].  *)
 
 Lemma blocked_in_w:
   forall t e,
@@ -106,13 +110,14 @@ Proof.
   assumption.
 Qed.
 
-(**
-Any blocked task [t] is in cycle [w].
-But since [w] is a  cycle, then [t] has a predecessor [t']
-such that [(t',t)] is in [w].
-Thus, for any task [t] blocked on event [e] there exists a task [t']
-that is impeded by event [e].
-*)
+(** The gist of the main proof of this section is to show that any
+ task [t] blocked on an event [e] impedes a task [t'].  Proof: By
+ Lemma [blocked_in_w], any blocked task [t] is in cycle [w].  But
+ given that [w] is a cycle, then [t] has a successor [t'] such that
+ $(t,t')$ is in [w].  From $(t,t')$, we have that $e$ impedes [t'].
+ Since [t'] is in [w] and [w] is a cycle, then there exists a task
+ [t''] such that [(t',t'')] is in [w], and therefore [t'] is blocked.
+ *)
 
 (* begin hide *)
 Lemma blocked_in_walk:
@@ -189,9 +194,14 @@ Proof.
  assumption.
 Qed.
 
-(**
-Thus, state [s] is totally deadlocked.
-*)
+(** A totally deadlocked state has to properties: (i) all tasks in [s]
+ are blocked, (ii) all tasks in [s] are (iii) [s] is nonempty.  For
+ (i) we have that any task [t] in [s] is also in [w] and task [t] has
+ a successor [t'] (because [w] is a cycle) such that [(t,t')] is in
+ [w], thus [t] is blocked. We conclude (ii) from lemma
+ [blocked_to_impedes].  Finally, since [w] is a cycle, which by
+ definition have at least one vertex [t] such that [t] is in [w], so 
+ task [t] is in [s].  *)
 
 Lemma soundness_totally:
   TotallyDeadlocked s.
@@ -222,9 +232,11 @@ Proof.
     subst.
     apply List.in_eq.
 Qed.
+
+(* begin hide *)
 End TotallyDeadlocked.
 End Basic.
-
+(* end hide *)
 
 (** * Soundness  for deadlocked  states *)
 

@@ -4,4 +4,4 @@ Makefile
 *.d
 *~
 *\#
-
+/all.pdf

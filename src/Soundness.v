@@ -240,12 +240,21 @@ End Basic.
 
 (** * Soundness  for deadlocked  states *)
 
-(**
-Given a state [s] such that [w] is a cycle on the associated WFG, we
-partition task map [get_tasks s] into $T_d$ and $T_o$ such that any task [t] in [w]
-is in $T_d$. Let $d_s = (T_d,getphasers s)$.
-By showing that $d_s$ is totally deadlocked, then we show, by definition that [s] is
-deadlocked.
+(** Given a state [s] such that [w] is a cycle in the WFG of [s], we
+partition task map [get_tasks s] into $T_d$ and $T_o$ such that any
+task [t] in [w] is in $T_d$. Let $d_s = (T_d,getphasers s)$.  By
+showing that $d_s$ is totally deadlocked, then we show, by definition
+that [s] is deadlocked.
+
+The task map $T_d$ is given by the following expression, that
+ partitions the tasks of [s]. Function [partition] is present in Coq's
+ standard library in their finite map module.  Task map $T_d$ holds
+ all tasks that are in [w] (given by expression [mem t w]), task map
+ $T_o$ holds the remaining tasks.
+
+[[
+partition (fun t (p:prog) => mem t w) (get_tasks s)
+]]
 
 *)
 

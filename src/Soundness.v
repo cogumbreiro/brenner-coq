@@ -240,22 +240,27 @@ End Basic.
 
 (** * Soundness  for deadlocked  states *)
 
-(** Given a state [s] such that [w] is a cycle in the WFG of [s], we
-partition task map [get_tasks s] into $T_d$ and $T_o$ such that any
-task [t] in [w] is in $T_d$. Let $d_s = (T_d,getphasers s)$.  By
-showing that $d_s$ is totally deadlocked, then we show, by definition
-that [s] is deadlocked.
+(**
+  Our strategy to prove soudness is to meet conditions required by
+  theorem [soundness_totally] from Section ??. To this end, given
+  a state [s] and a cycle [w], we partition the task map of state [s]
+  into two task maps, one that contains the vertices that appear in walk [w],
+  and another one that does not contain any vertex present in [w]. 
 
-The task map $T_d$ is given by the following expression, that
- partitions the tasks of [s]. Function [partition] is present in Coq's
- standard library in their finite map module.  Task map $T_d$ holds
- all tasks that are in [w] (given by expression [mem t w]), task map
- $T_o$ holds the remaining tasks.
 
-[[
-partition (fun t (p:prog) => mem t w) (get_tasks s)
+  Consider a state [s] and a cycle [w] in the WFG of [s].
+  To construct the state needed by theorem [soundness_totally], we divide
+  the task map of [s] with the following expression.
+ [[
+Let split (t:tid) (p:prog) := mem t w.
+Let part := partition split (get_tasks s).
 ]]
-
+  Function [partition] comes from Coq's
+  standard library of finite maps [Coq.FSets.FMap] and divides map
+  [get_tasks s] into two maps according to predicate [split]. The result,
+  bound to variable [part], is a pair: on the left-hand side we get the map
+  in which predicate [split] yields true;
+  on the righ-hand side we get the map in which predicate [split] yields false.
 *)
 
 (* begin hide *)
@@ -299,43 +304,81 @@ Proof.
   assumption.
 Qed.
 
+(* end hide *)
+
+Let deadlocked_tasks := fst part.
+
+Let ds := ((get_phasers s), deadlocked_tasks).
+
+(**
+  Since we are applying Theorem [soundness_totally] to state [ds],
+  then we need now to prove that
+  (i) each task [t] is in [w] iff t is in state [ds], and
+  (ii) cycle [w] is in the WFG of [ds].
+*)
+
+(**
+  If task [t] is in state [ds], then task [t] is in [w].
+  Proof: if task [t] is in [deadlocked_tasks], then
+  there exists a program [p] such that [split t p = true] and
+  [t] is in [get_tasks s]. Since we have [split t p = true], then
+  [t] is in [w].
+ *)
 Let deadlocked_in_right:
   forall t,
-  Map_TID.In t (fst part) -> In (F.Edge w) t.
+  Map_TID.In t deadlocked_tasks -> In (F.Edge w) t.
 Proof.
   intros.
   apply in_to_mapsto in H.
+  (* there exists a program [p] such that *)
   destruct H as (e, H).
+  (* [split t p = true] and [t] is in [get_tasks s] *)
   rewrite Map_TID_Props.partition_iff_1 with
-     (f:=split) (m:=(get_tasks s)) in H.
+     (f:=split) (m:=(get_tasks s)) in H; auto with *.
   destruct H as (H1, H2).
-  apply split_to_vertex with (e:=e).
-  assumption.
-  auto with *.
-  auto.
+  eauto using split_to_vertex.
 Qed.
-Let ds := ((get_phasers s), (fst part)).
+
+
+(**
+  If task [t] is in [w], then [t] is in state [ds].
+  Proof: [t] is in [w], so there exists a program [p] such that
+  [t] maps to [p] in [get_tasks s]. Since [t] is in [w], then
+  [split t p = true], thus [t] is in [deadlocked_tasks].
+ *)
 
 Let deadlocked_in_left:
   forall t,
-  In (F.Edge w) t -> Map_TID.In t (fst part).
+  In (F.Edge w) t -> Map_TID.In t deadlocked_tasks.
 Proof.
   intros.
   assert (Hin := H).
-  apply vertex_in_tasks with (*d:=d*) (s:=s) (t:=t) (w:=w) in H.
-  apply in_to_mapsto in H.
-  destruct H as (p, Hmt).
-  apply vertex_to_split with (p:=p) in Hin.
-  assert (Hg: Map_TID.MapsTo t p (get_tasks s) /\ split t p = true).
-  intuition.
-  rewrite <- Map_TID_Props.partition_iff_1
-    with (m1:=(fst part)) in Hg.
-  apply mapsto_to_in in Hg.
-  assumption.
-  auto with *.
-  auto.
-  inversion is_cycle.
-  auto.
+  (* since [t] in [w], then [t] in [get_tasks s] *)
+  apply vertex_in_tasks with (s:=s) (t:=t) (w:=w) in H.
+  - apply in_to_mapsto in H.
+    (* [t] is in [get_tasks s], thus there exists a program [p] *)
+    destruct H as (p, Hmt).
+    (* [t] is in [w], thus [split t p = true] *)
+    apply vertex_to_split with (p:=p) in Hin.
+    assert (Hg: Map_TID.MapsTo t p (get_tasks s) /\ split t p = true). {
+      intuition.
+    }
+    (* thus, [t] in [deadlocked_tasks] *)
+    rewrite <- Map_TID_Props.partition_iff_1
+      with (m1:=(fst part)) in Hg; auto with *.
+    eauto using mapsto_to_in.
+  - inversion is_cycle.
+    auto.
+Qed.
+
+(* begin hide *)
+Let vertex_in_tasks:
+  forall t, F.In t w <-> Map_TID.In t (get_tasks ds).
+Proof.
+  intros.
+  split.
+  - apply deadlocked_in_left.
+  - apply deadlocked_in_right.
 Qed.
 
 Let deadlocked_in:
@@ -346,8 +389,16 @@ Proof.
   split; auto using deadlocked_in_left, deadlocked_in_right.
 Qed.
 
-Let deadlocked_tasks := fst part.
+(* end hide *)
 
+(**
+  Next, we show (ii), by first showing that if an edge [e] is in [w] and
+  is an edge of the WFG of [s], then [e] is an edge of the WFG of [ds].
+  To this end, we establish that a task [t] blocked (registered) in [s]
+  is in [ds], and an event [e] that impedes in [s] also impedes in [ds].
+*)
+
+(* begin hide *)
 Let tid_in_walk:
   forall t,
   F.In t w ->
@@ -361,25 +412,50 @@ Proof.
   destruct H as (p, H).
   exists p.
   intuition.
-  - unfold Map_TID_Props.Partition in Hpart.
-    destruct Hpart as (Hdj, Hrw).
-    rewrite Hrw.
-    auto.
+  unfold Map_TID_Props.Partition in Hpart.
+  destruct Hpart as (Hdj, Hrw).
+  rewrite Hrw.
+  auto.
+Qed.
+
+Let task_in_left:
+  forall t1 t2,
+  List.In (t1, t2) w ->
+  F.In t1 w.
+Proof.
+  intros.
+  apply in_def with (e:=(t1, t2));
+  eauto using pair_in_left, FGraph.edge_def.
+Qed.
+
+Let task_in_right:
+  forall t1 t2,
+  List.In (t1, t2) w ->
+  F.In t2 w.
+Proof.
+  intros.
+  apply in_def with (e:=(t1, t2));
+  eauto using pair_in_right, FGraph.edge_def.
 Qed.
 (* end hide *)
 
+(**
+  Given that any task [t] that is in [w] is in [deadlocked_tasks] and in [get_tasks s],
+  thus, applying the definition of [WaitsFor] we get that [t] is also blocked in [ds].
+*)
+
 Let blocked_conv:
-  forall t r,
+  forall t e,
   F.In t w ->
-  WaitsFor s t r ->
-  WaitsFor ds t r.
+  WaitsFor s t e ->
+  WaitsFor ds t e.
 Proof.
   intros.
   unfold WaitsFor in *.
   destruct H0 as (p, (H1, H2)).
   exists p.
-  simpl.
   intuition.
+  (* [t] is in [w] so [t] is in [deadlocked_tasks] and [t] is in [get_tasks s]*)
   apply tid_in_walk in H.
   destruct H as (p', (H4, H5)).
   apply Map_TID_Facts.MapsTo_fun with (e:=p') in H1; auto.
@@ -387,22 +463,46 @@ Proof.
   assumption.
 Qed.
 
+(**
+  It is trivial to observe that if task [t] is registered in [s],
+  then task [t] is also registered in [ds], by using lemma [blocked_conv].
+*)
+
 Let registered_conv:
-  forall t r,
-  In (F.Edge w) t ->
-  Registered s t r ->
-  Registered ds t r.
+  forall (t:tid) e,
+  F.In t w ->
+  Registered s t e ->
+  Registered ds t e.
 Proof.
   intros.
-  unfold Registered in *.
-  destruct H0 as (ph, H1); exists ph.
-  intuition.
-  destruct H3 as (r', H4).
-  apply blocked_conv in H4.
-  exists r'.
-  assumption.
-  assumption.
+  destruct H0 as (ph, (?, (?, (e',?)))).
+  eauto using registered_def.
 Qed.
+
+(**
+  Showing that an impedes relation is preserved in [ds],
+  follows from lemmas [registered_conv] and [blocked_conv].
+*)
+
+Let impedes_conv:
+  forall e t1 t2,
+  List.In (t1, t2) w ->
+  WaitsFor s t1 e ->
+  Impedes s e t2 ->
+  Impedes ds e t2.
+Proof.
+  intros.
+  destruct H1 as (_, (ev, (H2, H3))).
+  apply registered_conv in H2.
+  - eauto using impedes_def.
+  - eauto using task_in_right.
+Qed.
+
+(**
+  We conclude (ii) by establishing that any edge [e] in the WFG of [s] and
+  in walk [w] is also in the WFG of [ds], from lemmas [blocked_conv] and
+  [impedes_conv].
+*)
 
 Let t_edge_conv:
   forall e,
@@ -413,63 +513,29 @@ Proof.
   intros.
   simpl in *.
   inversion H0; clear H0; subst.
-  assert (Hw : WaitsFor ds a1 b). {
-    apply blocked_conv in H1; repeat auto.
-    apply in_def with (e:=(a1, a2)).
-    apply pair_in_left.
-    unfold F.Edge.
-    assumption.
+  assert (Impedes ds b a2). {
+    eauto using impedes_conv.
   }
-  apply Bipartite.aa with (b:=b).
-  - assumption.
-  - destruct H2 as (_, (ev, (H2, H3))).
-    apply registered_conv in H2.
-    + apply impedes_def with (t':=a1) (e':=ev); repeat auto.
-    + apply in_def with (e:=(a1, a2)).
-      apply pair_in_right.
-      unfold F.Edge.
-      assumption.
+  assert (WaitsFor ds a1 b). {
+    apply blocked_conv in H1; repeat auto.
+    eauto using task_in_left.
+  }
+  eauto using Bipartite.aa.
 Qed.
 
-Let t_edge_dd :
-  List.Forall (TEdge ds) w.
-Proof.
-  rewrite List.Forall_forall.
-  intros e Hin.
-  apply t_edge_conv; auto.
-  apply in_edge with (w:=w); auto.
-  inversion is_cycle.
-  assumption.
-Qed.
-
-Let t_walk_conv:
-  TWalk ds w.
-Proof.
-  inversion is_cycle.
-  rewrite H1 in *.
-  apply walk_to_connected in H0.
-  auto using walk_def.
-Qed.
+(** Thus, from lemma [t_edge_conv], we get (i) [w] is a cycle on the WFG of [ds]. *)
 
 Let cycle_conv:
   TCycle ds w.
 Proof.
   intros.
-  inversion is_cycle.
-  apply cycle_def with (vn:=vn).
-  - assumption.
-  - rewrite H1 in *.
-    apply t_walk_conv.
+  eauto using cycle_impl_weak, t_edge_conv.
 Qed.
 
-Let vertex_in_tasks:
-  forall t, F.In t w <-> Map_TID.In t (get_tasks ds).
-Proof.
-  intros.
-  split.
-  - apply deadlocked_in_left.
-  - apply deadlocked_in_right.
-Qed.
+(**
+  We conclude the main result of this section using Theorem [soundness_totally]
+  to Lemma [cycle_conv] and [vertex_in_tasks].
+  *)
 
 Let ds_totally_deadlocked :=
   soundness_totally ds w cycle_conv vertex_in_tasks.

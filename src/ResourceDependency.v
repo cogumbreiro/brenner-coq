@@ -75,6 +75,21 @@ Definition Registered (t:tid) (e:event) :=
   Map_PHID.MapsTo (get_phaser e) ph (get_phasers s) /\
   Map_TID.MapsTo t (get_phase e) ph /\ exists e', WaitsFor t e'.
 
+Lemma registered_def:
+  forall ph e' e t,
+  Map_PHID.MapsTo (get_phaser e) ph (get_phasers s) ->
+  Map_TID.MapsTo t (get_phase e) ph ->
+  WaitsFor t e' ->
+  Registered t e.
+Proof.
+  intros.
+  unfold Registered.
+  exists ph.
+  intuition.
+  exists e'.
+  assumption.
+Qed.
+
 (** an event [e] impedes a task [t] this task is registered in a
    event [e'] that precedes [e]; the impeding event must be the target of
    a blocked task. *)

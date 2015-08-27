@@ -32,6 +32,15 @@ Qed.
 
 (* end hide *)
 
+
+(** * Soundness for totally deadlocked states *)
+
+(** Consider a cycle [w] and a state [s] in which all vertices of [w] are
+ tasks of state [s] and vice versa; we show that state [s] is totally
+ deadlocked.  Formally, let [w] be a cycle in the WFG of [s] such that
+ [t] is in [w] iff [t] is in state [s].  *)
+
+(* begin hide  *)
 (**
  **WHY IS THIS LEMMA IMPORTANT?**
 Any task [t] that is in a walk [w] over the WFG of [s] is in state [s].
@@ -68,16 +77,6 @@ Proof.
       assumption.
     + auto.
 Qed.
-
-
-(** * Soundness for totally deadlocked states *)
-
-(** Consider a cycle [w] and a state [s] in which all vertices of [w] are
- tasks of state [s] and vice versa; we show that state [s] is totally
- deadlocked.  Formally, let [w] be a cycle in the WFG of [s] such that
- [t] is in [w] iff [t] is in state [s].  *)
-  
-(* begin hide *)
   
 Section TotallyDeadlocked.
 Variable w:t_walk.
@@ -203,7 +202,7 @@ Qed.
  definition have at least one vertex [t] such that [t] is in [w], so 
  task [t] is in [s].  *)
 
-Lemma soundness_totally:
+Theorem soundness_totally:
   TotallyDeadlocked s.
 Proof.
   intros.
@@ -308,11 +307,11 @@ Qed.
 
 Let deadlocked_tasks := fst part.
 
-Let ds := ((get_phasers s), deadlocked_tasks).
+Let ds := (get_phasers s, deadlocked_tasks).
 
 (**
-  Since we are applying Theorem [soundness_totally] to state [ds],
-  then we need now to prove that
+  Since our aim is to apply Theorem [soundness_totally] to state [ds],
+  then we need to show that
   (i) each task [t] is in [w] iff t is in state [ds], and
   (ii) cycle [w] is in the WFG of [ds].
 *)
@@ -324,6 +323,7 @@ Let ds := ((get_phasers s), deadlocked_tasks).
   [t] is in [get_tasks s]. Since we have [split t p = true], then
   [t] is in [w].
  *)
+
 Let deadlocked_in_right:
   forall t,
   Map_TID.In t deadlocked_tasks -> In (F.Edge w) t.
@@ -371,7 +371,11 @@ Proof.
     auto.
 Qed.
 
-(* begin hide *)
+(**
+  Lemma [vertex_in_tasks] captures result (i), and is trivially proved by
+  applying Lemmas [deadlocked_in_left] and [deadlocked_in_right].
+ *)
+
 Let vertex_in_tasks:
   forall t, F.In t w <-> Map_TID.In t (get_tasks ds).
 Proof.
@@ -380,6 +384,8 @@ Proof.
   - apply deadlocked_in_left.
   - apply deadlocked_in_right.
 Qed.
+
+(* begin hide *)
 
 Let deadlocked_in:
   forall t,
@@ -392,10 +398,11 @@ Qed.
 (* end hide *)
 
 (**
-  Next, we show (ii), by first showing that if an edge [e] is in [w] and
-  is an edge of the WFG of [s], then [e] is an edge of the WFG of [ds].
-  To this end, we establish that a task [t] blocked (registered) in [s]
-  is in [ds], and an event [e] that impedes in [s] also impedes in [ds].
+  Next, we show (ii), by first establishing that if an edge [e] is in [w] and
+  [e] is an ede of the WFG of [s], then [e] is an edge of the WFG of [ds].
+  Such proof requires the demonstration that any task [t] in [w] is blocked (registered)
+  in [ds], and that any event [e] that impedes a task in [w] also
+  impedes over state [ds].
 *)
 
 (* begin hide *)
@@ -523,7 +530,9 @@ Proof.
   eauto using Bipartite.aa.
 Qed.
 
-(** Thus, from lemma [t_edge_conv], we get (i) [w] is a cycle on the WFG of [ds]. *)
+(**
+  
+  Thus, from lemma [t_edge_conv], we get (i) [w] is a cycle on the WFG of [ds]. *)
 
 Let cycle_conv:
   TCycle ds w.
@@ -533,13 +542,14 @@ Proof.
 Qed.
 
 (**
-  We conclude the main result of this section using Theorem [soundness_totally]
-  to Lemma [cycle_conv] and [vertex_in_tasks].
+  We conclude the main result of this section by applying Theorem [soundness_totally]
+  to Lemma [cycle_conv] and Lemma [vertex_in_tasks].
   *)
 
+(* begin hide *)
 Let ds_totally_deadlocked :=
   soundness_totally ds w cycle_conv vertex_in_tasks.
-
+(* end hide *)
 Theorem soundness:
   Deadlocked s.
 Proof.
@@ -548,4 +558,6 @@ Proof.
   exists (snd part).
   auto.
 Qed.
+(* begin hide *)
 End Soundness.
+(* end hide *)

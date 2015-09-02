@@ -1,3 +1,15 @@
+(**
+  The property of soundness ensures the absense of false positives, that is soundness
+  entails that if there is a cycle [w] in the WFG of a given
+  state [s], then such state is deadlocked.
+  The proof follows two main steps.
+  We divide the task map from state [s] into
+  two disjoint task maps, by selecting the tasks (vertices) in cycle [w].
+  We then show that any state whose task map is composed of the vertices mentioned in cycle [w]
+  is totally deadlocked, which allow us to conclude that state [s] is deadlocked.
+  
+ *)
+
 (* begin hide *)
 
 Require Import Brenner.ResourceDependency.
@@ -30,17 +42,6 @@ Proof.
   assumption.
 Qed.
 
-(* end hide *)
-
-
-(** * Soundness for totally deadlocked states *)
-
-(** Consider a cycle [w] and a state [s] in which all vertices of [w] are
- tasks of state [s] and vice versa; we show that state [s] is totally
- deadlocked.  Formally, let [w] be a cycle in the WFG of [s] such that
- [t] is in [w] iff [t] is in state [s].  *)
-
-(* begin hide  *)
 (**
  **WHY IS THIS LEMMA IMPORTANT?**
 Any task [t] that is in a walk [w] over the WFG of [s] is in state [s].
@@ -92,8 +93,17 @@ Proof.
 Qed.
 (* end hide *)
 
+(** * Soundness for totally deadlocked states *)
 
-(** Since any blocked task [t] is in [s] (by definition of [WaitsFor])
+(**
+ We show that, given a state [s] and a cycle [w] in the WFG of [s] such that
+ the vertices in [w] constitute the domain of the task map of [s], then
+ state [s] is totally deadlocked.
+ Formally, let [w] be a cycle in the WFG of [s] such that
+ [t] is in [w] iff [t] is in [get_tasks s].
+
+
+ Since any blocked task [t] is in [s] (by definition of [WaitsFor])
  and since all tasks in [s] are vertices of [w], then any blocked task
  [t] is in [w].  *)
 

@@ -16,29 +16,34 @@ Require Import Coq.Bool.Bool.
 (* end hide *)
 
 (**
-  For completeness we show that having a deadlocked state
-  implies the existence of a cycle in the WFG.
-
-  The final step of the proof is to show that the WFG of the
-  totally deadlocked state is a subgraph of the WFG obtained from the
-  deadlocked state. As we know that a cycle in a subraph is also in the
-  graph that induces it, we get that the cycle exists in the deadlocked
-  state.
+  The property of completeness entails the absense of false negatives,
+  that is for any deadlocked state [s] we can exhibit a cycle in the
+  WFG of [s].
+  The proof is divided into two steps.
+  First, we consider totally deadlocked states [s], in which we observe that each
+  task is a vertex in the WFG of [s] with an outgoing edge.
+  There is a cycle in any finite graph whose vertices have at least an outgoing edge,
+  so totally deadlock states have a cycle.
+  Second, we show the WFG of a totally deadlocked state is a subgraph
+  of the WFG of the relative deadlocked state, thus we can conclude
+  our proof.
 *)
 
 (** * Building the WFG *)
 
-(** Let [WFG_of s g] read as state [s] has a finite graph [g] associated
-    with it. Here, we define a finite graph as a sequence of edges, which pair
-    vertices of type [tid] (the set of vertices can be obtained by ranging over
-    all arcs). *)
+(**
+  Let [WFG_of s g] read as the finite WFG [g] of state [s].
+  Here, we define a finite graph as a sequence of edges, which pair
+  vertices of type [tid] (the set of vertices can be obtained by ranging over
+  all arcs).
+*)
 
 Definition WFG_of s g := 
   forall (e:(tid * tid)), List.In e g <-> TEdge s e.
 
 (**
-  Every state [s] has an associated finite WFG [wfg].
-  Module [DependencyState] includes a detailed proof of this result.
+  There exists a finite WFG for any state [s], the proof is outside the scope
+  of this document.
   *)
 
 Theorem wfg_of_total:
@@ -72,12 +77,12 @@ Qed.
 (** * Completeness for totally deadlocked states *)
 
 (**
-  To prove the completeness for totally deadlocked states,
-  we observe that every node in the associated WFG has at least one outgoing
-  edge.
-  Since any finite graph in which every node has at least an outgoing edge is
-  cyclic, then the WFG associated with a totally deadlocked state is cyclic. 
-  For the rest of this section, let [s] be a state that is totally deadlocked,
+  The proof for completeness in totally deadlocked states is driven by a simple observation:
+  for every vertex in the WFG of a totally deadlocked state [s] there is at least one
+  outgoing edge.
+  Given that there is  a cycle in any finite graph in which every node has at least
+  an outgoing edge, then the WFG of [s] has a cycle. 
+  For the rest of this sub-section, let [s] be a state that is totally deadlocked,
   and let [g] a finite WFG such that [WFG_of s g] holds.
 *)
 
@@ -223,17 +228,13 @@ End TOTALLY_COMPLETE.
 
 (** * Completeness for deadlocked states *)
 
-(** ** Properties about partitions of task maps *)
-
 (* begin hide *)
 
 Section DeadlockedStates.
-
 Variable s : state.
 Variable deadlocked_tasks : Map_TID.t prog.
 Variable other_tasks: Map_TID.t prog.
 Variable partition_holds: Map_TID_Props.Partition (get_tasks s) deadlocked_tasks other_tasks.
-(* end hide *)
 
 (**
 Let [s] be a state and task maps $T_d$ and $T_o$ be such that $gettasks\ s = T_o \uplus T_d$.
@@ -243,7 +244,7 @@ Let ds := (get_phasers s, deadlocked_tasks).
 
 (** The waits-for, regsitered, and impedes relations hold from a deadlocked to the totally
     deadlocked state, using the definition of [Partition]. *)
-
+(* begin hide *)
 Let waits_for_conv:
   forall t r,
   WaitsFor ds t r ->
@@ -251,14 +252,19 @@ Let waits_for_conv:
 Proof.
   intros.
   unfold WaitsFor in *.
-  destruct H as (p, (H1, H2)).
+  destruct H as (p, (?, ?)).
   exists p.
   intuition.
   unfold Map_TID_Props.Partition in *.
-  destruct partition_holds as (_, H).
-  rewrite H.
+  destruct partition_holds as (_, Hp).
+  rewrite Hp.
   intuition.
 Qed.
+
+(**
+  We have that [t] is registered in [r] by unfolding
+  the definition of [Registered] and using Lemma [waits_for_conv].
+*)
 
 Let registered_conv:
   forall t r,
@@ -267,12 +273,10 @@ Let registered_conv:
 Proof.
   intros.
   unfold Registered in *.
-  destruct H as (ph, H1); exists ph.
+  destruct H as (ph, (?,(?,(r',H)))); exists ph.
   intuition.
-  destruct H2 as (r', H4).
-  apply waits_for_conv in H4.
   exists r'.
-  assumption.
+  auto using waits_for_conv.
 Qed.
 
 Let impedes_conv:
@@ -282,16 +286,13 @@ Let impedes_conv:
 Proof.
   intros.
   unfold Impedes in *.
-  destruct H as ((t',Hb), (r', (Hr, Hp))).
+  destruct H as ((t',?), (r', (?, ?))).
   split.
   - exists t'.
     auto.
   - exists r'.
     intuition.
 Qed.
-
-(** A wfg-edge holds from the totally deadlocked state to the
-    deadlocked state. *)
 
 Lemma tedge_conv: 
   forall e,
@@ -303,14 +304,33 @@ Proof.
   eauto using Bipartite.aa, waits_for_conv, impedes_conv.
 Qed.
 
-(** ** Properties about deadlocked states *)
+End DeadlockedStates.
+
+(* end hide *)
+
+(**
+  Let states [s] and [s'] be such that [s' := (get_phasers s, m)]
+  and [m] and [m'] are two disjoint task maps of [get_tasks s].
+  It is easy to show that an edge in the WFG of [s'] is also in the WFG of [s].
+  The proof uses the standard library's properties about [Partition]
+  and by trivial unfolding of the definitions [WaitsFor] and [Impedes].
+
+*)
+
+Lemma tedge_partition:
+  forall s m m',
+  let s' := (get_phasers s, m) in
+  Map_TID_Props.Partition (get_tasks s) m m' ->
+  forall e,
+  TEdge s' e -> TEdge s e.
+Proof.
+  eauto using tedge_conv.
+Qed.
 
 (* begin hide *)
-End DeadlockedStates.
 
 Section Bootstrap.
 Variable s:state.
-Variable w:t_walk.
 Variable g: list (tid * tid).
 Variable wfg_spec: WFG_of s g.
 Variable is_deadlocked : Deadlocked s.
@@ -318,9 +338,15 @@ Variable is_deadlocked : Deadlocked s.
 (* end hide *)
 
 (** 
-Consider a deadlocked state [s] whose associated WFG is [g].
-From the deadlocked state [s] we can construct a totally deadlocked
-    from a deadlocked state [s'], which as an associated WFG that is a subgraph of [g] . *)
+  Now, let [s] be a deadlocked state,
+  and [g] be a finite graph such that [g] is the finite WFG of [s].
+  We can construct a totally deadlocked state [s'] such that the finite WFG
+  of [s'] is a subgraph of [g].
+  The proof unfolds the definition of deadlocked to obtain [s'].
+  We obtain the finite WFG of [s'] from Lemma [wfg_of_total], which is nonempty,
+  because totally deadlocked states are nonempty.
+  Finally, we get that [g'] is a subgraph of [g] from Lemma [tedge_partition].
+*)
 
 Let deadlocked_inv:
   exists s' g',
@@ -333,31 +359,31 @@ Proof.
   unfold Deadlocked in *.
   destruct is_deadlocked as (tm, (tm', (Hp, Hd))).
   exists (get_phasers s, tm).
-  assert (exists g', WFG_of (get_phasers s, tm) g').
-  apply wfg_of_total. (* end of assert*)
-  destruct H as (g', Hwfg).
+  assert (Hwfg: exists g', WFG_of (get_phasers s, tm) g'). {
+    apply wfg_of_total.
+  }
+  destruct Hwfg as (g', Hwfg).
   exists g'.
   intuition.
   - apply totally_deadlocked_nonempty with (g:=g') in Hd; repeat auto.
   - unfold subgraph.
+    unfold Edge in *.
     unfold Graph.subgraph.
     intros.
-    unfold Edge in *.
     unfold WFG_of in *.
     rewrite wfg_spec in *.
     apply totally_deadlocked_edge with (s:=(get_phasers s, tm)) in H;
     eauto using tedge_conv.
 Qed.
 
-(** By lemmas [deadlocked_inv] and [totally_deadlock_has_cycle]
-    we get that the totally deadlocked has a cycle.
-    We also know that the WFG in the totally deadlocked state is
-    a subgraph of the WFG of the deadlocked state, which implies
-    that any cycle in the WFG of the totally deadlocked state is
-    also in the deadlocked state. *)
+(** By Lemmas [deadlocked_inv] and [totally_deadlock_has_cycle]
+    we get that there is a totally deadlocked state [s'] that yields
+    from Lemma [deadlocked_inv] and state [s'] has a cycle.
+    But since, the finite WFG [g'] of state [s'] is a subgraph of
+    graph [g], then the finite WFG [g] of state [s] also has a cycle.  *)
 
 Lemma deadlocked_has_cycle:
-  exists c, Graph.Cycle (Edge g) c.
+  exists c, TCycle s c.
 Proof.
   intros.
   destruct deadlocked_inv as (s', (wfg', (Hdd, (Hnil, (Hwfg, Hsg))))).
@@ -366,18 +392,9 @@ Proof.
   }
   destruct H as (c, Hc).
   exists c.
-  eauto using subgraph_cycle.
-Qed.
-
-(** It is easy to show that a cycle in [wfg] corresponds
-    to the usual cycle defined with [TCycle]. *)
-
-Lemma wfg_cycle_to_tcycle:
-  forall c,
-  Graph.Cycle (Edge g) c ->
-  TCycle s c.
-Proof.
-  intros.
+  assert (Graph.Cycle (Edge g) c). {
+    eauto using subgraph_cycle.
+  }
   apply Graph.cycle_impl with (E:=Edge g); auto.
   intros.
   apply wfg_spec in H0.
@@ -402,5 +419,5 @@ Proof.
   destruct (wfg_of_total s) as (g, Hwfg).
   destruct deadlocked_has_cycle with (s:=s) (g:=g) as (c, Hc); auto.
   exists c.
-  eauto using wfg_cycle_to_tcycle.
+  eauto using deadlocked_has_cycle.
 Qed.

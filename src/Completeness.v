@@ -348,7 +348,7 @@ Variable is_deadlocked : Deadlocked s.
   Finally, we get that [g'] is a subgraph of [g] from Lemma [tedge_partition].
 *)
 
-Let deadlocked_inv:
+Lemma deadlocked_inv:
   exists s' g',
   TotallyDeadlocked s' /\
   g' <> nil /\
@@ -375,41 +375,15 @@ Proof.
     apply totally_deadlocked_edge with (s:=(get_phasers s, tm)) in H;
     eauto using tedge_conv.
 Qed.
+(* begin hide *)
+End Bootstrap.
+(* end hide *)
 
 (** By Lemmas [deadlocked_inv] and [totally_deadlock_has_cycle]
     we get that there is a totally deadlocked state [s'] that yields
     from Lemma [deadlocked_inv] and state [s'] has a cycle.
     But since, the finite WFG [g'] of state [s'] is a subgraph of
     graph [g], then the finite WFG [g] of state [s] also has a cycle.  *)
-
-Lemma deadlocked_has_cycle:
-  exists c, TCycle s c.
-Proof.
-  intros.
-  destruct deadlocked_inv as (s', (wfg', (Hdd, (Hnil, (Hwfg, Hsg))))).
-  assert (exists c, Graph.Cycle (Edge wfg') c). {
-    eauto using totally_deadlock_has_cycle.
-  }
-  destruct H as (c, Hc).
-  exists c.
-  assert (Graph.Cycle (Edge g) c). {
-    eauto using subgraph_cycle.
-  }
-  apply Graph.cycle_impl with (E:=Edge g); auto.
-  intros.
-  apply wfg_spec in H0.
-  assumption.
-Qed.
-
-(* begin hide *)
-End Bootstrap.
-(* end hide *)
-
-(**
-  The main theorem of completness uses [deadlocked_has_cycle]
-  to obtain a cycle and then result [wfg_cycle_to_tcycle] to
-  convert it to the expected type. *)
-
 Corollary completeness:
   forall (s : state),
   Deadlocked s ->
@@ -417,7 +391,17 @@ Corollary completeness:
 Proof.
   intros.
   destruct (wfg_of_total s) as (g, Hwfg).
-  destruct deadlocked_has_cycle with (s:=s) (g:=g) as (c, Hc); auto.
+  destruct (deadlocked_inv s g) as (s', (wfg', (Hdd, (Hnil, (Hwfg', Hsg))))); auto.
+  assert (Hc :  exists c, Graph.Cycle (Edge wfg') c). {
+    eauto using totally_deadlock_has_cycle.
+  }
+  destruct Hc as (c, Hc).
   exists c.
-  eauto using deadlocked_has_cycle.
+  assert (Graph.Cycle (Edge g) c). {
+    eauto using subgraph_cycle.
+  }
+  apply Graph.cycle_impl with (E:=Edge g); auto.
+  intros.
+  apply Hwfg in H1.
+  assumption.
 Qed.

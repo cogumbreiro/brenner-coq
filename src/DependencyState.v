@@ -57,7 +57,7 @@ Definition IEdge d := (IDep (get_impedes d)).
 Module I_Proj := Project.Project Map_EVT Set_TID.
 (** Function [impedes_edges] converts a map of [impedes] relation into
     a list of pairs. *)
-Definition impedes_edges : impedes -> list (event * tid) := I_Proj.edges.
+Definition impedes_edges : impedes -> list (event * tid) := I_Proj.project.
 
 (** Lemma [impedes_edges_spec] establishes the correctness of
     Function [impedes_edges]: each pair in the outcome of the
@@ -71,7 +71,7 @@ Proof.
   intros.
   unfold IDep.
   unfold impedes_edges.
-  apply I_Proj.edges_spec.
+  apply I_Proj.project_spec.
   - intros. destruct H, k1, k2.
     auto.
   - auto.
@@ -79,7 +79,7 @@ Qed.
 
 (** Similarly, we project the map I into pairs of tasks and resources. *)
 Module W_Proj := Project.Project Map_TID Set_EVT.
-Definition waits_edges : waits -> list (tid * event) := W_Proj.edges.
+Definition waits_edges : waits -> list (tid * event) := W_Proj.project.
 (** By using lemma [Project.edges_spec], we get that any pair
     in [waits_edges] is a [WEdge] (aka impedes relation). *)
 Lemma waits_edges_spec:
@@ -89,7 +89,7 @@ Proof.
   intros.
   unfold waits_edges.
   unfold WDep.
-  apply W_Proj.edges_spec.
+  apply W_Proj.project_spec.
   - auto.
   - intros. destruct H, e1, e2.
     auto.

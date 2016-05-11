@@ -6,7 +6,7 @@ Require Import Brenner.Semantics.
 Require Import Brenner.Vars.
 Require Import Brenner.Syntax.
 
-Require Aniceto.Project.
+Require Aniceto.Graphs.Graph.
 Require Import Aniceto.Graphs.FGraph.
 Require Import Aniceto.Map.
 Require Import Aniceto.Set.
@@ -184,7 +184,6 @@ Lemma totally_deadlocked_all_outgoing: AllOutgoing g.
 Proof.
   intros.
   unfold AllOutgoing.
-  unfold FGraph.Forall.
   unfold Graph.Forall.
   intros.
   apply totally_deadlocked_vertex_blocked in H; repeat auto.
@@ -353,7 +352,7 @@ Lemma deadlocked_inv:
   TotallyDeadlocked s' /\
   g' <> nil /\
   WFG_of s' g' /\ 
-  subgraph g' g.
+  Graph.subgraph (Edge g') (Edge g).
 Proof.
   intros.
   unfold Deadlocked in *.
@@ -366,8 +365,7 @@ Proof.
   exists g'.
   intuition.
   - apply totally_deadlocked_nonempty with (g:=g') in Hd; repeat auto.
-  - unfold subgraph.
-    unfold Edge in *.
+  - unfold Edge in *.
     unfold Graph.subgraph.
     intros.
     unfold WFG_of in *.
@@ -398,7 +396,7 @@ Proof.
   destruct Hc as (c, Hc).
   exists c.
   assert (Graph.Cycle (Edge g) c). {
-    eauto using subgraph_cycle.
+    eauto using Graph.subgraph_cycle.
   }
   apply Graph.cycle_impl with (E:=Edge g); auto.
   intros.

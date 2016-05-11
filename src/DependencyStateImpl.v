@@ -347,7 +347,12 @@ Proof.
     intuition.
 Qed.
 
-Definition to_waits s := W.unproject tid_eq_subst (gen_wedges s).
+Let tid_eq_helper: forall k1 k2 : nat, k1 = k2 -> k1 = k2.
+Proof.
+auto.
+Qed.
+
+Definition to_waits s := W.unproject tid_eq_helper (gen_wedges s).
 
 Lemma waits_total:
   forall (s:state),
@@ -623,7 +628,16 @@ Qed.
 
 Module I := Project Map_EVT Set_TID.
 
-Definition to_impedes s := I.unproject evt_eq_subst (gen_tedges s).
+Let evt_eq_helper:
+  forall k1 k2 : nat * nat, fst k1 = fst k2 /\ snd k1 = snd k2 -> k1 = k2.
+Proof.
+  intros.
+  destruct H.
+  destruct k1, k2.
+  simpl in *; auto.
+Qed.
+
+Definition to_impedes s := I.unproject evt_eq_helper (gen_tedges s).
 
 Lemma impedes_total:
   forall (s:state),
@@ -633,17 +647,11 @@ Proof.
   exists (to_impedes s).
   unfold I_of.
   intros.
-  split.
-  - intros.
-    apply I.unproject_spec in H.
-    apply gen_tedges_spec in H.
-    assumption.
-    apply tid_eq_subst.
-  - intros.
-    apply gen_tedges_spec in H.
-    apply I.unproject_spec.
-    apply tid_eq_subst.
-    assumption.
+  split; intros.
+  - apply I.unproject_spec in H; auto.
+    apply gen_tedges_spec in H; auto.
+  - apply gen_tedges_spec in H; auto.
+    apply I.unproject_spec; auto.
 Qed.
 
 Theorem deps_of_total:

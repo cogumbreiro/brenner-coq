@@ -442,7 +442,7 @@ Let task_in_left:
 Proof.
   intros.
   apply in_def with (e:=(t1, t2));
-  eauto using pair_in_left, FGraph.edge_def.
+  eauto using pair_in_left.
 Qed.
 
 Let task_in_right:
@@ -452,7 +452,7 @@ Let task_in_right:
 Proof.
   intros.
   apply in_def with (e:=(t1, t2));
-  eauto using pair_in_right, FGraph.edge_def.
+  eauto using pair_in_right.
 Qed.
 (* end hide *)
 

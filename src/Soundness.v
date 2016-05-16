@@ -55,7 +55,7 @@ Otherwise, $t = t_2$, then $t$ is impeded, so it is blocked and therefore in [s]
 Lemma vertex_in_tasks:
   forall t w,
   TWalk s w ->
-  F.In t w ->
+  Graph.In (F.Edge w) t ->
   Map_TID.In t (get_tasks s).
 Proof.
   intros.
@@ -83,7 +83,7 @@ Section TotallyDeadlocked.
 Variable w:t_walk.
 Variable is_cycle: TCycle s w.
 Variable vertex_in_tasks:
-  forall t, F.In t w <-> Map_TID.In t (get_tasks s).
+  forall t, Graph.In (F.Edge w) t <-> Map_TID.In t (get_tasks s).
 
 Let Hwalk: TWalk s w.
 Proof.
@@ -110,7 +110,7 @@ Qed.
 Lemma blocked_in_w:
   forall t e,
   WaitsFor s t e ->
-  F.In t w.
+  Graph.In (F.Edge w) t.
 Proof.
   intros.
   destruct H as (p, (Hin, _)).
@@ -150,7 +150,6 @@ Proof.
   intros.
   simpl in *.
   apply vertex_in_tasks.
-  unfold F.In.
   unfold In.
   exists (t, t').
   unfold F.Edge.
@@ -160,17 +159,14 @@ Qed.
 
 Lemma vertex_to_blocked:
   forall t,
-  F.In t w ->
+  Graph.In (F.Edge w) t ->
   exists e, WaitsFor s t e.
 Proof.
   intros.
   apply F.succ_in_cycle with (E:=TEdge s) in H; repeat auto.
   destruct H as (t', (He, Hi)).
-  apply tedge_inv in Hi.
-  destruct Hi as (r, (Hw, _)).
-  exists r.
-  assumption.
-  assumption.
+  apply tedge_inv in Hi; auto.
+  destruct Hi as (r, (Hw, _)); eauto.
 Qed.
 
 (* end hide *)
@@ -189,18 +185,8 @@ Proof.
   assert (Hx := Hin).
   apply tedge_inv in Hin; auto.
   destruct Hin as (e', (Hw, Hi)).
-  exists t'.
-  assert (e' = e). {
-    eauto using waits_for_fun.
-  }
-  subst.
-  intuition.
-  assert (F.In t' w). {
-  apply in_def with (e:=(t, t'));
-   auto using pair_in_right.
- }
- apply vertex_to_blocked.
- assumption.
+  assert (e' = e) by eauto using waits_for_fun; subst.
+  eauto using in_def, pair_in_right, vertex_to_blocked.
 Qed.
 
 (** A totally deadlocked state has to properties: (i) all tasks in [s]
@@ -220,21 +206,19 @@ Proof.
   intros.
   intuition.
   - unfold AllTasksWaitFor; intros.
-    assert (F.In t w).
-    apply vertex_in_tasks; assumption.
-    assert (exists t2, TEdge s (t, t2)).
-    apply F.succ_in_cycle with (E:=TEdge s) in H0; repeat auto.
-    destruct H0 as (t2, (Hc, _)); exists t2; auto.
+    assert (Graph.In (F.Edge w) t) by (apply vertex_in_tasks; assumption).
+    assert (exists t2, TEdge s (t, t2)). {
+      eapply F.succ_in_cycle in H0; eauto.
+      destruct H0 as (?, (?, _)); eauto.
+    }
     destruct H1 as (t2, H1).
     apply tedge_spec in H1.
     destruct H1 as (r', (Hwf1, Himp1)).
-    exists r'; assumption.
+    eauto.
   - unfold AllImpedes; intros.
     assert (Hblocked := H).
     apply blocked_to_impedes in H.
-    destruct H as (t', (Him, (r', Hv))).
-    exists t'.
-    assumption.
+    destruct H as (?, (?, (?, ?))); eauto.
   - inversion is_cycle.
     exists v1.
     apply in_inv_left with (t':=v2).
@@ -387,7 +371,7 @@ Qed.
  *)
 
 Let vertex_in_tasks:
-  forall t, F.In t w <-> Map_TID.In t (get_tasks ds).
+  forall t, Graph.In (F.Edge w) t <-> Map_TID.In t (get_tasks ds).
 Proof.
   intros.
   split.
@@ -418,7 +402,7 @@ Qed.
 (* begin hide *)
 Let tid_in_walk:
   forall t,
-  F.In t w ->
+  Graph.In (F.Edge w) t ->
   exists p,
   Map_TID.MapsTo t p (get_tasks s) /\
   Map_TID.MapsTo t p deadlocked_tasks.
@@ -438,7 +422,7 @@ Qed.
 Let task_in_left:
   forall t1 t2,
   List.In (t1, t2) w ->
-  F.In t1 w.
+  Graph.In (F.Edge w) t1.
 Proof.
   intros.
   apply in_def with (e:=(t1, t2));
@@ -448,7 +432,7 @@ Qed.
 Let task_in_right:
   forall t1 t2,
   List.In (t1, t2) w ->
-  F.In t2 w.
+  Graph.In (F.Edge w) t2.
 Proof.
   intros.
   apply in_def with (e:=(t1, t2));
@@ -463,7 +447,7 @@ Qed.
 
 Let blocked_conv:
   forall t e,
-  F.In t w ->
+  Graph.In (F.Edge w) t ->
   WaitsFor s t e ->
   WaitsFor ds t e.
 Proof.
@@ -487,7 +471,7 @@ Qed.
 
 Let registered_conv:
   forall (t:tid) e,
-  F.In t w ->
+  Graph.In (F.Edge w) t ->
   Registered s t e ->
   Registered ds t e.
 Proof.

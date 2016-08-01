@@ -172,9 +172,10 @@ Proof.
   - subst; simpl in *.
     exists e; auto.
   - subst; simpl in *.
-    apply impedes_inv_1 in Himp; auto.
+    apply impedes_in_tasks in Himp.
+    apply s_deadlocked in Himp.
+    assumption.
 Qed.
-
 
 (**
     Since any [t] in [g] is blocked, then by Lemma [totally_deadlocked_blocked_odgree]
@@ -265,6 +266,22 @@ Qed.
   the definition of [Registered] and using Lemma [waits_for_conv].
 *)
 
+Let partition_in:
+  forall {elt:Type} m m1 m2 k,
+  Map_TID_Props.Partition (elt:=elt) m m1 m2 ->
+  Map_TID.In k m1 ->
+  Map_TID.In k m.
+Proof.
+  intros.
+  unfold Map_TID_Props.Partition in *.
+  destruct H as (H, Hx).
+  apply Map_TID_Extra.in_to_mapsto in H0.
+  destruct H0 as (?, Hm).
+  apply Map_TID_Extra.mapsto_to_in with (x).
+  rewrite Hx.
+  auto.
+Qed.
+
 Let registered_conv:
   forall t r,
   Registered ds t r ->
@@ -272,10 +289,9 @@ Let registered_conv:
 Proof.
   intros.
   unfold Registered in *.
-  destruct H as (ph, (?,(?,(r',H)))); exists ph.
+  destruct H as (ph, (Hmp,(Hmt,Hi))); exists ph.
   intuition.
-  exists r'.
-  auto using waits_for_conv.
+  eauto.
 Qed.
 
 Let impedes_conv:

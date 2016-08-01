@@ -74,8 +74,7 @@ Proof.
     (* rhs *)
     apply tedge_inv in Hin.
     + destruct Hin as (r, (_, Himp)).
-      apply impedes_in_tasks in Himp.
-      assumption.
+      eauto using impedes_in_tasks.
     + auto.
 Qed.
   
@@ -348,7 +347,7 @@ Proof.
   intros.
   assert (Hin := H).
   (* since [t] in [w], then [t] in [get_tasks s] *)
-  apply vertex_in_tasks with (s:=s) (t:=t) (w:=w) in H.
+  apply vertex_in_tasks with (s:=s) (t:=t) (w:=w) in H; auto.
   - apply in_to_mapsto in H.
     (* [t] is in [get_tasks s], thus there exists a program [p] *)
     destruct H as (p, Hmt).
@@ -476,7 +475,7 @@ Let registered_conv:
   Registered ds t e.
 Proof.
   intros.
-  destruct H0 as (ph, (?, (?, (e',?)))).
+  destruct H0 as (?,(?,(?,?))).
   eauto using registered_def.
 Qed.
 

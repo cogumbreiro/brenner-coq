@@ -68,25 +68,34 @@ Definition WaitsFor (t:tid) (e:event) :=
 
 (** A task [t] is registered in an event [e] if [t] is registered
     in phaser [get_phaser e] and in phase [get_phase r]; task [t] must
-    be waiting for some event. *)
+    defined in the taskmap. *)
 
 Definition Registered (t:tid) (e:event) :=
   exists ph,
   Map_PHID.MapsTo (get_phaser e) ph (get_phasers s) /\
-  Map_TID.MapsTo t (get_phase e) ph /\ exists e', WaitsFor t e'.
+  Map_TID.MapsTo t (get_phase e) ph /\ Map_TID.In t (get_tasks s).
 
 Lemma registered_def:
-  forall ph e' e t,
+  forall ph e t,
   Map_PHID.MapsTo (get_phaser e) ph (get_phasers s) ->
   Map_TID.MapsTo t (get_phase e) ph ->
-  WaitsFor t e' ->
+  Map_TID.In t (get_tasks s) ->
   Registered t e.
 Proof.
   intros.
   unfold Registered.
   exists ph.
   intuition.
-  exists e'.
+Qed.
+
+Lemma registered_in_tasks:
+  forall t e,
+  Registered t e ->
+  Map_TID.In t (get_tasks s).
+Proof.
+  unfold Registered.
+  intros.
+  destruct H as (?,(?,(?,?))).
   assumption.
 Qed.
 
@@ -114,19 +123,14 @@ Proof.
     intuition.
 Qed.
 
-
-(** By inverting the impedes relation between [e] and [t] we have
-    that there exists a task waiting for resource [e]. *)
-
-Lemma impedes_inv_1:
+Lemma impeded_by_in_tasks:
   forall t e,
   Impedes e t ->
-  exists e', WaitsFor t e'.
+  Map_TID.In t (get_tasks s).
 Proof.
   intros.
-  destruct H as (_, (e', (H, _))).
-  inversion H.
-  intuition.
+  destruct H as (_,(?,(H,_))).
+  eauto using registered_in_tasks.
 Qed.
 
 End StateProps.
@@ -295,18 +299,6 @@ Proof.
   assumption.
 Qed.
 
-(** Any registered task is waiting for some event. *)
-
-Lemma registered_to_blocked:
-  forall t e,
-  Registered s t e ->
-  exists e', WaitsFor s t e'.
-Proof.
-  intros.
-  unfold Registered in H.
-  destruct H as (ph, (H1, (H2, H3))).
-  assumption.
-Qed.
 
 Lemma impedes_in_tasks:
   forall e t,
@@ -314,12 +306,7 @@ Lemma impedes_in_tasks:
   Map_TID.In (elt:=prog) t (get_tasks s).
 Proof.
   intros.
-  destruct H as (_, (e', (H,_))).
-  apply registered_to_blocked in H.
-  destruct H as (e'', Hb).
-  unfold WaitsFor in Hb.
-  destruct Hb as (prg, (Hmt, _)).
-  apply Map_TID_Extra.mapsto_to_in in Hmt.
+  destruct H as (_, (?, ((ph, (?, (?,?))),_))).
   assumption.
 Qed.
 

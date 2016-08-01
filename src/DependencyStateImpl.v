@@ -19,26 +19,26 @@ Module W := Project Map_TID Set_EVT.
 
 (** We build the phaser map of waiting tasks to be constituted by all
    blocked tasks in state [s]. *)
-Definition W_of (s:state) (w:waits) := forall t e, WDep w t e <-> WaitsFor s t e.
+Definition W_of (s:state) (w:t_wait_on) := forall t e, WDep w t e <-> WaitOn s t e.
 
-(** An event [e] impedes a task [e] if task [t] is registered in a
+(** An event [e] impeded_by a task [e] if task [t] is registered in a
    preceeding resource; the impeding event must be the target of
    a blocked task. *)
 
-(** The map of impedes holds all event that are blocking a task. *)
-Definition I_of (s:state) (i:impedes) := forall t e, IDep i e t <-> Impedes s e t.
+(** The map of impeded_by holds all event that are blocking a task. *)
+Definition I_of (s:state) (i:t_impeded_by) := forall t e, IDep i e t <-> ImpededBy s e t.
 
-Definition Deps_of (s:state) (d:dependencies) := W_of s (get_waits d) /\ I_of s (get_impedes d).
+Definition Deps_of (s:state) (d:dependencies) := W_of s (get_wait_on d) /\ I_of s (get_impeded_by d).
 
 Section Basic.
   Variable d:dependencies.
   Variable s:state.
   Variable d_of_s: Deps_of s d.
 
-Let wedge_to_waits_for:
+Let wedge_to_wait_on:
   forall r t,
   WEdge d t r ->
-  WaitsFor s t r.
+  WaitOn s t r.
 Proof.
   intros.
   unfold WDep in H.
@@ -48,9 +48,9 @@ Proof.
   assumption.
 Qed.
 
-Let waits_for_to_wedge:
+Let wait_on_to_wedge:
   forall r t,
-  WaitsFor s t r ->
+  WaitOn s t r ->
   WEdge d t r.
 Proof.
   intros.
@@ -62,22 +62,22 @@ Proof.
 Qed.
 
 (** If we have that [d] are the state-depencies of
-    a state [s], then a W-edge is equivalent to a waits-for
+    a state [s], then a W-edge is equivalent to a wait_on-for
     relation. *)
-Lemma wedge_eq_waits_for:
+Lemma wedge_eq_wait_on:
   forall r t,
-  WEdge d t r <-> WaitsFor s t r.
+  WEdge d t r <-> WaitOn s t r.
 Proof.
   intros.
   split.
-  apply wedge_to_waits_for.
-  apply waits_for_to_wedge.
+  apply wedge_to_wait_on.
+  apply wait_on_to_wedge.
 Qed.
 
-(** Similarly, an i-edge is equivalent to an impedes relation. *)
-Lemma iedge_eq_impedes:
+(** Similarly, an i-edge is equivalent to an impeded_by relation. *)
+Lemma iedge_eq_impeded_by:
   forall r t,
-  IEdge d r t <-> Impedes s r t.
+  IEdge d r t <-> ImpededBy s r t.
 Proof.
   intros.
   split.
@@ -219,21 +219,21 @@ Proof.
   + inversion H1.
 Qed.
 
-Let waits_for_def:
+Let wait_on_def:
   forall p e s t,
   Map_PHID.In (get_phaser e) (get_phasers s) ->
   Map_TID.MapsTo t (pcons (Await (get_phaser e) (get_phase e)) p) (get_tasks s) ->
-  WaitsFor s t e.
+  WaitOn s t e.
 Proof.
   intros.
-  unfold WaitsFor.
+  unfold WaitOn.
   eauto.
 Qed.
 
 Let wait_on_1:
   forall t s e,
   In (t, e) (wait_on s) ->
-  WaitsFor s t e.
+  WaitOn s t e.
 Proof.
   unfold wait_on.
   intros.
@@ -247,14 +247,14 @@ Proof.
     inversion Hb; subst; clear Hb.
     destruct Heqo as ((?,?), ?).
     subst.
-    eauto using waits_for_def.
+    eauto using wait_on_def.
   }
   inversion Hb.
 Qed.
 
 Let wait_on_2:
   forall t s e,
-  WaitsFor s t e ->
+  WaitOn s t e ->
   In (t, e) (wait_on s).
 Proof.
   unfold wait_on; intros.
@@ -281,7 +281,7 @@ Qed.
 Let wait_on_spec:
   forall t s e,
   In (t, e) (wait_on s) <->
-  WaitsFor s t e.
+  WaitOn s t e.
 Proof.
   split; eauto.
 Qed.
@@ -382,15 +382,15 @@ Proof.
 auto.
 Qed.
 
-Definition to_waits s := W.unproject tid_eq_helper (wait_on s).
+Definition to_wait_on s := W.unproject tid_eq_helper (wait_on s).
 
-Let waits_total:
+Let wait_on_total:
   forall (s:state),
-  exists (w:waits), W_of s w.
+  exists (w:t_wait_on), W_of s w.
 Proof.
   intros.
   unfold W_of.
-  exists (to_waits s).
+  exists (to_wait_on s).
   intros.
   split.
   - intros.
@@ -440,7 +440,7 @@ Definition impeded_by s :=
 Let impeded_by_1:
   forall t e s,
   In (e, t) (impeded_by s) ->
-  Impedes s e t.
+  ImpededBy s e t.
 Proof.
   unfold impeded_by; intros.
   apply in_flat_map in H.
@@ -454,14 +454,14 @@ Proof.
   apply registered_spec in Hr.
   destruct (prec_dec e'' e'). {
     inversion Heq; subst.
-    unfold Impedes; eauto.
+    unfold ImpededBy; eauto.
   }
   inversion Heq.
 Qed.
 
 Let impeded_by_2:
   forall t e s,
-  Impedes s e t ->
+  ImpededBy s e t ->
   In (e, t) (impeded_by s).
 Proof.
   intros.
@@ -485,7 +485,7 @@ Qed.
 Let impeded_by_spec:
   forall t e s,
   In (e, t) (impeded_by s) <->
-  Impedes s e t.
+  ImpededBy s e t.
 Proof.
   split; eauto.
 Qed.
@@ -499,14 +499,14 @@ Proof.
   simpl in *; auto.
 Qed.
 
-Definition to_impedes s := I.unproject evt_eq_helper (impeded_by s).
+Definition to_impeded_by s := I.unproject evt_eq_helper (impeded_by s).
 
-Let impedes_total:
+Let impeded_by_total:
   forall (s:state),
-  exists (i:impedes), I_of s i.
+  exists (i:t_impeded_by), I_of s i.
 Proof.
   intros.
-  exists (to_impedes s).
+  exists (to_impeded_by s).
   unfold I_of.
   intros.
   split; intros.
@@ -520,8 +520,8 @@ Theorem deps_of_total:
   exists d, Deps_of s d.
 Proof.
   intros.
-  destruct (impedes_total s) as (i, Hi).
-  destruct (waits_total s) as (w, Hw).
+  destruct (impeded_by_total s) as (i, Hi).
+  destruct (wait_on_total s) as (w, Hw).
   exists (i,w).
   unfold Deps_of.
   intuition.

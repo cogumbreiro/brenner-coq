@@ -59,8 +59,8 @@ Proof.
   - intros.
     apply Hwfg in H.
     destruct H as (r, (Hw, Hi)).
-    rewrite (wedge_eq_waits_for Hd) in Hw.
-    rewrite (iedge_eq_impedes Hd) in Hi.
+    rewrite (wedge_eq_wait_on Hd) in Hw.
+    rewrite (iedge_eq_impeded_by Hd) in Hi.
     apply tedge_spec.
     exists r; intuition.
   - intros.
@@ -69,8 +69,8 @@ Proof.
     inversion H.
     subst; simpl in *.
     exists b.
-    rewrite (wedge_eq_waits_for Hd).
-    rewrite (iedge_eq_impedes Hd).
+    rewrite (wedge_eq_wait_on Hd).
+    rewrite (iedge_eq_impeded_by Hd).
     intuition.
 Qed.
 
@@ -111,28 +111,28 @@ Qed.
 
 (** We have that if task [t] is blocked on event [e], then
     there exists a task [t'] such that event [e]
-    impedes task [t'], by unfolding the definition of [TotallyDeadlocked]. *)
+    impeded_by task [t'], by unfolding the definition of [TotallyDeadlocked]. *)
 
-Lemma totally_deadlocked_impedes:
-  forall t e, WaitsFor s t e -> exists t', Impedes s e t'.
+Lemma totally_deadlocked_impeded_by:
+  forall t e, WaitOn s t e -> exists t', ImpededBy s e t'.
 Proof.
   intros.
   unfold TotallyDeadlocked in s_deadlocked.
-  destruct s_deadlocked as (_, (Himpedes, _)).
-  apply Himpedes in H.
+  destruct s_deadlocked as (_, (Himpeded_by, _)).
+  apply Himpeded_by in H.
   assumption.
 Qed.
 
 (**
-    We also know that if [t] is blocked on [e] and [e] impedes [t'],
+    We also know that if [t] is blocked on [e] and [e] impeded_by [t'],
     then [(t,t')] is an edge in the WFG associated with [s], hence [(t,t')] is
     in graph [g]. *)
 
 Lemma totally_deadlocked_blocked_odgree_1:
-  forall t e, WaitsFor s t e -> exists t', Edge g (t, t').
+  forall t e, WaitOn s t e -> exists t', Edge g (t, t').
 Proof.
   intros.
-  destruct (totally_deadlocked_impedes _ _ H) as (t', Hi).
+  destruct (totally_deadlocked_impeded_by _ _ H) as (t', Hi).
   unfold Edge.
   exists t'.
   apply wfg_spec.
@@ -145,7 +145,7 @@ Qed.
     an outgoing edge in [g]. *)
 
 Lemma totally_deadlocked_blocked_odgree:
-  forall t e, WaitsFor s t e -> HasOutgoing g t.
+  forall t e, WaitOn s t e -> HasOutgoing g t.
 Proof.
   intros.
   apply totally_deadlocked_blocked_odgree_1 in H.
@@ -158,7 +158,7 @@ Qed.
 (** It is easy to see that any task [t] in [g] is blocked. *)
 
 Lemma totally_deadlocked_vertex_blocked:
-  forall t, Graph.In (Edge g) t -> exists e, WaitsFor s t e.
+  forall t, Graph.In (Edge g) t -> exists e, WaitOn s t e.
 Proof.
   intros.
   destruct H as (e, (He, Hin)).
@@ -172,7 +172,7 @@ Proof.
   - subst; simpl in *.
     exists e; auto.
   - subst; simpl in *.
-    apply impedes_in_tasks in Himp.
+    apply impeded_by_in_tasks in Himp.
     apply s_deadlocked in Himp.
     assumption.
 Qed.
@@ -242,16 +242,16 @@ Furthermore, let [ds] be the totally deadlocked state obtained from [s]. *)
 
 Let ds := (get_phasers s, deadlocked_tasks).
 
-(** The waits-for, regsitered, and impedes relations hold from a deadlocked to the totally
+(** The wait-on, regsitered, and impeded_by relations hold from a deadlocked to the totally
     deadlocked state, using the definition of [Partition]. *)
 (* begin hide *)
-Let waits_for_conv:
+Let wait_on_conv:
   forall t r,
-  WaitsFor ds t r ->
-  WaitsFor s t r.
+  WaitOn ds t r ->
+  WaitOn s t r.
 Proof.
   intros.
-  unfold WaitsFor in *.
+  unfold WaitOn in *.
   destruct H as (p, (?, ?)).
   exists p.
   intuition.
@@ -263,7 +263,7 @@ Qed.
 
 (**
   We have that [t] is registered in [r] by unfolding
-  the definition of [Registered] and using Lemma [waits_for_conv].
+  the definition of [Registered] and using Lemma [wait_on_conv].
 *)
 
 Let partition_in:
@@ -294,13 +294,13 @@ Proof.
   eauto.
 Qed.
 
-Let impedes_conv:
+Let impeded_by_conv:
   forall r t,
-  Impedes ds r t ->
-  Impedes s r t.
+  ImpededBy ds r t ->
+  ImpededBy s r t.
 Proof.
   intros.
-  unfold Impedes in *.
+  unfold ImpededBy in *.
   destruct H as ((t',?), (r', (?, ?))).
   split.
   - exists t'.
@@ -316,7 +316,7 @@ Lemma tedge_conv:
 Proof.
   intros.
   inversion H; clear H; subst.
-  eauto using Bipartite.aa, waits_for_conv, impedes_conv.
+  eauto using Bipartite.aa, wait_on_conv, impeded_by_conv.
 Qed.
 
 End DeadlockedStates.
@@ -328,7 +328,7 @@ End DeadlockedStates.
   and [m] and [m'] are two disjoint task maps of [get_tasks s].
   It is easy to show that an edge in the WFG of [s'] is also in the WFG of [s].
   The proof uses the standard library's properties about [Partition]
-  and by trivial unfolding of the definitions [WaitsFor] and [Impedes].
+  and by trivial unfolding of the definitions [WaitOn] and [ImpededBy].
 
 *)
 

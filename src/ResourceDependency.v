@@ -61,7 +61,7 @@ We say that a task [t] is waiting for an event [e]
 when task [t] is executing an instruction [Await] and
 the target phaser is defined in the phaser map. *)
 
-Definition WaitsFor (t:tid) (e:event) :=
+Definition WaitOn (t:tid) (e:event) :=
   exists prg,
   Map_TID.MapsTo t (pcons (Await (get_phaser e) (get_phase e)) prg) (get_tasks s) /\
   Map_PHID.In (get_phaser e) (get_phasers s).
@@ -103,18 +103,18 @@ Qed.
    event [e'] that precedes [e]; the impeding event must be the target of
    a blocked task. *)
 
-Definition Impedes (e:event) (t:tid) :=
-  (exists t', WaitsFor t' e) /\
+Definition ImpededBy(e:event) (t:tid) :=
+  (exists t', WaitOn t' e) /\
   (exists e', Registered t e' /\ prec e' e).
 
-Lemma impedes_def:
+Lemma impeded_by_def:
   forall e t t' e',
-  WaitsFor t' e ->
+  WaitOn t' e ->
   Registered t e' ->
   prec e' e ->
-  Impedes e t.
+  ImpededBy e t.
 Proof.
-  unfold Impedes.
+  unfold ImpededBy.
   intros.
   split.
   - exists t'.
@@ -125,7 +125,7 @@ Qed.
 
 Lemma impeded_by_in_tasks:
   forall t e,
-  Impedes e t ->
+  ImpededBy e t ->
   Map_TID.In t (get_tasks s).
 Proof.
   intros.
@@ -139,20 +139,20 @@ End StateProps.
     Let [AllTasksWaitFor] be a state such that all tasks in the state
     are waiting for an event. *)
 
-Definition AllTasksWaitFor s :=
-  forall t, (Map_TID.In t (get_tasks s) -> exists e, WaitsFor s t e).
+Definition AllTasksWaitOn s :=
+  forall t, (Map_TID.In t (get_tasks s) -> exists e, WaitOn s t e).
 
 (** Let [AllBlockedRegistered] be a state such that any task waiting for
     an event, that event is also impeding another task in the state. *)
 
-Definition AllImpedes s :=
-  forall t e, WaitsFor s t e -> exists t', Impedes s e t'.
+Definition AllImpededBy s :=
+  forall t e, WaitOn s t e -> exists t', ImpededBy s e t'.
 
 (** A totally deadlocked state is such that all tasks are waiting for
     events that are impeding a tasks in the task map. *)
 
 Definition TotallyDeadlocked (s:state) :=
-  AllTasksWaitFor s /\ AllImpedes s /\
+  AllTasksWaitOn s /\ AllImpededBy s /\
   exists t, Map_TID.In t (get_tasks s). (* nonempty *)
 
 (* TODO: Now would be a nice time to show that a totally deadlocked state
@@ -168,10 +168,10 @@ Definition Deadlocked (s:state) :=
   TotallyDeadlocked ((get_phasers s), tm).
 
 (** A GRG is a bipartite graph that is defined
-   from relations [WaitsFor] and [Impedes]. *)
+   from relations [WaitOn] and [ImpededBy]. *)
 
-Notation TEdge s := (Bipartite.AA (WaitsFor s) (Impedes s)).
-Notation REdge s := (Bipartite.BB (WaitsFor s) (Impedes s)).
+Notation TEdge s := (Bipartite.AA (WaitOn s) (ImpededBy s)).
+Notation REdge s := (Bipartite.BB (WaitOn s) (ImpededBy s)).
 Notation TWalk s := (Walk (TEdge s)).
 Notation RWalk s := (Walk (REdge s)).
 Notation TCycle s := (Cycle (TEdge s)).
@@ -187,7 +187,7 @@ Lemma tedge_spec:
   forall s (t1 t2:tid),
   TEdge s (t1, t2) <->
   exists e,
-  WaitsFor s t1 e /\ Impedes s e t2.
+  WaitOn s t1 e /\ ImpededBy s e t2.
 Proof.
   split.
   + intros.
@@ -206,7 +206,7 @@ Qed.
     as event [e1] happens before event [e2].
     In Brenner, this means that there is a task [t]
     blocked in [e2] and impedes [e1]. Recall the definition
-    of [Impedes] that states that [t] is registered in
+    of [ImpededBy] that states that [t] is registered in
     an event [e'] that precedes [e]; and that event
     [e] is obtained because there exists some task blocked
     in [e] (again by definition). *)
@@ -215,7 +215,7 @@ Lemma redge_spec:
   forall s (e1 e2:event),
   REdge s (e1, e2) <->
   exists t,
-  Impedes s e1 t /\ WaitsFor s t e2.
+  ImpededBy s e1 t /\ WaitOn s t e2.
 Proof.
   split.
   - intros.
@@ -262,17 +262,17 @@ Section Basic.
   Variable s:state.
 
 (** In our language tasks can only await a single phaser, so
-    it is easy to see that the [WaitsFor] predicate is actually a function
+    it is easy to see that the [WaitOn] predicate is actually a function
     from task ids to events. *)
 
-Lemma waits_for_fun:
+Lemma wait_on_fun:
   forall t e e',
-  WaitsFor s t e ->
-  WaitsFor s t e' ->
+  WaitOn s t e ->
+  WaitOn s t e' ->
   e = e'.
 Proof.
   intros.
-  unfold WaitsFor in *.
+  unfold WaitOn in *.
   destruct H as (p1, (H1, H2)).
   destruct H0 as (p2, (H3, H4)).
   (* MapsTo is functional, so p1 = p2 *)
@@ -285,39 +285,28 @@ Proof.
   auto.
 Qed.
 
-(** We show that any task id in the [WaitsFor] is in the task map of [s]. *)
+(** We show that any task id in the [WaitOn] is in the task map of [s]. *)
 
-Lemma waits_for_in_tasks:
+Lemma wait_on_in_tasks:
   forall t e,
-  WaitsFor s t e ->
+  WaitOn s t e ->
   Map_TID.In t (get_tasks s).
 Proof.
   intros.
-  unfold WaitsFor in H.
+  unfold WaitOn in H.
   destruct H as (p, (H1, H2)).
   apply Map_TID_Extra.mapsto_to_in in H1.
   assumption.
 Qed.
 
-
-Lemma impedes_in_tasks:
+Lemma impeded_by_in_phasermap:
   forall e t,
-  Impedes s e t ->
-  Map_TID.In (elt:=prog) t (get_tasks s).
-Proof.
-  intros.
-  destruct H as (_, (?, ((ph, (?, (?,?))),_))).
-  assumption.
-Qed.
-
-Lemma impedes_in_phasermap:
-  forall e t,
-  Impedes s e t ->
+  ImpededBy s e t ->
   Map_PHID.In (elt:=Phaser.phaser) (get_phaser e) (get_phasers s).
 Proof.
   intros.
   destruct H as ((t',H),_).
-  unfold WaitsFor in H.
+  unfold WaitOn in H.
   destruct H as (_, (_, H)).
   assumption.
 Qed.

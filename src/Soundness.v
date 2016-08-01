@@ -30,7 +30,7 @@ Lemma tedge_inv:
   TWalk s w ->
   F.Edge w (t, t') ->
   exists e,
-  WaitsFor s t e /\ Impedes s e t'.
+  WaitOn s t e /\ ImpededBy s e t'.
 Proof.
   intros.
   apply in_edge with (Edge:=TEdge s) in H0.
@@ -68,13 +68,13 @@ Proof.
     (* lhs, t=t1 *)
     apply tedge_inv in Hin; auto. (* invert (t, t2) *)
     destruct Hin as (r, (Hwf, _)).
-    apply waits_for_in_tasks in Hwf.
+    apply wait_on_in_tasks in Hwf.
     assumption.
   - subst. simpl in *.
     (* rhs *)
     apply tedge_inv in Hin.
     + destruct Hin as (r, (_, Himp)).
-      eauto using impedes_in_tasks.
+      eauto using impeded_by_in_tasks.
     + auto.
 Qed.
   
@@ -102,13 +102,13 @@ Qed.
  [t] is in [w] iff [t] is in [get_tasks s].
 
 
- Since any blocked task [t] is in [s] (by definition of [WaitsFor])
+ Since any blocked task [t] is in [s] (by definition of [WaitOn])
  and since all tasks in [s] are vertices of [w], then any blocked task
  [t] is in [w].  *)
 
 Lemma blocked_in_w:
   forall t e,
-  WaitsFor s t e ->
+  WaitOn s t e ->
   Graph.In (F.Edge w) t.
 Proof.
   intros.
@@ -130,7 +130,7 @@ Qed.
 (* begin hide *)
 Lemma blocked_in_walk:
   forall t e,
-  WaitsFor s t e ->
+  WaitOn s t e ->
   exists t', F.Edge w (t', t).
 Proof.
   intros.
@@ -159,7 +159,7 @@ Qed.
 Lemma vertex_to_blocked:
   forall t,
   Graph.In (F.Edge w) t ->
-  exists e, WaitsFor s t e.
+  exists e, WaitOn s t e.
 Proof.
   intros.
   apply F.succ_in_cycle with (E:=TEdge s) in H; repeat auto.
@@ -170,21 +170,21 @@ Qed.
 
 (* end hide *)
 
-Lemma blocked_to_impedes:
+Lemma blocked_to_impeded_by:
   forall t e,
-  WaitsFor s t e ->
-  exists t', Impedes s e t' /\ exists e', WaitsFor s t' e'.
+  WaitOn s t e ->
+  exists t', ImpededBy s e t' /\ exists e', WaitOn s t' e'.
 Proof.
   intros.
   assert (Hblocked := H).
-  apply waits_for_in_tasks in H.
+  apply wait_on_in_tasks in H.
   apply vertex_in_tasks in H.
   apply F.succ_in_cycle with (E:=TEdge s) in H; repeat auto.
   destruct H as (t', (He, Hin)).
   assert (Hx := Hin).
   apply tedge_inv in Hin; auto.
   destruct Hin as (e', (Hw, Hi)).
-  assert (e' = e) by eauto using waits_for_fun; subst.
+  assert (e' = e) by eauto using wait_on_fun; subst.
   eauto using in_def, pair_in_right, vertex_to_blocked.
 Qed.
 
@@ -193,7 +193,7 @@ Qed.
  (i) we have that any task [t] in [s] is also in [w] and task [t] has
  a successor [t'] (because [w] is a cycle) such that [(t,t')] is in
  [w], thus [t] is blocked. We conclude (ii) from lemma
- [blocked_to_impedes].  Finally, since [w] is a cycle, which by
+ [blocked_to_impeded_by].  Finally, since [w] is a cycle, which by
  definition have at least one vertex [t] such that [t] is in [w], so 
  task [t] is in [s].  *)
 
@@ -204,7 +204,7 @@ Proof.
   unfold TotallyDeadlocked.
   intros.
   intuition.
-  - unfold AllTasksWaitFor; intros.
+  - unfold AllTasksWaitOn; intros.
     assert (Graph.In (F.Edge w) t) by (apply vertex_in_tasks; assumption).
     assert (exists t2, TEdge s (t, t2)). {
       eapply F.succ_in_cycle in H0; eauto.
@@ -214,9 +214,9 @@ Proof.
     apply tedge_spec in H1.
     destruct H1 as (r', (Hwf1, Himp1)).
     eauto.
-  - unfold AllImpedes; intros.
+  - unfold AllImpededBy; intros.
     assert (Hblocked := H).
-    apply blocked_to_impedes in H.
+    apply blocked_to_impeded_by in H.
     destruct H as (?, (?, (?, ?))); eauto.
   - inversion is_cycle.
     exists v1.
@@ -441,17 +441,17 @@ Qed.
 
 (**
   Given that any task [t] that is in [w] is in [deadlocked_tasks] and in [get_tasks s],
-  thus, applying the definition of [WaitsFor] we get that [t] is also blocked in [ds].
+  thus, applying the definition of [WaitOn] we get that [t] is also blocked in [ds].
 *)
 
 Let blocked_conv:
   forall t e,
   Graph.In (F.Edge w) t ->
-  WaitsFor s t e ->
-  WaitsFor ds t e.
+  WaitOn s t e ->
+  WaitOn ds t e.
 Proof.
   intros.
-  unfold WaitsFor in *.
+  unfold WaitOn in *.
   destruct H0 as (p, (H1, H2)).
   exists p.
   intuition.
@@ -480,28 +480,28 @@ Proof.
 Qed.
 
 (**
-  Showing that an impedes relation is preserved in [ds],
+  Showing that an impeded_by relation is preserved in [ds],
   follows from lemmas [registered_conv] and [blocked_conv].
 *)
 
-Let impedes_conv:
+Let impeded_by_conv:
   forall e t1 t2,
   List.In (t1, t2) w ->
-  WaitsFor s t1 e ->
-  Impedes s e t2 ->
-  Impedes ds e t2.
+  WaitOn s t1 e ->
+  ImpededBy s e t2 ->
+  ImpededBy ds e t2.
 Proof.
   intros.
   destruct H1 as (_, (ev, (H2, H3))).
   apply registered_conv in H2.
-  - eauto using impedes_def.
+  - eauto using impeded_by_def.
   - eauto using task_in_right.
 Qed.
 
 (**
   We conclude (ii) by establishing that any edge [e] in the WFG of [s] and
   in walk [w] is also in the WFG of [ds], from lemmas [blocked_conv] and
-  [impedes_conv].
+  [impeded_by_conv].
 *)
 
 Let t_edge_conv:
@@ -513,10 +513,10 @@ Proof.
   intros.
   simpl in *.
   inversion H0; clear H0; subst.
-  assert (Impedes ds b a2). {
-    eauto using impedes_conv.
+  assert (ImpededBy ds b a2). {
+    eauto using impeded_by_conv.
   }
-  assert (WaitsFor ds a1 b). {
+  assert (WaitOn ds a1 b). {
     apply blocked_conv in H1; repeat auto.
     eauto using task_in_left.
   }

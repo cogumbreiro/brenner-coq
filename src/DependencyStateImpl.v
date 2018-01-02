@@ -116,6 +116,10 @@ Definition blocked (s:state) (e:(tid*prog)) : option event :=
     | _ => None
   end.
 
+(**
+  * Generates a TEG edge from task to event.
+  *)
+
 Definition wait_on s : list (tid * event) :=
   List.omap (fun e =>
     match blocked s e with
@@ -424,6 +428,24 @@ Proof.
   contradiction.
 Defined.
 
+(**
+  * Build a TEG from the wait-on relation and registered-on relations.
+  *)
+Definition teg (ws:list (tid*event)) (rs:list (tid*event)) :=
+  let es := List.map (fun p => snd p) ws in
+  let handle_entry (e:event) (p:tid*event) :=
+    let (t, e') := p in
+    if prec_dec e' e then Some (e, t)
+    else None
+  in
+  let handle e :=
+    List.omap (handle_entry e) rs
+  in
+  (ws, flat_map handle es).
+
+(**
+  * Returns the impeded-by relation from events to tasks. 
+  *)
 Definition impeded_by s :=
   let es := List.map (fun p => snd p) (wait_on s) in
   let handle_entry (e:event) (p:tid*event) :=
@@ -527,3 +549,34 @@ Proof.
   intuition.
 Qed.
 End Props.
+
+Extract Inductive bool => "bool" [ "true" "false" ].
+Extract Inlined Constant negb => "not".
+
+Extract Inductive sumbool => "bool" [ "true" "false" ].
+
+Extract Inductive sumor => "option" [ "Some" "None" ].
+
+Extract Inductive option => "option" [ "Some" "None" ].
+
+(* list *)
+Extract Inductive list => "list" [ "[]" "(::)" ].
+Extract Inlined Constant length => "List.length".
+Extract Inlined Constant app => "List.append".
+Extract Inlined Constant map => "List.map".
+
+(* pairs *)
+Extract Inductive prod => "(*)"  [ "(,)" ].
+Extract Inlined Constant fst => "fst".
+Extract Inlined Constant snd => "snd".
+
+(* nat *)
+Extract Inductive nat => "int"
+  [ "0" "(fun x -> x + 1)" ]
+  "(fun zero succ n ->
+      if n=0 then zero () else succ (n-1))".
+Extract Inlined Constant plus => "( + )".
+Extract Inlined Constant mult => "( * )".
+Extract Inlined Constant eq_nat_dec => "( = )".
+
+Extraction "ocaml/teg.ml" teg.

@@ -200,13 +200,13 @@ Qed.
 Lemma totally_deadlocked_nonempty: g <> nil.
 Proof.
   intros.
-  (* *)
-  destruct s_deadlocked as (H1, (_, (t, H3))).
-  destruct (H1 _ H3) as (e, H).
+  destruct s_deadlocked as (HallWait, (_, (t, Hin))).
+  destruct (HallWait _ Hin) as (e, Hwaiton).
   intuition.
-  apply totally_deadlocked_blocked_odgree with (e:=e) in H; repeat auto.
-  inversion H; subst.
-  inversion H2.
+  apply totally_deadlocked_blocked_odgree with (e:=e) in Hwaiton; repeat auto.
+  subst.
+  inversion Hwaiton; subst.
+  inversion H.
 Qed.
 
 (** As graph [g] is nonempty and given that all vertices in [g] have

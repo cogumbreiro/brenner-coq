@@ -105,7 +105,7 @@ Definition blocked (s:state) (e:(tid*prog)) : option event :=
     | pcons i _ =>
       (* check the instruction *)
       match i with
-        | Await p n =>
+        | await p n =>
           (* Check if p is a valid phaser *)
           match Map_PHID.find p (get_phasers s) with
             | Some _ => Some (p, n)
@@ -130,7 +130,7 @@ Definition wait_on s : list (tid * event) :=
 
 Let blocked_inv_1:
   forall s t p n r prg,
-  blocked s (t, pcons (Await p n) prg) =
+  blocked s (t, pcons (await p n) prg) =
        Some r ->
   r = (p, n).
 Proof.
@@ -147,7 +147,7 @@ Qed.
 
 Let blocked_inv_2:
   forall s t p n prg,
-  blocked s (t, pcons (Await p n) prg) = None ->
+  blocked s (t, pcons (await p n) prg) = None ->
   ~ Map_PHID.In p (get_phasers s).
 Proof.
   intros.
@@ -162,7 +162,7 @@ Qed.
 
 Let blocked_inv_3:
   forall s t r prg r',
-  blocked s (t, pcons (Await (get_phaser r) (get_phase r)) prg) =
+  blocked s (t, pcons (await (get_phaser r) (get_phase r)) prg) =
        Some r' ->
   r = r'.
 Proof.
@@ -176,7 +176,7 @@ Qed.
 Let blocked_spec:
   forall s t prg r,
   blocked s (t, prg) = Some r <->
-  (exists prg',  prg = (pcons (Await (get_phaser r) (get_phase r)) prg'))
+  (exists prg',  prg = (pcons (await (get_phaser r) (get_phase r)) prg'))
   /\ Map_PHID.In (elt:=Phaser.phaser) (get_phaser r) (get_phasers s).
 Proof.
   split.
@@ -226,7 +226,7 @@ Qed.
 Let wait_on_def:
   forall p e s t,
   Map_PHID.In (get_phaser e) (get_phasers s) ->
-  Map_TID.MapsTo t (pcons (Await (get_phaser e) (get_phase e)) p) (get_tasks s) ->
+  Map_TID.MapsTo t (pcons (await (get_phaser e) (get_phase e)) p) (get_tasks s) ->
   WaitOn s t e.
 Proof.
   intros.
@@ -549,7 +549,7 @@ Proof.
   intuition.
 Qed.
 End Props.
-
+(* begin hide *)
 Extract Inductive bool => "bool" [ "true" "false" ].
 Extract Inlined Constant negb => "not".
 
@@ -580,3 +580,4 @@ Extract Inlined Constant mult => "( * )".
 Extract Inlined Constant eq_nat_dec => "( = )".
 
 Extraction "ocaml/teg.ml" teg.
+(* end hide *)

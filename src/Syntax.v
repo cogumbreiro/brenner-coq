@@ -1,14 +1,17 @@
 Require Import Vars.
 Require Import PhaserMap.
+
+(** Declares the language of a program. *)
+
 Inductive prog :=
   | pcons : inst -> prog -> prog
   | pnil : prog
 with inst :=
-  | NewTid : tid -> inst
-  | Fork : tid -> prog -> inst
-  | PmOp: PhaserMap.op -> inst
-  | Await: phid -> nat -> inst
-  | CFlow: cflow -> inst
+  | new_tid : tid -> inst
+  | fork : tid -> prog -> inst
+  | pm_op: PhaserMap.op -> inst
+  | await: phid -> nat -> inst
+  | c_op: cflow -> inst
 with cflow :=
   | skip : cflow
   | loop : prog -> cflow.
@@ -19,6 +22,8 @@ Fixpoint concat (p:prog) (q:prog) :=
     | pnil => q
   end.
 
+(** Declares a concrete syntax to simplify writing programs. *)
+
 Module CST.
 
 Notation "'END'" := (pnil).
@@ -26,25 +31,25 @@ Notation "'END'" := (pnil).
 Infix ";;" := pcons (at level 62, right associativity).
 
 Notation "'DEREG' ( ph )" :=
-  (PmOp (PhaserMap.APP ph Phaser.DEREG)) (at level 65).
+  (pm_op (PhaserMap.APP ph Phaser.DEREG)) (at level 65).
 
 Notation "'REG' ( ph , t )" :=
-  (PmOp (PhaserMap.APP ph (Phaser.REG t))) (at level 65).
+  (pm_op (PhaserMap.APP ph (Phaser.REG t))) (at level 65).
 
 Notation "'ADV' ( ph ) " :=
-  (PmOp (PhaserMap.APP ph Phaser.ADV)) (at level 65).
+  (pm_op (PhaserMap.APP ph Phaser.ADV)) (at level 65).
 
 Notation "p '<-' 'NEW_PHASER'" :=
-  (PmOp (PhaserMap.NEW p)) (at level 65).
+  (pm_op (PhaserMap.NEW p)) (at level 65).
 
-Notation "t '<-' 'NEW_TID'" := (NewTid t) (at level 65).
+Notation "t '<-' 'NEW_TID'" := (new_tid t) (at level 65).
 
-Notation "'FORK' ( t , b ) " := (Fork t b) (at level 65).
+Notation "'FORK' ( t , b ) " := (fork t b) (at level 65).
 
 
-Notation "'CFLOW'" := CFlow.
+Notation "'CFLOW'" := c_op.
 
-Notation "'LOOP' ( b )" := (CFlow (loop b)). 
+Notation "'LOOP' ( b )" := (c_op (loop b)). 
 
 Notation "'SKIP'" := (CFLOW skip).
 

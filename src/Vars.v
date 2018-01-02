@@ -1,3 +1,4 @@
+(* begin hide *)
 Require Import Coq.Structures.OrderedType.
 Require Import Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetAVL.
@@ -30,3 +31,5 @@ Module Map_PHID_Extra := MapUtil Map_PHID.
 
 Definition phid := PHID.t.
 Definition set_phid := Set_PHID.t.
+
+(* end hide *)

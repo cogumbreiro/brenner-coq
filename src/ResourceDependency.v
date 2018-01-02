@@ -63,7 +63,7 @@ the target phaser is defined in the phaser map. *)
 
 Definition WaitOn (t:tid) (e:event) :=
   exists prg,
-  Map_TID.MapsTo t (pcons (Await (get_phaser e) (get_phase e)) prg) (get_tasks s) /\
+  Map_TID.MapsTo t (pcons (await (get_phaser e) (get_phase e)) prg) (get_tasks s) /\
   Map_PHID.In (get_phaser e) (get_phasers s).
 
 (** A task [t] is registered in an event [e] if [t] is registered

@@ -4,45 +4,63 @@ Require Import Phaser.
 Require Import Syntax.
 Require Import TaskMap.
 
+(** A state pairs the state of all phasers and the state of all tasks. *)
+
 Definition state := (phasermap * taskmap) % type.
+
 Definition get_tasks (s:state) :taskmap := snd s.
 Definition get_phasers (s:state) : phasermap := fst s.
 
 Import Syntax.CST.
 
-Inductive c_redex : cflow -> prog -> prog -> Prop :=
-  | RSkip:
-    forall p,
-    c_redex skip p p
-  | RIter:
-    forall p q,
-    c_redex (loop p) q (concat p (LOOP(p);; q))
-  | RElide:
-    forall p q,
-    c_redex (loop p) q q.
+(** Control-flow reduction: *)
 
-Inductive s_redex: state -> state -> Prop :=
-  | RNewTask :
+Module ControlFlow.
+Inductive Reduces : cflow -> prog -> prog -> Prop :=
+  | r_skip:
+    forall p,
+    Reduces skip p p
+  | r_iter:
+    forall p q,
+    Reduces (loop p) q (concat p (LOOP(p);; q))
+  | r_elide:
+    forall p q,
+    Reduces (loop p) q q.
+End ControlFlow.
+
+(** Small step semantics for states. *)
+
+Inductive Reduces: state -> state -> Prop :=
+  | r_new_task:
+  (** Creates a new task. Task id [t'] must not be present in
+      defined in the task map. *)
     forall (t t':tid) (p:prog) (pm:phasermap) (tm:taskmap),
     TaskMap.MapsTo t (t' <- NEW_TID;; p) tm -> 
     ~ TaskMap.In t' tm ->
-    s_redex (pm, tm) (pm, newTask tm t')
-  | RFork :
+    Reduces (pm, tm) (pm, newTask tm t')
+  | r_fork:
+    (** Fork assigns a program to an "empty" task. *)
     forall (t t':tid) (p p':prog) (pm:phasermap) (tm:taskmap),
     TaskMap.MapsTo t (FORK(t', p');; p) tm ->
     TaskMap.MapsTo t' pnil tm ->
-    s_redex (pm, tm) (pm, (TaskMap.add t p (TaskMap.add t' p' tm)))
-  | RPhaser :
+    Reduces (pm, tm) (pm, (TaskMap.add t p (TaskMap.add t' p' tm)))
+  | r_phaser:
+    (** Invokes a phaser operation on a given phaser identifier. *)
     forall (o:PhaserMap.op) (t:tid) (p:prog) (pm:phasermap) (tm:taskmap),
-    TaskMap.MapsTo t ((PmOp o) ;; p) tm ->
-    s_redex (pm, tm) ((PhaserMap.apply pm t o), (TaskMap.add t p tm))
-  | RCFlow :
+    TaskMap.MapsTo t ((pm_op o) ;; p) tm ->
+    Reduces (pm, tm) ((PhaserMap.eval pm t o), (TaskMap.add t p tm))
+  | r_cflow:
+    (** Runs a control-flow operation. *)
     forall t c p q pm tm,
     TaskMap.MapsTo t (CFLOW c;; p) tm ->
-    c_redex c p q ->
-    s_redex (pm, tm) (pm, (TaskMap.add t q tm)).
+    ControlFlow.Reduces c p q ->
+    Reduces (pm, tm) (pm, (TaskMap.add t q tm)).
+
+(** Creates a new state from a given program. *)
 
 Definition load (t:tid) (b:prog) := (PhaserMap.make, TaskMap.add t b TaskMap.make).
+
+(* begin hide *)
 
 (* Naive substitution, does not replace names in newphaser. *)
 
@@ -53,7 +71,7 @@ Fixpoint phid_subst (o_ph:phid) (n_ph:phid) (b:prog) :=
       let rest := subst b' in
       let same := i ;; rest in
       match i with
-        | PmOp mo => 
+        | pm_op mo => 
           match mo with
             | PhaserMap.NEW ph =>
               if PHID.eq_dec o_ph ph
@@ -61,11 +79,11 @@ Fixpoint phid_subst (o_ph:phid) (n_ph:phid) (b:prog) :=
               else same
             | PhaserMap.APP ph o =>
               if PHID.eq_dec o_ph ph
-              then PmOp (PhaserMap.APP n_ph o) ;; rest
+              then pm_op (PhaserMap.APP n_ph o) ;; rest
               else same
           end
-        | Fork t p => Fork t (subst p) ;; rest
-        | CFlow c =>
+        | fork t p => fork t (subst p) ;; rest
+        | c_op c =>
           match c with
             | loop p => LOOP (subst p) ;; rest
             | skip => same
@@ -82,15 +100,15 @@ Fixpoint tid_subst (o_t:tid) (n_t:tid) (b:prog) :=
       let kont := subst b' in
       let same := i ;; kont in
       match i with
-        | NewTid t =>
+        | new_tid t =>
           if TID.eq_dec o_t t
           then b (* no substitution *)
           else same
-        | Fork t p => 
+        | fork t p => 
           if TID.eq_dec o_t t
-          then Fork n_t (subst p) ;; kont
-          else Fork t (subst p) ;; kont
-        | PmOp po =>
+          then fork n_t (subst p) ;; kont
+          else fork t (subst p) ;; kont
+        | pm_op po =>
           match po with
             | PhaserMap.APP p o =>
               match o with
@@ -102,7 +120,7 @@ Fixpoint tid_subst (o_t:tid) (n_t:tid) (b:prog) :=
               end
             | _ => same
           end
-        | CFlow c =>
+        | c_op c =>
           match c with
             | loop p => LOOP (subst p) ;; kont
             | skip => same
@@ -111,3 +129,5 @@ Fixpoint tid_subst (o_t:tid) (n_t:tid) (b:prog) :=
       end
     | END => END
   end.
+
+(* end hide *)

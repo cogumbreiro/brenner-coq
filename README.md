@@ -1,6 +1,13 @@
 Brenner
 =======
 
+The latest version of this project can be found here:
+
+https://gitlab.com/cogumbreiro/brenner-coq
+
+About
+=====
+
 Brenner is a calculus for reasoning about task parallelism and barrier synchronization. This calculus distils the semantics of [phasers](http://habanero.rice.edu/) and unifies the synchronisation patterns of various abstractions such as:
 
 * boolean latch
@@ -8,20 +15,22 @@ Brenner is a calculus for reasoning about task parallelism and barrier synchroni
 * cyclic barrier
 * futures
 * join barriers of the fork/join parallelism
-* pipe line synchronisation (*e.g.*, bounded producer-consumer)
+* pipe line and streaming synchronisation (*e.g.*, bounded producer-consumer)
 
 We use operational semantics to define the formal meaning of each operation and implement our definitions in Coq.
 
-Table of contents:
+Table of contents
+=================
 
- * [Brenner.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Brenner.v) - utility file to import all definitions
- * [Phaser.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Phaser.v) - the phaser abstract data type
- * [PhaserMap.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/PhaserMap.v) - the phaser map abstract data type
- * [Syntax.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Syntax.v) - the syntax of Brenner programs
- * [Semantics.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Semantics.v) - the operational semantics of Brenner programs
- * [ResourceDependency.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/ResourceDependency.v) - extracts the concurrency dependencies in a Brenner state, defines deadlocked states
- * [Vars.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Vars.v) - defines the basic data structures used in the theory (meta-variables, sets, and maps)
- * [Example1.v](https://bitbucket.org/cogumbreiro/brenner-coq/src/master/Example1.v) - formalises the first example of the Brenner chapter
+ * [Phaser.v](src/Phaser.v) - the phaser abstract data type
+ * [PhaserMap.v](src/PhaserMap.v) - the phaser map abstract data type
+ * [Syntax.v](src/Syntax.v) - the syntax of Brenner programs
+ * [Semantics.v](src/Semantics.v) - the operational semantics of Brenner programs
+ * [Vars.v](src/Vars.v) - defines the basic data structures used in the theory (meta-variables, sets, and maps)
+ * [Example1.v](src/Example1.v) - a reduction example
+ * [ResourceDependency.v](src/ResourceDependency.v) - defines the concurrency dependencies in a Brenner state, defines deadlocked states
+ * [Soundness.v](src/Soudness.v) - soundness of the deadlock detection algorithm
+ * [Completeness.v](src/Completeness.v) - completenenss of the deadlock detection algorithm
 
 Syntax
 ======

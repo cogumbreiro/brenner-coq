@@ -29,7 +29,7 @@ Table of contents
  * [Vars.v](src/Vars.v) - defines the basic data structures used in the theory (meta-variables, sets, and maps)
  * [Example1.v](src/Example1.v) - a reduction example
  * [ResourceDependency.v](src/ResourceDependency.v) - defines the concurrency dependencies in a Brenner state, defines deadlocked states
- * [Soundness.v](src/Soudness.v) - soundness of the deadlock detection algorithm
+ * [Soundness.v](src/Soundness.v) - soundness of the deadlock detection algorithm
  * [Completeness.v](src/Completeness.v) - completenenss of the deadlock detection algorithm
 
 Syntax
@@ -80,13 +80,25 @@ AWAIT(p)
 ```
 Programs are composed with a double semi-colon `;;`.
 
-See also:
+See also
+========
 
  * [C implementation of phasers](http://locklessinc.com/articles/phasers/)
  * [Java implementation of phasers](http://docs.oracle.com/javase/7/docs/api/java/util/concurrent/Phaser.html)
 
 Changelog
 =========
+
+ * Improved the documentation.
+ * Renamed the edge-relations to from IEdge and WEdge to Impedes and WaitsOn,
+   respectively.
+ * Simplified the definition of totally deadlocked (now uses the impedes
+   relation directly).
+ * Simplified the results of soundness and completeness.
+ * Refactored out the dependency between soundness and completeness,
+   and moved common lemmas to `DependencyStateImpl.v`.
+ * Moved graph-related code to
+   [Aniceto](https://gitlab.com/cogumbreiro/aniceto-coq).
 
 [Version 1.0](https://bitbucket.org/cogumbreiro/brenner-coq/src/v1.0/):
 

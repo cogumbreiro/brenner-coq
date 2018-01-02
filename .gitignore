@@ -1,7 +1,8 @@
-Makefile
 *.vo
 *.glob
 *.d
 *~
 *\#
 /all.pdf
+/Makefile.conf
+/Makefile

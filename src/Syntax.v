@@ -1,6 +1,8 @@
 Require Import Vars.
 Require Import PhaserMap.
 
+(** * Programs *)
+
 (** Declares the language of a program. *)
 
 Inductive prog :=

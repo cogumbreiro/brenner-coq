@@ -1,3 +1,5 @@
+(** * Dependency state *)
+
 (**
   This module defines a resource dependency state, which is easily mapped
   to a GRG. We define a function to generate a WFG from some

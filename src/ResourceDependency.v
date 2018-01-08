@@ -20,6 +20,8 @@ Set Implicit Arguments.
 Module C := Graphs.Bipartite.Cycle.
 (* end hide *)
 
+(** * Resource dependency state *)
+
 (** We define an event as a pair of phaser ids and a natural (the phase). *)
 
 Module EVT := PairOrderedType PHID Nat_as_OT.

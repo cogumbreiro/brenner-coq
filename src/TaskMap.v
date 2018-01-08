@@ -3,6 +3,8 @@ Require Import Vars.
 
 Import Map_TID.
 
+(** * Task map *)
+
 (** A task map is a map from task identifiers to programs. *)
 
 Definition taskmap := t prog.

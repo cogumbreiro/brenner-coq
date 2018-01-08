@@ -1,17 +1,6 @@
-(**
-  The property of soundness ensures the absense of false positives, that is soundness
-  entails that if there is a cycle [w] in the WFG of a given
-  state [s], then such state is deadlocked.
-  The proof follows two main steps.
-  We divide the task map from state [s] into
-  two disjoint task maps, by selecting the tasks (vertices) in cycle [w].
-  We then show that any state whose task map is composed of the vertices mentioned in cycle [w]
-  is totally deadlocked, which allow us to conclude that state [s] is deadlocked.
-  
- *)
+(** * Soudness *)
 
 (* begin hide *)
-
 Require Import Brenner.ResourceDependency.
 Require Import Brenner.Semantics.
 Require Aniceto.Graphs.FGraph.
@@ -21,9 +10,25 @@ Require Import Brenner.Vars.
 Require Import Brenner.Syntax.
 Require Import Aniceto.Pair.
 Import Map_TID_Extra.
+(* end hide *)
+(**
+  The property of soundness ensures the absense of false positives,
+  that is, soundness entails that if we find a cycle in the WFG of 
+  a given state, then such state is deadlocked.
+  The proof follows by first showing soundness on totally deadlocked states.
+
+ *)
+
+
+(** ** Soundness for totally deadlocked states *)
 
 Section Basic.
+
+  (** Let [s] be a state. *)
+
   Variable s:state.
+
+(* begin hide *)
 
 Lemma tedge_inv:
   forall w t t',
@@ -42,7 +47,7 @@ Proof.
   assumption.
 Qed.
 
-(**
+(*
  **WHY IS THIS LEMMA IMPORTANT?**
 Any task [t] that is in a walk [w] over the WFG of [s] is in state [s].
 From [t] in [w]  there exists an edge $(t_1,t_2)$ in [w] such that $t=t_1$ or $t=t_2$.
@@ -77,12 +82,22 @@ Proof.
       eauto using impeded_by_in_tasks.
     + auto.
 Qed.
-  
+
+(* end hide *)  
+
 Section TotallyDeadlocked.
+
+(**
+ Let [w] be a cycle [w] in the WFG of [s] such that
+ the vertices in [w] constitute the domain of the task map of [s].
+*)
+
 Variable w:t_walk.
 Variable is_cycle: TCycle s w.
 Variable vertex_in_tasks:
   forall t, Graph.In (F.Edge w) t <-> Map_TID.In t (get_tasks s).
+
+(* begin hide *)
 
 Let Hwalk: TWalk s w.
 Proof.
@@ -90,21 +105,6 @@ Proof.
   inversion is_cycle.
   assumption.
 Qed.
-(* end hide *)
-
-(** * Soundness for totally deadlocked states *)
-
-(**
- We show that, given a state [s] and a cycle [w] in the WFG of [s] such that
- the vertices in [w] constitute the domain of the task map of [s], then
- state [s] is totally deadlocked.
- Formally, let [w] be a cycle in the WFG of [s] such that
- [t] is in [w] iff [t] is in [get_tasks s].
-
-
- Since any blocked task [t] is in [s] (by definition of [WaitOn])
- and since all tasks in [s] are vertices of [w], then any blocked task
- [t] is in [w].  *)
 
 Lemma blocked_in_w:
   forall t e,
@@ -127,7 +127,6 @@ Qed.
  [t''] such that [(t',t'')] is in [w], and therefore [t'] is blocked.
  *)
 
-(* begin hide *)
 Lemma blocked_in_walk:
   forall t e,
   WaitOn s t e ->
@@ -168,8 +167,6 @@ Proof.
   destruct Hi as (r, (Hw, _)); eauto.
 Qed.
 
-(* end hide *)
-
 Lemma blocked_to_impeded_by:
   forall t e,
   WaitOn s t e ->
@@ -188,14 +185,7 @@ Proof.
   eauto using in_def, pair_in_right, vertex_to_blocked.
 Qed.
 
-(** A totally deadlocked state has to properties: (i) all tasks in [s]
- are blocked, (ii) all tasks in [s] are (iii) [s] is nonempty.  For
- (i) we have that any task [t] in [s] is also in [w] and task [t] has
- a successor [t'] (because [w] is a cycle) such that [(t,t')] is in
- [w], thus [t] is blocked. We conclude (ii) from lemma
- [blocked_to_impeded_by].  Finally, since [w] is a cycle, which by
- definition have at least one vertex [t] such that [t] is in [w], so 
- task [t] is in [s].  *)
+(* end hide *)
 
 Theorem soundness_totally:
   TotallyDeadlocked s.
@@ -225,14 +215,60 @@ Proof.
     apply List.in_eq.
 Qed.
 
-(* begin hide *)
+(** Recall that:
+
+<<
+TotallyDeadlocked s = 
+  AllTasksWaitOn s /\
+  AllImpededBy s /\
+  (exists t, Map_TID.In t (get_tasks s))
+     : Prop
+>>
+
+First, let us show that [AllTasksWaitOn s] holds.
+   By unfolding this definition we get that:
+   <<
+H : Map_TID.In (elt:=prog) t (get_tasks s)
+______________________________________(1/1)
+exists e : event, WaitOn s t e
+>>
+   We can conclude that [Graph.In (F.Edge w) t] holds by applying
+   hypothesis [vertex_in_tasks].
+   Now, since [t] is in cycle [w], then there must exist some other task [t'] such
+   that succeeds [t] in cycle [w], say [(TEdge s) (t, t2)].
+   We conclude this case by unfolding [TEdge].
+
+Second, we show [AllImpededBy]. By unfolding our goal, we get that:
+<<
+H : WaitOn s t e
+______________________________________(1/1)
+exists t' : tid, ImpededBy s e t'
+>>
+  From [WaitOn s t e] we know that [t] in [get_tasks s],
+  hence [In (F.Edge w) t].
+  Since [w] is a cycle, there is some [t'] such that
+  [(TEdge s) (t, t')].
+  By inversting the latter we get that there exists some event [e']
+  such that [WaitOn s t e'] and [ImpededBy s e t'].
+  However, we know that each task can only wait on one event, thus
+  [e = e'].
+
+ Third, we show that there exists some task [t] such that
+ [Map_TID.In t (get_tasks s))].
+ Since [w] is a cycle, then, by
+   definition, there is at least one vertex [t] such that [w] starts with [t]
+   and [w] ends with [t].
+   Since [w] starts with [t], then there is some task [t'] and a walk [w']
+   such that [w = (t, t2) :: w'], hence [List.In (t, t2) w].
+   We conclude by applying [vertex_in_tasks] to the latter.
+  *)
+
 End TotallyDeadlocked.
 End Basic.
-(* end hide *)
 
-(** * Soundness  for deadlocked  states *)
+(** ** Soundness for deadlocked  states *)
 
-(**
+(*
   Our strategy to prove soudness is to meet conditions required by
   theorem [soundness_totally] from Section ??. To this end, given
   a state [s] and a cycle [w], we partition the task map of state [s]
@@ -255,12 +291,11 @@ Let part := partition split (get_tasks s).
   on the righ-hand side we get the map in which predicate [split] yields false.
 *)
 
-(* begin hide *)
-
 Section Soundness.
-Variable w:t_walk.
-Variable s : state.
+Variable w: t_walk.
+Variable s: state.
 Variable is_cycle: TCycle s w.
+(* begin hide *)
 Let split : tid -> prog -> bool := (fun t (p:prog) => F.mem TID.eq_dec t w).
 
 Let part := Map_TID_Props.partition split (get_tasks s).
@@ -295,8 +330,6 @@ Proof.
   unfold split in *.
   assumption.
 Qed.
-
-(* end hide *)
 
 Let deadlocked_tasks := fst part.
 
@@ -378,8 +411,6 @@ Proof.
   - apply deadlocked_in_right.
 Qed.
 
-(* begin hide *)
-
 Let deadlocked_in:
   forall t,
   (In (F.Edge w) t <-> Map_TID.In t (fst part)).
@@ -387,8 +418,6 @@ Proof.
   intros.
   split; auto using deadlocked_in_left, deadlocked_in_right.
 Qed.
-
-(* end hide *)
 
 (**
   Next, we show (ii), by first establishing that if an edge [e] is in [w] and
@@ -437,7 +466,6 @@ Proof.
   apply in_def with (e:=(t1, t2));
   eauto using pair_in_right.
 Qed.
-(* end hide *)
 
 (**
   Given that any task [t] that is in [w] is in [deadlocked_tasks] and in [get_tasks s],
@@ -539,7 +567,6 @@ Qed.
   to Lemma [cycle_conv] and Lemma [vertex_in_tasks].
   *)
 
-(* begin hide *)
 Let ds_totally_deadlocked :=
   soundness_totally ds w cycle_conv vertex_in_tasks.
 (* end hide *)
@@ -551,6 +578,29 @@ Proof.
   exists (snd part).
   auto.
 Qed.
-(* begin hide *)
+
+(**
+    By unfolding [Deadlocked s] we get
+    <<
+______________________________________(1/1)
+exists tm tm' : Map_TID.t prog,
+  Map_TID_Props.Partition (get_tasks s) tm tm' /\
+  TotallyDeadlocked (get_phasers s, tm)    
+    >>
+
+That is, we need to find a partition of the task map [tm] that is totally
+deadlocked.
+
+Let [part] and [split] be defined as:
+<<
+Let split : [id -> prog -> bool := (fun t (p:prog) => F.mem TID.eq_dec t w).
+
+Let part := Map_TID_Props.partition split (get_tasks s).
+>>
+where [F.mem] is testing the node membership in walk [w]. The result
+of [part] is two task maps. On the left-hand side, we have 
+the task map [fst part] such that [t] is in the domain of [dst part]
+if, and only if [t] is a member of walk [w].
+ *)
+
 End Soundness.
-(* end hide *)

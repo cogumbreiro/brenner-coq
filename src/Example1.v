@@ -1,6 +1,8 @@
 Require Import Brenner.
 Import Syntax.CST.
 
+(** * An example *)
+
 Definition t1 := 1.
 Definition td := 2.
 Definition ph1 := 1.

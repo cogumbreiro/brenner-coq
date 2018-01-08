@@ -4,6 +4,8 @@ Require Import Coq.Structures.OrderedTypeEx.
 Require Import Phaser.
 Require Import Vars.
 
+(** * Phaser map *)
+
 (** A phaser map is a map from phaser identifier to a [phaser] state. *)
 
 Import Map_PHID.

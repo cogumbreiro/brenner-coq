@@ -15,6 +15,8 @@ Require Import Coq.Lists.SetoidList.
 Require Import Coq.Bool.Bool.
 (* end hide *)
 
+(** * Completeness *)
+
 (**
   The property of completeness entails the absense of false negatives,
   that is for any deadlocked state [s] we can exhibit a cycle in the
@@ -29,7 +31,7 @@ Require Import Coq.Bool.Bool.
   our proof.
 *)
 
-(** * Building the WFG *)
+(** ** Building the WFG *)
 
 (**
   Let [WFG_of s g] read as the finite WFG [g] of state [s].

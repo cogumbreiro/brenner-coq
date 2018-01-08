@@ -4,7 +4,7 @@ Require Import Coq.Structures.OrderedTypeEx.
 Require Import Vars.
 
 Import Map_TID.
-
+(** * Phaser *)
 (** A phaser is a map from tasks to phase numbers. *)
 
 Definition phaser := t nat.

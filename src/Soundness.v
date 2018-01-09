@@ -295,18 +295,52 @@ Section Soundness.
 Variable w: t_walk.
 Variable s: state.
 Variable is_cycle: TCycle s w.
-(* begin hide *)
+
+
+(**
+    Our goal is to show that [s] is deadlocked.
+    By unfolding [Deadlocked s] we get
+    <<
+______________________________________(1/1)
+exists tm tm' : Map_TID.t prog,
+  Map_TID_Props.Partition (get_tasks s) tm tm' /\
+  TotallyDeadlocked (get_phasers s, tm)    
+>>
+
+That is, we need to find a partition of the task map [tm] that is totally
+deadlocked. To find such a partition we use
+<<
+Map_TID_Props.partition
+     : forall elt : Type,
+       (Map_TID.key -> elt -> bool) ->
+       Map_TID.t elt -> Map_TID.t elt * Map_TID.t elt
+>>
+which takes a selector function of type [Map_TID.key -> elt -> bool] and
+a task map, and then yields two partitions, on the left side
+are the elements which the selector returned [true] and
+on the right side are the which the selector returned [false].
+
+We want to partition [get_tasks s] according to the members of the walk [w],
+since in a totally deadlocked state all the members of the task
+map are in the cycle and vice versa.
+
+Let [part] and [split] be defined as
+ *)
+
+
 Let split : tid -> prog -> bool := (fun t (p:prog) => F.mem TID.eq_dec t w).
 
 Let part := Map_TID_Props.partition split (get_tasks s).
 
-Let Hpart: Map_TID_Props.Partition (get_tasks s) (fst part) (snd part).
-Proof.
-  apply Map_TID_Props.partition_Partition with (f:=split).
-  auto with *.
-  unfold part.
-  auto.
-Qed.
+(** 
+where [F.mem] is testing the node membership in walk [w]. The result
+of [part] is two task maps. On the left-hand side, we have 
+the task map [fst part] such that [t] is in the domain of [dst part]
+if, and only if [t] is a member of walk [w].
+*)
+
+(** Function [split] returns [true] if, and only if, the vertex
+    is in cycle [w]. *)
 
 Let split_to_vertex:
   forall t e,
@@ -330,6 +364,21 @@ Proof.
   unfold split in *.
   assumption.
 Qed.
+
+(**
+Apply [Map_TID_Props.partition_Partition] shows that
+[part] is indeed a partition of [get_tasks s].
+*)
+
+Let Hpart: Map_TID_Props.Partition (get_tasks s) (fst part) (snd part).
+Proof.
+  apply Map_TID_Props.partition_Partition with (f:=split).
+  auto with *.
+  unfold part.
+  auto.
+Qed.
+
+(** Let [ds] be the state that we want to show to be totally deadlocked. *)
 
 Let deadlocked_tasks := fst part.
 
@@ -427,7 +476,6 @@ Qed.
   impedes over state [ds].
 *)
 
-(* begin hide *)
 Let tid_in_walk:
   forall t,
   Graph.In (F.Edge w) t ->
@@ -569,7 +617,7 @@ Qed.
 
 Let ds_totally_deadlocked :=
   soundness_totally ds w cycle_conv vertex_in_tasks.
-(* end hide *)
+
 Theorem soundness:
   Deadlocked s.
 Proof.
@@ -578,29 +626,5 @@ Proof.
   exists (snd part).
   auto.
 Qed.
-
-(**
-    By unfolding [Deadlocked s] we get
-    <<
-______________________________________(1/1)
-exists tm tm' : Map_TID.t prog,
-  Map_TID_Props.Partition (get_tasks s) tm tm' /\
-  TotallyDeadlocked (get_phasers s, tm)    
-    >>
-
-That is, we need to find a partition of the task map [tm] that is totally
-deadlocked.
-
-Let [part] and [split] be defined as:
-<<
-Let split : [id -> prog -> bool := (fun t (p:prog) => F.mem TID.eq_dec t w).
-
-Let part := Map_TID_Props.partition split (get_tasks s).
->>
-where [F.mem] is testing the node membership in walk [w]. The result
-of [part] is two task maps. On the left-hand side, we have 
-the task map [fst part] such that [t] is in the domain of [dst part]
-if, and only if [t] is a member of walk [w].
- *)
 
 End Soundness.
